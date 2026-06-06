@@ -1,0 +1,24 @@
+# The published package ships only the compiled library (dist/src), declared via
+# the "files" allowlist in package.json. This .npmignore is a second line of
+# defence so source, tests, CI and tooling never end up in the tarball even if
+# the allowlist is loosened.
+
+# Sources & tests
+src/
+test/
+dist/test/
+
+# Tooling & config
+tsconfig.json
+.github/
+.gitignore
+.npmignore
+
+# Build/scratch artifacts
+out/
+dist-artifacts/
+*.log
+.DS_Store
+
+# The full OpenAPI spec is large and only needed for development.
+openapi.json

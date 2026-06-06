@@ -1,0 +1,55 @@
+{
+  "name": "dip-bundestag-cli",
+  "version": "1.0.0",
+  "description": "TypeScript API client and CLI for the Bundestag DIP API (search.dip.bundestag.de)",
+  "type": "module",
+  "bin": {
+    "dip": "dist/src/cli/index.js"
+  },
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist/src",
+    "LICENSING.md",
+    "CONTRIBUTING.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "pretest": "npm run build",
+    "test": "node --test dist/test/*.test.js",
+    "docs": "typedoc src/index.ts --out out",
+    "start": "node dist/src/cli/index.js"
+  },
+  "keywords": [
+    "dip",
+    "bundestag",
+    "parlament",
+    "drucksache",
+    "plenarprotokoll",
+    "germany",
+    "cli",
+    "api-client"
+  ],
+  "author": "Sebastian Schürmann <sebs@2xs.org>",
+  "license": "AGPL-3.0-or-later",
+  "dependencies": {
+    "commander": "15.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.19",
+    "typedoc": "0.28.19",
+    "typescript": "6.0.3"
+  }
+}
