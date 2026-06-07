@@ -45,5 +45,12 @@ export class DipApiError extends DipError {
 /** A transport-level failure (DNS, connection reset, timeout, ...). */
 export class DipNetworkError extends DipError {}
 
+/**
+ * A CLI usage error (bad/missing argument detected after commander parsing, e.g.
+ * an empty `get <id>`). Mapped to the conventional usage exit code 2 so scripts
+ * can distinguish it from a runtime error (1).
+ */
+export class DipUsageError extends DipError {}
+
 /** The response body could not be parsed as the expected JSON shape. */
 export class DipParseError extends DipError {}

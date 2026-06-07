@@ -5,7 +5,7 @@
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import type { CliDeps } from "./io.js";
-import { DipApiError, DipError } from "../client/errors.js";
+import { DipApiError, DipError, DipUsageError } from "../client/errors.js";
 
 /**
  * Apply exitOverride + output redirection to every command in the tree.
@@ -30,8 +30,10 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
     return 0;
   } catch (err) {
     if (err instanceof CommanderError) {
-      // Help/version requests exit 0; genuine parse errors carry their own code.
-      return err.exitCode;
+      // Help/version requests exit 0; genuine parse/usage errors map to the
+      // conventional usage exit code 2 so scripts can tell a usage error apart
+      // from a runtime error (1) or a 404 (4).
+      return err.exitCode === 0 ? 0 : 2;
     }
     if (err instanceof DipApiError) {
       deps.io.err(`Error: ${err.message}`);
@@ -48,6 +50,12 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       // Map a few notable statuses to distinct exit codes for scripting.
       if (err.status === 404) return 4;
       return 1;
+    }
+    if (err instanceof DipUsageError) {
+      // A usage error detected in an action (e.g. empty `get <id>`): exit 2,
+      // matching commander's own usage/parse errors.
+      deps.io.err(`Error: ${err.message}`);
+      return 2;
     }
     if (err instanceof DipError) {
       deps.io.err(`Error: ${err.message}`);

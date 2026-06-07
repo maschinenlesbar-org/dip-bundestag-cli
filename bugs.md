@@ -31,7 +31,8 @@ probed without a key.
 
 ## HIGH
 
-### 1. `--api-key ""` sends a malformed `Authorization: ApiKey ` (trailing space) instead of falling back / erroring
+### 1. `--api-key ""` sends a malformed `Authorization: ApiKey ` (trailing space) instead of falling back / erroring — ✅ FIXED
+**Fix:** `src/cli/shared.ts` `toEngineOptions` now treats a blank/whitespace-only `--api-key` as unset (trims it; only forwards when non-empty), so the client falls back to the default key instead of emitting `Authorization: ApiKey `.
 - Severity: High · Confidence: High
 - Repro:
   ```
@@ -53,7 +54,8 @@ probed without a key.
   nullish. There is no `.trim()`/empty-guard on `--api-key` the way `readEnvApiKey`
   (`src/cli/program.ts:26-31`) has for the env var.
 
-### 2. Repeated `--filter` with the same key silently drops all but the last value (data loss)
+### 2. Repeated `--filter` with the same key silently drops all but the last value (data loss) — ✅ FIXED
+**Fix:** `src/cli/commands/resources.ts` `collectFilter` now accumulates repeated keys into a `string[]` (`FilterMap`) instead of a `Record<string,string>`, and the list action forwards them as repeated query keys, so `--filter f.titel=x --filter f.titel=y` sends both.
 - Severity: High · Confidence: High
 - Repro:
   ```
@@ -75,7 +77,8 @@ probed without a key.
 
 ## MEDIUM
 
-### 3. `--timeout`/`--max-retries`/`--max-response-bytes` accept hex, scientific, and whitespace-padded numbers despite "Expected a non-negative integer"
+### 3. `--timeout`/`--max-retries`/`--max-response-bytes` accept hex, scientific, and whitespace-padded numbers despite "Expected a non-negative integer" — ✅ FIXED
+**Fix:** `src/cli/shared.ts` `parseIntArg` now requires a plain `^\d+$` decimal string (and a safe integer) before calling `Number`, rejecting `0x10`, `1e3`, `0b11`, and whitespace-padded values.
 - Severity: Medium · Confidence: High
 - Repro:
   ```
@@ -92,7 +95,8 @@ probed without a key.
   `0x10`→16, `1e3`→1000, `0b11`→3, and trims surrounding whitespace; all pass
   `Number.isInteger && >= 0`.
 
-### 4. `--timeout ""` / `--max-retries ""` (empty or whitespace-only) silently become `0`
+### 4. `--timeout ""` / `--max-retries ""` (empty or whitespace-only) silently become `0` — ✅ FIXED
+**Fix:** Same `parseIntArg` change in `src/cli/shared.ts`; `""` and `"   "` no longer match `^\d+$`, so they are rejected as usage errors instead of coercing to `0`.
 - Severity: Medium · Confidence: High
 - Repro:
   ```
@@ -108,7 +112,8 @@ probed without a key.
   `Number("  ")` both return `0`, which `Number.isInteger` accepts. (Verified:
   `node -e 'console.log(Number("  "))'` → `0`.)
 
-### 5. A successful empty/204 response is reported as a JSON parse error (exit 1) instead of success
+### 5. A successful empty/204 response is reported as a JSON parse error (exit 1) instead of success — ✅ FIXED
+**Fix:** `src/client/engine.ts` `getJson` now returns `null` for a `204` or empty/whitespace-only body instead of calling `JSON.parse("")` and throwing `DipParseError`.
 - Severity: Medium · Confidence: High
 - Repro (mock returns `204 No Content`, empty body, `content-type: application/json`):
   ```
@@ -125,7 +130,8 @@ probed without a key.
   an empty string throws, surfacing as `DipParseError`. No special-casing of `204`/empty
   body.
 
-### 6. `<resource> get ""` (empty id) hits the collection endpoint instead of being rejected
+### 6. `<resource> get ""` (empty id) hits the collection endpoint instead of being rejected — ✅ FIXED
+**Fix:** `src/cli/commands/resources.ts` `get` action now rejects an empty/whitespace-only id with a `DipUsageError` (exit 2) before any request, instead of building `.../vorgang/`.
 - Severity: Medium · Confidence: High
 - Repro:
   ```
@@ -149,7 +155,8 @@ probed without a key.
 
 ## LOW
 
-### 7. `-o, --output <file>` is advertised but does nothing (dead option)
+### 7. `-o, --output <file>` is advertised but does nothing (dead option) — ✅ FIXED
+**Fix:** `src/cli/shared.ts` `renderJson` now honours `--output`: when set, it writes the JSON bytes to the file and prints a byte-count confirmation to stderr (keeping stdout clean), instead of always printing to stdout. The option now has a real consumer for every command.
 - Severity: Low · Confidence: High
 - Repro:
   ```
@@ -165,7 +172,8 @@ probed without a key.
   `src/cli/commands/resources.ts` only ever calls `renderJson`. The option declared at
   `src/cli/program.ts:56` has no consumer.
 
-### 8. README global-options table omits `-o, --output`
+### 8. README global-options table omits `-o, --output` — ✅ FIXED
+**Fix:** Added a `-o, --output <file>` row to the Global options table in `README.md`.
 - Severity: Low · Confidence: High
 - Repro: compare `README.md` "Global options" table (lines 58-66) with `--help` output.
 - Expected: documentation matches `--help`.
@@ -173,7 +181,8 @@ probed without a key.
   bug #7, the option is both undocumented and non-functional.)
 - Root cause: `README.md:58-66` vs `src/cli/program.ts:56`.
 
-### 9. `--filter` validation error does not show help, but commander's own option errors do (inconsistent UX)
+### 9. `--filter` validation error does not show help, but commander's own option errors do (inconsistent UX) — ✅ FIXED
+**Fix:** `src/cli/commands/resources.ts` `collectFilter` now throws commander's `InvalidArgumentError` (not a bare `DipError`), so a malformed `--filter` flows through commander's parse-error path and `showHelpAfterError()` displays the command help, matching unknown-option behaviour.
 - Severity: Low · Confidence: High
 - Repro:
   ```
@@ -187,7 +196,8 @@ probed without a key.
   which is caught by `run()` (`src/cli/run.ts:52-54`) and printed without help.
   `showHelpAfterError` (`src/cli/program.ts:57`) only fires for `CommanderError`s.
 
-### 10. Empty `--cursor` sends a stray `cursor=` query parameter
+### 10. Empty `--cursor` sends a stray `cursor=` query parameter — ✅ FIXED
+**Fix:** `src/cli/commands/resources.ts` list action now only sets `cursor` when the value is non-empty, so `--cursor ''` is omitted from the query.
 - Severity: Low · Confidence: High
 - Repro:
   ```
@@ -201,7 +211,8 @@ probed without a key.
 - Root cause: `src/cli/commands/resources.ts:71` sets `params["cursor"]` whenever
   `opts["cursor"] !== undefined`; `""` is defined, so an empty cursor is forwarded.
 
-### 11. Empty `--id ""` sends a stray empty `f.id=` filter
+### 11. Empty `--id ""` sends a stray empty `f.id=` filter — ✅ FIXED
+**Fix:** `src/cli/commands/resources.ts` list action now filters out empty `--id` values (and empty `f.id` from `--filter`) before merging, so no `f.id=` is emitted.
 - Severity: Low · Confidence: High
 - Repro:
   ```
@@ -212,7 +223,8 @@ probed without a key.
 - Root cause: `collect` (`src/cli/commands/resources.ts:43-45`) accumulates any string,
   including `""`; the merge at lines 75-79 forwards it verbatim.
 
-### 12. `--user-agent ""` sends an empty `User-Agent` header instead of falling back to the default
+### 12. `--user-agent ""` sends an empty `User-Agent` header instead of falling back to the default — ✅ FIXED
+**Fix:** `src/cli/shared.ts` `toEngineOptions` now only forwards `userAgent` when it is non-blank, so a blank `--user-agent` falls back to the engine default (`dip-bundestag-cli`).
 - Severity: Low · Confidence: High
 - Repro:
   ```
@@ -225,7 +237,8 @@ probed without a key.
   passes), and `src/client/engine.ts:77` `this.userAgent = options.userAgent ?? DEFAULT`
   uses `??`, which does not treat `""` as nullish.
 
-### 13. `assertEnum` is dead code; resource names are validated by commander, not this helper
+### 13. `assertEnum` is dead code; resource names are validated by commander, not this helper — ✅ FIXED
+**Fix:** Removed the unused `assertEnum` export (and the now-unused `DipError` import) from `src/cli/shared.ts`.
 - Severity: Low · Confidence: Medium
 - Repro: `grep -rn assertEnum src/` shows it is exported (`src/cli/shared.ts:25-34`) but
   never called.
@@ -235,7 +248,8 @@ probed without a key.
   Harmless but misleading dead code.
 - Root cause: `src/cli/shared.ts:25-34` defined; no import/usage anywhere in `src/`.
 
-### 14. Exit codes for usage errors are undocumented / under-specified vs README
+### 14. Exit codes for usage errors are undocumented / under-specified vs README — ✅ FIXED
+**Fix:** `src/cli/run.ts` now maps all commander parse/usage errors (non-zero `CommanderError`) and the new `DipUsageError` (e.g. empty `get <id>`) to exit code `2`, distinct from runtime errors (`1`) and `404` (`4`); help/version stay `0`. Added a `DipUsageError` class in `src/client/errors.ts` and documented the `2` code in `README.md`.
 - Severity: Low · Confidence: Medium
 - Repro:
   ```

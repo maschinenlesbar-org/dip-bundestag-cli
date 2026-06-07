@@ -4,33 +4,25 @@
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
-import { DipError } from "../client/errors.js";
 import type { RawResponse } from "../client/engine.js";
 import type { DipClientOptions } from "../client/client.js";
 
-/** commander value-parser: a non-negative integer. */
+/**
+ * commander value-parser: a non-negative integer in plain decimal notation.
+ *
+ * Deliberately strict — Number() would happily coerce "0x10" (16), "1e3" (1000),
+ * "0b11" (3), whitespace-padded values, and "" / "  " (both 0). We only accept an
+ * unpadded run of ASCII digits so the "non-negative integer" promise holds.
+ */
 export function parseIntArg(value: string): number {
+  if (!/^\d+$/.test(value)) {
+    throw new InvalidArgumentError("Expected a non-negative integer.");
+  }
   const n = Number(value);
-  if (!Number.isInteger(n) || n < 0) {
+  if (!Number.isSafeInteger(n)) {
     throw new InvalidArgumentError("Expected a non-negative integer.");
   }
   return n;
-}
-
-/**
- * Validate a positional argument against an allowed set (commander does not
- * support .choices() on positional args). Throws a DipError so run() prints a
- * clear message and exits 1.
- */
-export function assertEnum<T extends string>(
-  value: string,
-  allowed: readonly T[],
-  argName: string,
-): T {
-  if (!(allowed as readonly string[]).includes(value)) {
-    throw new DipError(`Invalid ${argName} "${value}". Expected one of: ${allowed.join(", ")}.`);
-  }
-  return value as T;
 }
 
 export interface GlobalOptions {
@@ -48,18 +40,37 @@ export interface GlobalOptions {
 export function toEngineOptions(global: GlobalOptions): DipClientOptions {
   const options: DipClientOptions = {};
   if (global.baseUrl !== undefined) options.baseUrl = global.baseUrl;
-  if (global.apiKey !== undefined) options.apiKey = global.apiKey;
+  // A blank/whitespace-only --api-key is treated as unset (mirroring the
+  // DIP_API_KEY handling in readEnvApiKey) so it never produces a malformed
+  // `Authorization: ApiKey ` header; the client falls back to the default key.
+  if (global.apiKey !== undefined && global.apiKey.trim().length > 0) {
+    options.apiKey = global.apiKey.trim();
+  }
   if (global.timeout !== undefined) options.timeoutMs = global.timeout;
-  if (global.userAgent !== undefined) options.userAgent = global.userAgent;
+  // Likewise, a blank --user-agent falls back to the engine's default UA rather
+  // than sending an empty User-Agent header.
+  if (global.userAgent !== undefined && global.userAgent.trim().length > 0) {
+    options.userAgent = global.userAgent;
+  }
   if (global.maxRetries !== undefined) options.maxRetries = global.maxRetries;
   if (global.maxResponseBytes !== undefined) options.maxResponseBytes = global.maxResponseBytes;
   return options;
 }
 
-/** Render a JSON value to stdout, pretty by default, compact with --compact. */
+/**
+ * Render a JSON value, pretty by default and compact with --compact. Writes to
+ * the file given by --output (with a short stderr confirmation so stdout stays
+ * clean for piping), or to stdout otherwise.
+ */
 export function renderJson(deps: CliDeps, global: GlobalOptions, value: unknown): void {
   const text = global.compact ? JSON.stringify(value) : JSON.stringify(value, null, 2);
-  deps.io.out(text);
+  if (global.output) {
+    const data = Buffer.from(text + "\n", "utf8");
+    deps.io.writeFile(global.output, data);
+    deps.io.err(`Wrote ${data.length} bytes to ${global.output}`);
+  } else {
+    deps.io.out(text);
+  }
 }
 
 /**

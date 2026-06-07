@@ -159,6 +159,11 @@ export class RequestEngine {
   async getJson<T>(path: string, query?: QueryParams): Promise<T> {
     const res = await this.request("GET", path, { query, accept: "application/json" });
     const text = res.data.toString("utf8");
+    // A successful response with an empty body (e.g. 204 No Content) is not a
+    // parse failure — treat it as `null` rather than surfacing a DipParseError.
+    if (res.status === 204 || text.trim().length === 0) {
+      return null as T;
+    }
     try {
       return JSON.parse(text) as T;
     } catch (cause) {

@@ -64,6 +64,7 @@ endpoints are cursor-paginated: pass the returned `cursor` back via `--cursor`.
 | `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`) |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 | `--compact` | Print JSON on a single line |
+| `-o, --output <file>` | Write output to this file instead of stdout |
 
 Global options go **before** the command, e.g. `dip --api-key $DIP_API_KEY vorgang list`.
 
@@ -104,7 +105,7 @@ dip vorgang list --cursor "AoIIP4AAACg..."
 dip person list --filter f.titel=Mustermann
 ```
 
-Exit codes: `0` success, `4` on a `404` from the API, `1` for any other error (incl. `401` when the key is missing/expired), non-zero for usage errors.
+Exit codes: `0` success, `2` for usage errors (bad/missing arguments, unknown options), `4` on a `404` from the API, `1` for any other runtime error (incl. `401` when the key is missing/expired).
 
 ---
 
