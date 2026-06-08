@@ -12,11 +12,10 @@ on:
       - 'v*'
   workflow_dispatch:
 
-# Least-privilege token plus the Pages/OIDC scopes the deploy needs.
+# Least privilege at the workflow level: only read. The Pages/OIDC write scopes
+# are granted per-job, to the deploy job that actually needs them.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 # Allow one in-flight Pages deployment at a time; don't cancel a running one.
 concurrency:
@@ -26,14 +25,19 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
 
       - name: Use Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22.x
-          cache: 'npm'
+          # No cache restoration on tag-triggered runs (cache-poisoning hardening).
+          package-manager-cache: false
 
       - name: Install
         run: npm ci
@@ -42,17 +46,21 @@ jobs:
         run: npm run docs
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: ./out
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    # Scopes the Pages deploy needs, granted only to this job.
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0

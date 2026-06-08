@@ -4,3 +4,6 @@ out/
 dist-artifacts/
 *.log
 .DS_Store
+
+# Local working plan (not part of the published project)
+plan.md

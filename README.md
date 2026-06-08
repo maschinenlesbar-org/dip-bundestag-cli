@@ -12,6 +12,9 @@ and Personen of the German Bundestag and Bundesrat.
 - **Auth handled** — sends `Authorization: ApiKey <key>`; supply your key via `--api-key` / `DIP_API_KEY`.
 - **Well tested** — unit tests on Node's built-in test runner (`node --test`), every HTTP response mocked.
 
+New to DIP, or terms like *Vorgang*, *Drucksache*, *Wahlperiode* or *Vorgangstyp*?
+See **[GLOSSARY.md](GLOSSARY.md)** for the domain concepts and the project's own vocabulary.
+
 ## Authentication
 
 DIP requires an API key, sent as `Authorization: ApiKey <key>`.
@@ -112,7 +115,7 @@ Exit codes: `0` success, `2` for usage errors (bad/missing arguments, unknown op
 ## Library usage
 
 ```ts
-import { DipClient, DipApiError } from "dip-bundestag-cli";
+import { DipClient, DipApiError } from "@maschinenlesbar.org/dip-bundestag-cli";
 
 const client = new DipClient({ apiKey: process.env.DIP_API_KEY });
 
