@@ -35,11 +35,13 @@ is the chamber representing the sixteen federal states (Länder). DIP covers
 materials from both bodies.
 
 **API key.** DIP requires an API key, sent as the HTTP header
-`Authorization: ApiKey <key>`. The Bundestag publishes a shared, rate-limited key
-for light testing (bundled as `DEFAULT_API_KEY`, but the last published value
-expired 2026-05-31); request a personal key from
-`parlamentsdokumentation@bundestag.de` and pass it via `--api-key` or the
-`DIP_API_KEY` environment variable.
+`Authorization: ApiKey <key>`. The key is **not bundled** — supply it via
+`--api-key` or the `DIP_API_KEY` environment variable, else the header is omitted
+and the API returns `401`. Request a personal key from
+`parlamentsdokumentation@bundestag.de`. The Bundestag also publishes a shared,
+rate-limited key (rotates yearly); for CI / live testing it can be fetched
+out-of-band (never from the CLI) via `scripts/fetch-api-key.mjs`
+(`npm run fetch-key`).
 
 ---
 

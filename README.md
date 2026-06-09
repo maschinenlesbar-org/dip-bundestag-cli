@@ -19,12 +19,24 @@ See **[GLOSSARY.md](GLOSSARY.md)** for the domain concepts and the project's own
 
 DIP requires an API key, sent as `Authorization: ApiKey <key>`.
 
-> **A key is required.** The client ships the Bundestag's published **shared** key
-> as a last-resort fallback, but that key **expired 2026-05-31**, so the
-> zero-config path now returns `401`. Request a **personal** key from
-> `parlamentsdokumentation@bundestag.de` and pass it via `--api-key` or the
-> `DIP_API_KEY` environment variable. On a `401` the CLI prints an explicit hint
-> telling you the bundled key is expired and how to supply your own.
+> **A key is required and is _not_ bundled.** Supply it via `--api-key` or the
+> `DIP_API_KEY` environment variable; with no key the header is omitted and the
+> API returns `401`. Request a **personal** key from
+> `parlamentsdokumentation@bundestag.de`. On a `401` the CLI prints an explicit
+> hint telling you no key was sent and how to supply one.
+>
+> The Bundestag also publishes a **shared** key (rate-limited, rotates yearly).
+> For CI or local live testing — never from the CLI/production — you can fetch
+> the current shared key out-of-band with the bundled script:
+>
+> ```bash
+> npm run fetch-key                                    # prints the current shared key
+> DIP_API_KEY="$(npm run --silent fetch-key)" dip vorgang list
+> ```
+>
+> The script scrapes the key from the upstream
+> [bundesAPI README](https://github.com/bundesAPI/dip-bundestag-api); it is a
+> dev/CI tool only and is not part of the published package.
 
 Credential safety: the `Authorization` header (and `X-API-Key` / `Cookie`) is
 **stripped on any redirect that crosses origins**, so your API key is never sent

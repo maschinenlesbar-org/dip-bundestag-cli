@@ -32,12 +32,13 @@ function makeCli(
   return { deps, out, err, files, mt };
 }
 
-test("vorgang list sends the default Authorization and path", async () => {
+test("vorgang list sends no Authorization when no key is configured", async () => {
   const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
   const code = await run(["vorgang", "list"], cli.deps);
   assert.equal(code, 0);
   const req = cli.mt.last();
-  assert.match(String(req.headers?.["Authorization"]), /^ApiKey /);
+  // No key is bundled: without --api-key/DIP_API_KEY the header is omitted.
+  assert.equal(req.headers?.["Authorization"], undefined);
   assert.equal(new URL(req.url).pathname, `${API}/vorgang`);
 });
 
@@ -77,13 +78,13 @@ test("a 404 from the API maps to exit code 4", async () => {
   assert.equal(code, 4);
 });
 
-test("a 401 exits 1 and prints an actionable expired-key message", async () => {
+test("a 401 exits 1 and prints an actionable no-key message", async () => {
   const cli = makeCli(() => jsonResponse({ message: "key required" }, 401));
   const code = await run(["vorgang", "list"], cli.deps);
   assert.equal(code, 1);
   const text = cli.err.join("\n");
   assert.match(text, /401/);
-  assert.match(text, /expired/i);
+  assert.match(text, /no api key/i);
   assert.match(text, /--api-key|DIP_API_KEY/);
   assert.match(text, /parlamentsdokumentation@bundestag\.de/);
 });

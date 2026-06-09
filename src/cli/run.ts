@@ -37,13 +37,13 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
     }
     if (err instanceof DipApiError) {
       deps.io.err(`Error: ${err.message}`);
-      // A 401 is almost always a key problem. The bundled default key is the
-      // Bundestag's public shared key, which is now expired, so point the user at
-      // how to supply a working one rather than leaving them with a bare 401.
+      // A 401 is almost always a key problem. No key is bundled, so the request
+      // likely went out with no Authorization header; point the user at how to
+      // supply one rather than leaving them with a bare 401.
       if (err.status === 401) {
         deps.io.err(
-          "Authentication failed (401). The bundled shared API key is expired. " +
-            "Pass --api-key <key> or set DIP_API_KEY. Request a personal key from " +
+          "Authentication failed (401). No API key was sent. Pass --api-key <key> " +
+            "or set DIP_API_KEY. Request a personal key from " +
             "parlamentsdokumentation@bundestag.de.",
         );
       }

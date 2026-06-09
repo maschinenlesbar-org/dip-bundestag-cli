@@ -30,7 +30,8 @@
     "pretest": "npm run build",
     "test": "node --test dist/test/*.test.js",
     "docs": "typedoc src/index.ts --out out",
-    "start": "node dist/src/cli/index.js"
+    "start": "node dist/src/cli/index.js",
+    "fetch-key": "node scripts/fetch-api-key.mjs"
   },
   "keywords": [
     "dip",

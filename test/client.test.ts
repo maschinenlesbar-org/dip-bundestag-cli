@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DipClient, DEFAULT_API_KEY } from "../src/client/client.js";
+import { DipClient } from "../src/client/client.js";
 import { DipApiError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, constantJson } from "./helpers.js";
 
@@ -10,17 +10,23 @@ function clientWith(mt: ReturnType<typeof makeMockTransport>, apiKey?: string): 
 
 const API = "/api/v1";
 
-test("list sends Authorization: ApiKey and the resource path", async () => {
+test("list sends Authorization: ApiKey and the resource path when a key is set", async () => {
   const mt = constantJson({ numFound: 0, documents: [] });
-  await clientWith(mt).vorgaenge.list({ "f.titel": "Klima" });
+  await clientWith(mt, "test-key").vorgaenge.list({ "f.titel": "Klima" });
   const req = mt.last();
-  assert.equal(req.headers?.["Authorization"], `ApiKey ${DEFAULT_API_KEY}`);
+  assert.equal(req.headers?.["Authorization"], "ApiKey test-key");
   const url = new URL(req.url);
   assert.equal(url.pathname, `${API}/vorgang`);
   assert.equal(url.searchParams.get("f.titel"), "Klima");
 });
 
-test("a custom apiKey overrides the Authorization header", async () => {
+test("no Authorization header is sent when no key is supplied (no bundled default)", async () => {
+  const mt = constantJson({ numFound: 0, documents: [] });
+  await clientWith(mt).vorgaenge.list();
+  assert.equal(mt.last().headers?.["Authorization"], undefined);
+});
+
+test("a custom apiKey sets the Authorization header", async () => {
   const mt = constantJson({ numFound: 0, documents: [] });
   await clientWith(mt, "MYKEY").drucksachen.list();
   assert.equal(mt.last().headers?.["Authorization"], "ApiKey MYKEY");

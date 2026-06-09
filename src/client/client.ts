@@ -2,10 +2,12 @@
 // (https://search.dip.bundestag.de/api/v1), the federal parliament's
 // documentation and information system for parliamentary materials.
 //
-// Auth: an API key sent as `Authorization: ApiKey <key>`. The Bundestag
-// publishes a shared key for testing (see DEFAULT_API_KEY); for anything beyond
-// light use, request your own from parlamentsdokumentation@bundestag.de and pass
-// it via `apiKey` (CLI: `--api-key` / `DIP_API_KEY`).
+// Auth: an API key sent as `Authorization: ApiKey <key>`. No key is bundled with
+// this client — pass it via `apiKey` (CLI: `--api-key` / `DIP_API_KEY`). When no
+// key is supplied the header is omitted and the API answers 401. The Bundestag
+// publishes a shared key (rate-limited, rotates yearly); request a personal key
+// from parlamentsdokumentation@bundestag.de. For CI / live testing the shared
+// key can be fetched out-of-band via scripts/fetch-api-key.mjs.
 //
 //   client.vorgaenge.list({ "f.titel": "Klimaschutz" })
 //   client.drucksachen.get("123456")
@@ -17,16 +19,13 @@ import type { ListResult, Document } from "./types.js";
 const API = "/api/v1";
 const enc = encodeURIComponent;
 
-/**
- * The Bundestag's publicly-documented shared API key. It is rate-limited and
- * rotates roughly yearly (the last published value expired 2026-05-31), so set
- * your own via `apiKey` for reliable use.
- */
-export const DEFAULT_API_KEY = "OSOegLs.PR2lwJ1dwCeje9vTj7FPOt3hvpYKtwKkhw";
-
 /** Options for the DIP client (engine options plus the API key). */
 export interface DipClientOptions extends EngineOptions {
-  /** Overrides the default `Authorization: ApiKey` value. */
+  /**
+   * The DIP API key, sent as `Authorization: ApiKey <key>`. No key is bundled;
+   * when omitted (or blank) the header is not sent. Obtain a key from the
+   * Bundestag, or fetch the shared key via scripts/fetch-api-key.mjs.
+   */
   apiKey?: string;
 }
 
@@ -62,10 +61,12 @@ export class DipClient {
 
   constructor(options: DipClientOptions = {}) {
     const { apiKey, ...engineOptions } = options;
+    // Only send Authorization when a non-blank key was supplied; never default one.
+    const key = apiKey?.trim() ? apiKey : undefined;
     this.engine = new RequestEngine({
       ...engineOptions,
       defaultHeaders: {
-        Authorization: `ApiKey ${apiKey ?? DEFAULT_API_KEY}`,
+        ...(key ? { Authorization: `ApiKey ${key}` } : {}),
         ...engineOptions.defaultHeaders,
       },
     });
