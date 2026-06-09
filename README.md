@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/maschinenlesbar-org/dip-bundestag-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/maschinenlesbar-org/dip-bundestag-cli/actions/workflows/ci.yml)
 [![Release](https://github.com/maschinenlesbar-org/dip-bundestag-cli/actions/workflows/release.yml/badge.svg)](https://github.com/maschinenlesbar-org/dip-bundestag-cli/actions/workflows/release.yml)
-[![GitHub release](https://img.shields.io/github/v/release/maschinenlesbar-org/dip-bundestag-cli)](https://github.com/maschinenlesbar-org/dip-bundestag-cli/releases/latest)
 [![npm](https://img.shields.io/npm/v/@maschinenlesbar.org/dip-bundestag-cli)](https://www.npmjs.com/package/@maschinenlesbar.org/dip-bundestag-cli)
 
 Browse Germany's **Bundestag parliamentary record** from your terminal. `dip` is
