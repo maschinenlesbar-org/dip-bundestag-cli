@@ -160,31 +160,6 @@ any other runtime error (including `401` when the key is missing/expired).
 
 ---
 
-## Project / technical terms
-
-**API client.** [`DipClient`](src/client/client.ts) — the typed,
-resource-grouped wrapper over the API. Usable as a library independently of the
-CLI. Each resource is a generic **ResourceGroup** with `.list(params)` and
-`.get(id)`.
-
-**ListResult.** The cursor-paginated list envelope returned by `list`:
-`{ numFound, documents, cursor? }` ([`types.ts`](src/client/types.ts)).
-
-**Document.** A single resource document, typed as a faithful raw `JsonObject`.
-
-**Transport.** A single function `(HttpRequest) => Promise<HttpResponse>`
-([`http.ts`](src/client/http.ts)). The default uses Node's built-in
-`http`/`https`; tests inject a mock. This is the only HTTP seam.
-
-**Request engine.** [`RequestEngine`](src/client/engine.ts) — builds URLs,
-serialises queries, applies retry/backoff, follows redirects, decodes
-JSON/raw responses and maps errors. Sits between the client's resource methods
-and the transport.
-
-**RawResponse.** The result of a raw request: `{ data: Buffer, contentType,
-status }` — raw bytes, never lossily decoded.
-
-**CliDeps / CliIO.** The dependency-injection seam for the CLI
-([`io.ts`](src/cli/io.ts)): a client factory plus an I/O object
-(`out`/`err`/`writeFile`/`outBinary`). Lets the whole CLI run in tests with a
-mocked client and captured output — no subprocess.
+> **Library & internals.** Terms for the TypeScript client and its internals —
+> `DipClient`, resource groups, the request engine, transport, retry/backoff,
+> error types, query builder — now live in **[DEVELOPING.md](DEVELOPING.md)**.

@@ -1,220 +1,245 @@
 # dip-bundestag-cli
 
-A TypeScript **API client** and **command-line interface** for the
+Browse Germany's **Bundestag parliamentary record** from your terminal. `dip` is
+a command-line tool over the
 [Bundestag DIP API](https://dip.bundestag.de/über-dip/hilfe/api)
-(`search.dip.bundestag.de/api/v1`) — the **Dokumentations- und Informationssystem
-für Parlamentsmaterialien**: Vorgänge, Drucksachen, Plenarprotokolle, Aktivitäten
-and Personen of the German Bundestag and Bundesrat.
+(`search.dip.bundestag.de/api/v1`): search procedures, printed papers, plenary
+protocols, activities and people — as clean JSON you can pipe straight into
+[`jq`](https://jqlang.github.io/jq/).
 
-- **Zero runtime HTTP dependencies** — built on Node's built-in `http`/`https` (no axios, no fetch polyfill).
-- **One small dependency** for the CLI: [`commander`](https://github.com/tj/commander.js).
-- **Strongly typed** — typed list envelope; documents exposed as faithful `JsonObject`s.
-- **Auth handled** — sends `Authorization: ApiKey <key>`; supply your key via `--api-key` / `DIP_API_KEY`.
-- **Well tested** — unit tests on Node's built-in test runner (`node --test`), every HTTP response mocked.
+- **All eight DIP resources in one command** — Vorgänge, Drucksachen,
+  Plenarprotokolle and more, each with `list` and `get`.
+- **Clean JSON output** — pretty-printed by default, `--compact` for
+  one-line/scripting, `-o <file>` to write directly to disk.
+- **Cursor pagination built in** — pass the returned `cursor` back via
+  `--cursor` to walk large result sets.
+- **Flexible filtering** — pass any DIP `f.*` filter verbatim via
+  `--filter key=value`; `--id` is shorthand for the repeatable `f.id` filter.
 
-New to DIP, or terms like *Vorgang*, *Drucksache*, *Wahlperiode* or *Vorgangstyp*?
-See **[GLOSSARY.md](GLOSSARY.md)** for the domain concepts and the project's own vocabulary.
-
-## Authentication
-
-DIP requires an API key, sent as `Authorization: ApiKey <key>`.
-
-> **A key is required and is _not_ bundled.** Supply it via `--api-key` or the
-> `DIP_API_KEY` environment variable; with no key the header is omitted and the
-> API returns `401`. Request a **personal** key from
-> `parlamentsdokumentation@bundestag.de`. On a `401` the CLI prints an explicit
-> hint telling you no key was sent and how to supply one.
->
-> The Bundestag also publishes a **shared** key (rate-limited, rotates yearly).
-> For CI or local live testing — never from the CLI/production — you can fetch
-> the current shared key out-of-band with the bundled script:
->
-> ```bash
-> npm run fetch-key                                    # prints the current shared key
-> DIP_API_KEY="$(npm run --silent fetch-key)" dip vorgang list
-> ```
->
-> The script scrapes the key from the upstream
-> [bundesAPI README](https://github.com/bundesAPI/dip-bundestag-api); it is a
-> dev/CI tool only and is not part of the published package.
-
-Credential safety: the `Authorization` header (and `X-API-Key` / `Cookie`) is
-**stripped on any redirect that crosses origins**, so your API key is never sent
-to a host other than the one you targeted. Same-origin redirects keep it.
-
-## Requirements
-
-- Node.js **>= 20** (uses the stable built-in test runner, ESM and top-level `await`).
+> Want to use this as a TypeScript library or understand how it's built?
+> See **[DEVELOPING.md](DEVELOPING.md)**.
 
 ## Install
 
 ```bash
-npm install
-npm run build        # compiles TypeScript to dist/
+npm i -g @maschinenlesbar.org/dip-bundestag-cli
 ```
 
-Run the CLI without a global install:
+This installs the **`dip`** command. Requires **Node.js 20+**.
+
+Check it works:
 
 ```bash
-node dist/src/cli/index.js --help
-# or, after `npm link` / global install:
 dip --help
 ```
 
----
+## API key
 
-## CLI usage
+**DIP requires an API key** — it is not bundled. Request a personal key free of
+charge from `parlamentsdokumentation@bundestag.de`, then export it:
 
-Every command prints pretty JSON to stdout (`--compact` for a single line). List
-endpoints are cursor-paginated: pass the returned `cursor` back via `--cursor`.
-
-### Global options
-
-| Option | Description |
-| --- | --- |
-| `--base-url <url>` | API base URL (default `https://search.dip.bundestag.de`) |
-| `--api-key <key>` | DIP API key (env `DIP_API_KEY`) |
-| `--timeout <ms>` | Per-request timeout (default `30000`) |
-| `--user-agent <ua>` | `User-Agent` header value |
-| `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`) |
-| `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
-| `--compact` | Print JSON on a single line |
-| `-o, --output <file>` | Write output to this file instead of stdout |
-
-Global options go **before** the command, e.g. `dip --api-key $DIP_API_KEY vorgang list`.
-
-### Commands
-
-```text
-<resource> list [--cursor <c>] [--id <id> ...] [--filter key=value ...]
-<resource> get <id>
-
-resources: vorgang | vorgangsposition | drucksache | drucksache-text
-           plenarprotokoll | plenarprotokoll-text | aktivitaet | person
+```bash
+export DIP_API_KEY=your-personal-key
 ```
 
-`--filter` passes a raw DIP filter (e.g. `f.titel=Klima`, `f.datum.start=2024-01-01`);
-values may themselves contain `=` (only the first `=` splits key from value).
-`--id` is shorthand for the repeatable `f.id` filter; if you pass both `--id` and
-`--filter f.id=...`, the values are **merged** into a single `f.id` list (neither
-silently wins).
+Or pass it per-invocation (it is a global option, so it works **before or after**
+the command):
 
-`DIP_API_KEY` is read from the environment (trimmed; a blank value is treated as
-unset). Precedence is `--api-key` > `DIP_API_KEY` > the (expired) bundled default.
+```bash
+dip --api-key your-personal-key vorgang list
+```
 
-### Examples
+Precedence is `--api-key` > `DIP_API_KEY` env var > built-in default (which is
+expired — without your own key, requests return `401`). On a `401` the CLI
+prints a plain-language hint with the address to request a key.
+
+## Quickstart
 
 ```bash
 export DIP_API_KEY=your-personal-key
 
-# Procedures matching a title
+# Procedures matching a title keyword
 dip vorgang list --filter f.titel=Klimaschutz
 
-# One printed paper by id
-dip drucksache get 123456
+# How many matched?
+dip vorgang list --filter f.titel=Klimaschutz | jq '.numFound'
 
-# Next page using a cursor from a previous response
-dip vorgang list --cursor "AoIIP4AAACg..."
+# Fetch one procedure by id
+dip vorgang get 282486
 
-# Members named in an activity filter
-dip person list --filter f.titel=Mustermann
+# Full text of a printed paper
+dip drucksache-text list --filter f.titel=Haushaltsgesetz --filter f.wahlperiode=20 \
+  | jq -r '.documents[0].text'
 ```
 
-Exit codes: `0` success, `2` for usage errors (bad/missing arguments, unknown options), `4` on a `404` from the API, `1` for any other runtime error (incl. `401` when the key is missing/expired).
+## Commands
 
----
+Every resource follows the same two-subcommand pattern:
 
-## Library usage
-
-```ts
-import { DipClient, DipApiError } from "@maschinenlesbar.org/dip-bundestag-cli";
-
-const client = new DipClient({ apiKey: process.env.DIP_API_KEY });
-
-const page = await client.vorgaenge.list({ "f.titel": "Klimaschutz" });
-console.log(page.numFound, page.documents.length);
-const next = page.cursor ? await client.vorgaenge.list({ cursor: page.cursor }) : undefined;
-
-const paper = await client.drucksachen.get("123456");
-
-try {
-  await client.vorgaenge.list();
-} catch (err) {
-  if (err instanceof DipApiError) console.error(err.status, err.detail);
-}
+```text
+<resource> list [--cursor <c>] [--id <id> …] [--filter key=value …]
+<resource> get  <id>
 ```
 
-### Client options
+| Resource | What it is |
+| --- | --- |
+| `vorgang` | Procedure / legislative process |
+| `vorgangsposition` | Step within a procedure |
+| `drucksache` | Printed paper (metadata only) |
+| `drucksache-text` | Printed paper with extracted full text |
+| `plenarprotokoll` | Plenary protocol (metadata only) |
+| `plenarprotokoll-text` | Plenary protocol with extracted full text |
+| `aktivitaet` | Activity — links a person to a procedure |
+| `person` | Person (member / actor) |
 
-```ts
-new DipClient({
-  apiKey: process.env.DIP_API_KEY, // Authorization: ApiKey <key>
-  baseUrl: "https://search.dip.bundestag.de",
-  timeoutMs: 15_000,
-  maxRetries: 3,
-  maxResponseBytes: 50 << 20,
-  userAgent: "my-app/1.0",
-  transport: customTransport,
-});
-```
+New to terms like *Vorgang*, *Drucksache*, *Wahlperiode* or *Vorgangstyp*? The
+**[Glossary](GLOSSARY.md)** decodes every one.
 
-### Resource groups
+### `list` options
 
-`client.vorgaenge`, `.vorgangspositionen`, `.drucksachen`, `.drucksacheText`,
-`.plenarprotokolle`, `.plenarprotokollText`, `.aktivitaeten`, `.personen` — each
-with `.list(params)` and `.get(id)`.
+| Option | Meaning |
+| --- | --- |
+| `--cursor <cursor>` | Pagination cursor from a previous page |
+| `--id <id>` | Filter by id — repeatable; maps to `f.id` |
+| `--filter <key=value>` | Raw DIP filter, e.g. `f.titel=Klima` — repeatable |
 
----
+`--filter` passes the key and value verbatim to DIP. Only the first `=` splits
+key from value, so a value may itself contain `=`. Repeating the same key sends
+repeated query parameters, which DIP treats as an OR set. `--id` and
+`--filter f.id=…` are merged (neither silently wins).
 
-## Architecture
+### Common DIP filters
 
-```
-src/
-  client/
-    types.ts     # ListResult (cursor envelope); documents as JsonObject
-    query.ts     # dependency-free query-string builder
-    http.ts      # the Transport interface + default node:http/https transport
-    engine.ts    # URL building, retry/backoff, redirects, default headers (auth), decoding, errors
-    errors.ts    # DipError / DipApiError / DipNetworkError / DipParseError
-    client.ts    # DipClient — one generic ResourceGroup per resource (injects Authorization)
-  cli/
-    io.ts        # injectable I/O seam (stdout/stderr/file)
-    shared.ts    # option parsers, global-option resolver (incl. --api-key), JSON renderer
-    commands/    # the eight resource command groups (list / get)
-    program.ts   # assembles the commander program from injectable deps
-    run.ts       # parses argv -> exit code (no process.exit; testable)
-    index.ts     # #! bin shim
-```
+| Filter | Meaning |
+| --- | --- |
+| `f.titel=<text>` | Title keyword |
+| `f.id=<n>` | Specific document id |
+| `f.wahlperiode=<n>` | Electoral term (e.g. `20`) |
+| `f.datum.start=<YYYY-MM-DD>` | Date range start |
+| `f.datum.end=<YYYY-MM-DD>` | Date range end |
+| `f.aktualisiert.start=<YYYY-MM-DDThh:mm:ss>` | Last-updated range start (full ISO datetime) |
+| `f.aktualisiert.end=<YYYY-MM-DDThh:mm:ss>` | Last-updated range end |
+| `f.vorgangstyp=<type>` | Procedure type (e.g. `Gesetzgebung`) |
+| `f.dokumentart=<type>` | Document type |
+| `f.zuordnung=BT\|BR` | Chamber — Bundestag (`BT`) or Bundesrat (`BR`) |
+| `f.person=<name>` | Person surname (for the `person` resource) |
 
-**Design notes**
+## Common tasks
 
-- The engine accepts `defaultHeaders` merged into every request — the seam used to inject
-  `Authorization: ApiKey <key>`. The CLI surfaces it as `--api-key` (or `DIP_API_KEY`).
-- The eight resources share one generic `ResourceGroup`, so adding a resource is a one-line change.
-- The HTTP layer is a single `Transport` function; the default uses `node:http`/`node:https` and tests inject a mock.
-
----
-
-## Testing
+A few recipes to get going — see **[Usage.md](Usage.md)** for the full,
+use-case-driven set.
 
 ```bash
-npm test          # builds, then runs `node --test` over dist/test
+# Procedures by date range
+dip vorgang list \
+  --filter f.datum.start=2024-01-01 \
+  --filter f.datum.end=2024-03-31
+
+# Drucksachen for one electoral term, Bundestag only
+dip drucksache list --filter f.wahlperiode=20 --filter f.zuordnung=BT
+
+# Look up a person, then fetch their full record
+dip person list --filter f.person=Merkel \
+  | jq -r '.documents[] | "\(.id)\t\(.titel)"'
+dip person get 7240
+
+# Plenary protocol transcript to a file
+dip plenarprotokoll-text get 5678 | jq -r '.text' > protokoll.txt
+
+# Activities updated since a date (full ISO datetime required)
+dip --output aktivitaeten.json aktivitaet list \
+  --filter f.aktualisiert.start=2024-05-01T00:00:00 --filter f.wahlperiode=20
 ```
 
-- **`query.test.ts`** — query-string serialisation.
-- **`http.test.ts`** — the default transport against a real loopback `http.createServer`.
-- **`engine.test.ts`** — URL building, JSON decoding, error mapping, 429/503 retry, redirects — mocked transport.
-- **`client.test.ts`** — the Authorization header, per-resource paths and cursor/filter params — mocked transport.
-- **`cli.test.ts`** — command parsing, `--api-key`/`--filter`/`--id`, and exit codes — mocked client.
+## Output & scripting
 
-## Continuous integration
+Every command prints **pretty JSON to stdout**. Errors and diagnostics go to
+stderr, so piping stdout into `jq` stays clean.
 
-GitHub Actions workflows under `.github/workflows/`:
+```bash
+# Total result count for a query
+dip vorgang list --filter f.titel=Klimaschutz | jq '.numFound'
 
-- **ci.yml** — type-check, build and test on Node 20/22/24 for every push and PR.
-- **release.yml** — on a `v*` tag: verify the tag matches `package.json`, test, `npm pack`, and create a GitHub Release with the tarball.
-- **publish.yml** — manual dispatch: publish to npm via OIDC **Trusted Publishing** (no stored `NPM_TOKEN`) with provenance.
-- **docs.yml** — build TypeDoc API docs and deploy to GitHub Pages on each `v*` tag.
+# Extract titles from the current page
+dip drucksache list --filter f.titel=Klimaschutz \
+  | jq -r '.documents[].titel'
+
+# Cursor pagination — walk page by page
+CURSOR=$(dip vorgang list --filter f.wahlperiode=20 | jq -r '.cursor')
+dip vorgang list --filter f.wahlperiode=20 --cursor "$CURSOR"
+
+# Fetch several documents by id in one call
+dip drucksache list --id 123456 --id 123457 --id 123458 \
+  | jq -r '.documents[] | "\(.id)\t\(.titel)"'
+```
+
+Use `--compact` for single-line JSON. Note that `--compact` is a **global
+option** — it works **before or after** the command:
+
+```bash
+dip --compact vorgang list --filter f.titel=Klimaschutz | jq -c '.documents[]'
+```
+
+Use `-o <file>` to write output to a file instead of stdout (also a global
+option — works before or after the command):
+
+```bash
+dip --output results.json drucksache list --filter f.titel=Bürgergeld
+```
+
+**Exit codes** make the CLI easy to use in scripts:
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Success (also `--help` / `--version`) |
+| `2` | Bad usage / invalid argument (nothing was sent) |
+| `4` | Document not found (`404` from the API) |
+| `1` | Any other runtime error — including `401` (missing/expired key) and network failures |
+
+## Troubleshooting
+
+- **`command not found: dip`** — the global npm bin directory isn't on your
+  `PATH`. Run `npm bin -g` to find it and add it, or run via
+  `npx @maschinenlesbar.org/dip-bundestag-cli …`.
+- **Exit `1` / "Authentication failed (401)"** — no key was sent, or the key
+  has expired. Export `DIP_API_KEY` or pass `--api-key`. Request a personal key
+  from `parlamentsdokumentation@bundestag.de`.
+- **Exit `4` / "not found"** — the id passed to `get` doesn't exist. Re-fetch
+  it from a fresh `list` result; ids can change as the catalogue updates.
+- **Exit `1` / rate-limited** — the shared key (if used) is rate-limited;
+  the client retries `429`/`503` automatically up to `--max-retries` times. If
+  the error persists, use a personal key or increase `--timeout`.
+- **Exit `1` / network error** — connectivity, DNS, or a timeout. Try again or
+  raise the limit with `--timeout 60000`.
+- **Empty `documents` array** — the query matched nothing; try a broader
+  keyword, remove filters, or check the `numFound` field.
+- **`400 Invalid date-time`** — `f.aktualisiert.start` / `f.aktualisiert.end`
+  require a full ISO datetime (`YYYY-MM-DDThh:mm:ss`), not a bare date. Use
+  `f.datum.start` / `f.datum.end` for plain `YYYY-MM-DD` dates.
+
+## Global options
+
+These may be given **before or after** the command, e.g.
+`dip --api-key $DIP_API_KEY vorgang list`:
+
+| Option | Description |
+| --- | --- |
+| `-V, --version` | Print the version number |
+| `-h, --help` | Show help for the program or a command |
+| `--api-key <key>` | DIP API key (env `DIP_API_KEY`) |
+| `--compact` | Print JSON on a single line instead of pretty-printed |
+| `-o, --output <file>` | Write output to this file instead of stdout |
+| `--base-url <url>` | API base URL (default `https://search.dip.bundestag.de`) |
+| `--timeout <ms>` | Per-request timeout (default `30000`) |
+| `--user-agent <ua>` | `User-Agent` header value |
+| `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`) |
+| `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
+
+## Learn more
+
+- **[Usage.md](Usage.md)** — full use-case-driven cookbook.
+- **[GLOSSARY.md](GLOSSARY.md)** — every domain term and filter explained.
+- **[DEVELOPING.md](DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
 
 ## License
 
