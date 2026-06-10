@@ -1,0 +1,23 @@
+{
+  "name": "dip-bundestag",
+  "version": "0.1.0",
+  "description": "Bundestag parliamentary-record intelligence skills powered by the dip-bundestag-cli (DIP API).",
+  "author": {
+    "name": "Sebastian Schürmann",
+    "email": "sebs@2xs.org"
+  },
+  "license": "AGPL-3.0-or-later",
+  "repository": "https://github.com/maschinenlesbar-org/dip-bundestag-cli",
+  "homepage": "https://github.com/maschinenlesbar-org/dip-bundestag-cli#readme",
+  "keywords": [
+    "dip",
+    "bundestag",
+    "parlament",
+    "drucksache",
+    "plenarprotokoll",
+    "vorgang",
+    "gesetzgebung",
+    "germany",
+    "bund.dev"
+  ]
+}
