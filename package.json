@@ -1,6 +1,6 @@
 {
   "name": "@maschinenlesbar.org/dip-bundestag-cli",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "TypeScript API client and CLI for the Bundestag DIP API (search.dip.bundestag.de)",
   "type": "module",
   "bin": {
