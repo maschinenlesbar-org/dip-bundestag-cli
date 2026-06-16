@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { RequestEngine } from "../src/client/engine.js";
+import { RequestEngine, escapeRawControlCharsInStrings } from "../src/client/engine.js";
 import { DipApiError, DipParseError } from "../src/client/errors.js";
 import type { HttpResponse } from "../src/client/http.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
@@ -24,6 +24,36 @@ test("getJson throws DipParseError on invalid JSON", async () => {
   const mt = makeMockTransport(() => rawResponse("not json", "application/json"));
   const e = new RequestEngine({ transport: mt.transport });
   await assert.rejects(() => e.getJson("/x"), DipParseError);
+});
+
+test("getJson repairs a raw control character inside a string and parses it", async () => {
+  // The DIP API sometimes serves a string value with a literal control char
+  // (here a raw newline in `titel`), which standard JSON.parse rejects.
+  const body = '{"titel":"a\nb","id":"7"}';
+  const mt = makeMockTransport(() => rawResponse(body, "application/json"));
+  const e = new RequestEngine({ transport: mt.transport });
+  assert.deepEqual(await e.getJson("/x"), { titel: "a\nb", id: "7" });
+});
+
+test("getJson still throws DipParseError when the repair cannot save it", async () => {
+  // Structurally broken JSON (missing value) is not a control-char issue, so
+  // the repaired text still fails to parse and the error is surfaced.
+  const mt = makeMockTransport(() => rawResponse('{"a":}', "application/json"));
+  const e = new RequestEngine({ transport: mt.transport });
+  await assert.rejects(() => e.getJson("/x"), DipParseError);
+});
+
+test("escapeRawControlCharsInStrings escapes inside strings, not structural whitespace", () => {
+  // Raw newline inside the string -> escaped; the newline between tokens stays.
+  const repaired = escapeRawControlCharsInStrings('{\n  "t":"a\tb"\n}');
+  assert.equal(repaired, '{\n  "t":"a\\u0009b"\n}');
+  assert.deepEqual(JSON.parse(repaired), { t: "a\tb" });
+});
+
+test("escapeRawControlCharsInStrings does not mis-handle an escaped quote", () => {
+  // The \" must not be read as the end of the string.
+  const repaired = escapeRawControlCharsInStrings('{"t":"say \\"hi\\"\nthere"}');
+  assert.deepEqual(JSON.parse(repaired), { t: 'say "hi"\nthere' });
 });
 
 test("a 503 is retried up to maxRetries then surfaces as DipApiError", async () => {

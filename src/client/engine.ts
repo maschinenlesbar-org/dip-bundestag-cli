@@ -9,6 +9,49 @@ import { DipApiError, DipParseError } from "./errors.js";
 export const DEFAULT_BASE_URL = "https://search.dip.bundestag.de";
 const DEFAULT_USER_AGENT = "dip-bundestag-cli";
 
+/**
+ * Escape raw C0 control characters (U+0000–U+001F) that appear *inside* JSON
+ * string literals, rewriting each to its \uXXXX form. Structural whitespace
+ * between tokens (the spaces/newlines a server may use to pretty-print) is left
+ * untouched, since only control characters within a string are illegal.
+ *
+ * Walks the text with a minimal string-state machine that honours backslash
+ * escapes, so an already-escaped quote (\") does not prematurely end a string.
+ * Used to repair the occasional malformed record served by the DIP API before a
+ * retried JSON.parse — see getJson.
+ */
+export function escapeRawControlCharsInStrings(text: string): string {
+  let out = "";
+  let inString = false;
+  let afterBackslash = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const code = text.charCodeAt(i);
+    if (!inString) {
+      out += ch;
+      if (ch === '"') inString = true;
+      continue;
+    }
+    if (afterBackslash) {
+      out += ch;
+      afterBackslash = false;
+      continue;
+    }
+    if (ch === "\\") {
+      out += ch;
+      afterBackslash = true;
+    } else if (ch === '"') {
+      out += ch;
+      inString = false;
+    } else if (code <= 0x1f) {
+      out += "\\u" + code.toString(16).padStart(4, "0");
+    } else {
+      out += ch;
+    }
+  }
+  return out;
+}
+
 export interface RawResponse {
   data: Buffer;
   contentType: string;
@@ -167,7 +210,19 @@ export class RequestEngine {
     try {
       return JSON.parse(text) as T;
     } catch (cause) {
-      throw new DipParseError(`Failed to parse JSON response from ${path}`, { cause });
+      // The DIP API occasionally serves a string value containing a raw,
+      // unescaped C0 control character (e.g. a literal newline in a document
+      // title). That violates the JSON grammar (RFC 8259 §7: U+0000–U+001F MUST
+      // be escaped inside strings), so JSON.parse rejects it and a single
+      // malformed record would otherwise sink the whole page. Repair those
+      // characters and parse once more before giving up; the parsed value is
+      // later re-serialised via JSON.stringify, so the rendered output (compact
+      // or pretty) is always well-formed JSON.
+      try {
+        return JSON.parse(escapeRawControlCharsInStrings(text)) as T;
+      } catch {
+        throw new DipParseError(`Failed to parse JSON response from ${path}`, { cause });
+      }
     }
   }
 
