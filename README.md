@@ -246,6 +246,16 @@ These may be given **before or after** the command, e.g.
 - **[GLOSSARY.md](GLOSSARY.md)** — every domain term and filter explained.
 - **[DEVELOPING.md](DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
 
+## Data license
+
+This CLI is a **client** — it accesses data it does not own or redistribute. The
+upstream data is © its provider and licensed **separately from this tool's code**.
+See **[DATA_LICENSE.md](DATA_LICENSE.md)**.
+
+> **Deutscher Bundestag** — custom DIP Nutzungsbedingungen. Attribution required
+> ("Quelle: Deutscher Bundestag – DIP"); broad reuse incl. commercial use allowed
+> (with a note that the data is free of charge in DIP).
+
 ## License
 
 **Dual-licensed** — use it under **either**:
