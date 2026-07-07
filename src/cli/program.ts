@@ -61,7 +61,7 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     )
     .version(VERSION)
     .option("--base-url <url>", "API base URL", "https://search.dip.bundestag.de")
-    .option("--api-key <key>", "DIP API key (env: DIP_API_KEY)")
+    .option("--api-key <key>", "DIP API key (prefer the DIP_API_KEY env var; a flag is visible in ps/history)")
     .option("--timeout <ms>", "per-request timeout in milliseconds", parseIntArg)
     .option("--user-agent <ua>", "User-Agent header value")
     .option("--max-retries <n>", "retries for transient 429/503 responses", parseIntArg)
@@ -76,7 +76,8 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
 
   // Seed --api-key from DIP_API_KEY (trimmed; blank treated as unset). commander
   // treats this as the option's value, which an explicit --api-key on the command
-  // line overrides during parse, giving precedence: --api-key > DIP_API_KEY > default.
+  // line overrides during parse, giving precedence: --api-key > DIP_API_KEY > none
+  // (no key is bundled; with none supplied the header is omitted and DIP answers 401).
   const envKey = readEnvApiKey(deps.env ?? process.env);
   if (envKey !== undefined) program.setOptionValue("apiKey", envKey);
 

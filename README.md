@@ -46,12 +46,16 @@ charge from `parlamentsdokumentation@bundestag.de`, then export it:
 export DIP_API_KEY=your-personal-key
 ```
 
-Or pass it per-invocation (it is a global option, so it works **before or after**
-the command):
+The `DIP_API_KEY` environment variable is the **recommended, more secure** way to
+supply the key. The `--api-key` flag also works but puts the secret on the process
+command line, where it is visible to other local users via `ps` and may be
+recorded in your shell history; prefer the env var, especially on shared hosts:
 
 ```bash
 dip --api-key your-personal-key vorgang list
 ```
+
+(`--api-key` is a global option, so it works **before or after** the command.)
 
 Precedence is `--api-key` > `DIP_API_KEY` env var > none. **No key is bundled**:
 when neither is supplied the `Authorization` header is omitted entirely and the
