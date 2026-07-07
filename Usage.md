@@ -174,7 +174,9 @@ date-time`. (The `f.datum.start` / `f.datum.end` filters used above accept a
 plain `YYYY-MM-DD` date.)
 
 `-o, --output <file>` is a global option (place it before the command). It is
-also how you save binary downloads.
+also how you save binary downloads. It **refuses to overwrite an existing file**
+(exits with an error) so a mistyped path cannot clobber your data; add `--force`
+to overwrite deliberately.
 
 ### Paginate through a large result set
 
@@ -213,7 +215,8 @@ Global options go **before** the command (e.g. `dip --api-key … vorgang list`)
 | `--max-retries <n>` | Retries for transient `429`/`503` responses |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
-| `-o, --output <file>` | Write output to this file instead of stdout |
+| `-o, --output <file>` | Write output to this file instead of stdout (refuses to overwrite an existing file) |
+| `--force` | With `-o`, overwrite the output file if it already exists |
 | `-h, --help` | Show help (also available per command, e.g. `dip vorgang list --help`) |
 
 **Commands:** `vorgang`, `vorgangsposition`, `drucksache`, `drucksache-text`,

@@ -34,6 +34,7 @@ export interface GlobalOptions {
   maxResponseBytes?: number;
   compact?: boolean;
   output?: string;
+  force?: boolean;
 }
 
 /** Translate resolved global CLI options into client EngineOptions. */
@@ -61,13 +62,14 @@ export function toEngineOptions(global: GlobalOptions): DipClientOptions {
 /**
  * Render a JSON value, pretty by default and compact with --compact. Writes to
  * the file given by --output (with a short stderr confirmation so stdout stays
- * clean for piping), or to stdout otherwise.
+ * clean for piping), or to stdout otherwise. An existing file is not overwritten
+ * unless --force is set.
  */
 export function renderJson(deps: CliDeps, global: GlobalOptions, value: unknown): void {
   const text = global.compact ? JSON.stringify(value) : JSON.stringify(value, null, 2);
   if (global.output) {
     const data = Buffer.from(text + "\n", "utf8");
-    deps.io.writeFile(global.output, data);
+    deps.io.writeFile(global.output, data, global.force);
     deps.io.err(`Wrote ${data.length} bytes to ${global.output}`);
   } else {
     deps.io.out(text);
@@ -77,11 +79,12 @@ export function renderJson(deps: CliDeps, global: GlobalOptions, value: unknown)
 /**
  * Render a raw (binary/text) download. Writes to the file given by --output, or
  * to stdout otherwise. Prints a short confirmation to stderr when writing a file
- * so stdout stays clean for piping.
+ * so stdout stays clean for piping. An existing file is not overwritten unless
+ * --force is set.
  */
 export function renderRaw(deps: CliDeps, global: GlobalOptions, response: RawResponse): void {
   if (global.output) {
-    deps.io.writeFile(global.output, response.data);
+    deps.io.writeFile(global.output, response.data, global.force);
     deps.io.err(`Wrote ${response.data.length} bytes to ${global.output}`);
   } else {
     deps.io.outBinary(response.data);

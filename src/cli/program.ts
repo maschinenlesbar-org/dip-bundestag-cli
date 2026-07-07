@@ -72,6 +72,7 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     )
     .option("--compact", "print JSON on a single line instead of pretty-printed")
     .option("-o, --output <file>", "for downloads: write bytes to this file instead of stdout")
+    .option("--force", "with -o, overwrite the output file if it already exists")
     .showHelpAfterError();
 
   // Seed --api-key from DIP_API_KEY (trimmed; blank treated as unset). commander

@@ -196,6 +196,10 @@ option — works before or after the command):
 dip --output results.json drucksache list --filter f.titel=Bürgergeld
 ```
 
+`-o` **will not overwrite an existing file** — it exits with an error to protect
+against a mistyped path clobbering your data. Pass `--force` to overwrite
+deliberately.
+
 **Exit codes** make the CLI easy to use in scripts:
 
 | Code | Meaning |
@@ -237,7 +241,8 @@ These may be given **before or after** the command, e.g.
 | `-h, --help` | Show help for the program or a command |
 | `--api-key <key>` | DIP API key (env `DIP_API_KEY`) |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
-| `-o, --output <file>` | Write output to this file instead of stdout |
+| `-o, --output <file>` | Write output to this file instead of stdout (refuses to overwrite an existing file) |
+| `--force` | With `-o`, overwrite the output file if it already exists |
 | `--base-url <url>` | API base URL (default `https://search.dip.bundestag.de`) |
 | `--timeout <ms>` | Per-request timeout (default `30000`) |
 | `--user-agent <ua>` | `User-Agent` header value |
