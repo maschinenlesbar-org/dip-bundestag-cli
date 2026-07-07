@@ -169,3 +169,30 @@ test("a 3xx without a Location surfaces as a DipApiError", async () => {
     (err) => err instanceof DipApiError && err.status === 302,
   );
 });
+
+// Build control bytes via char codes so no raw control byte ever appears here.
+const ESC = String.fromCharCode(0x1b);
+const BEL = String.fromCharCode(0x07);
+
+test("the error detail is stripped of terminal control characters", async () => {
+  // A hostile endpoint returns an OSC/ANSI escape in the JSON `detail` string.
+  // JSON.parse decodes the backslash-u-001b escape into a real ESC byte, so
+  // without the sanitizer it would reach the terminal via DipApiError.message.
+  const hostile = `${ESC}]0;pwned${BEL}${ESC}[31mred`;
+  const mt = makeMockTransport(() =>
+    rawResponse(JSON.stringify({ detail: hostile }), "application/json", 400),
+  );
+  const e = new RequestEngine({ transport: mt.transport });
+  await assert.rejects(
+    () => e.getJson("/x"),
+    (err) => {
+      assert.ok(err instanceof DipApiError);
+      assert.ok(!err.message.includes(ESC), "message must not contain ESC");
+      assert.ok(!err.message.includes(BEL), "message must not contain BEL");
+      // The printable text of the detail is preserved.
+      assert.ok(err.message.includes("pwned"));
+      assert.ok(err.message.includes("red"));
+      return true;
+    },
+  );
+});

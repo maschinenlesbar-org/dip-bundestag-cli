@@ -52,6 +52,30 @@ export function escapeRawControlCharsInStrings(text: string): string {
   return out;
 }
 
+/**
+ * Strip control characters out of a string that originates in an
+ * attacker-controlled HTTP response — the error `detail` and the echoed
+ * Content-Type. JSON.parse decodes a backslash-u-001b escape in an error body
+ * into a real ESC byte, so without this a hostile or MITM'd endpoint could drive
+ * ANSI/OSC escape sequences into the user's terminal when the message is printed
+ * to stderr. Removes all C0 (except tab/newline are kept implicitly by the range
+ * choice below), DEL, and C1 control characters. The success path is already safe
+ * (`JSON.stringify` re-escapes these), so this only needs to cover text that flows
+ * into an error message.
+ *
+ * Implemented as an explicit char-code filter so no raw control byte ever appears
+ * in this source file.
+ */
+function sanitizeServerText(text: string): string {
+  let out = "";
+  for (const ch of text) {
+    const n = ch.codePointAt(0) ?? 0;
+    if (n <= 8 || (n >= 0x0b && n <= 0x1f) || (n >= 0x7f && n <= 0x9f)) continue;
+    out += ch;
+  }
+  return out;
+}
+
 export interface RawResponse {
   data: Buffer;
   contentType: string;
@@ -189,7 +213,9 @@ export class RequestEngine {
         continue;
       }
 
-      const contentType = String(response.headers["content-type"] ?? "");
+      // Sanitize the server-supplied Content-Type at the source: it is
+      // attacker-controlled and may later be echoed into a message.
+      const contentType = sanitizeServerText(String(response.headers["content-type"] ?? ""));
       if (status < 200 || status >= 300) {
         throw this.toApiError(method, url, status, response.body);
       }
@@ -241,6 +267,10 @@ export class RequestEngine {
     } catch {
       // Non-JSON error body; leave detail undefined.
     }
+    // `detail` came from the (attacker-controlled) response body and flows into
+    // DipApiError.message, which run.ts prints to stderr. Strip control
+    // characters so a hostile endpoint cannot inject terminal escape sequences.
+    if (detail !== undefined) detail = sanitizeServerText(detail);
     return new DipApiError({ status, url, method, body: text, detail });
   }
 }
