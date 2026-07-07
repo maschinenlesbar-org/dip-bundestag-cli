@@ -79,9 +79,9 @@ with `.list(params)` and `.get(id)`.
 DIP requires an `Authorization: ApiKey <key>` header on every request. The key
 is **not bundled** — it must be supplied via `apiKey` (library), `--api-key`
 (CLI), or the `DIP_API_KEY` env var, else the header is omitted and the API
-returns `401`. Precedence is **`--api-key` > `DIP_API_KEY` > built-in default**;
-the built-in default is an expired shared key, so without your own key requests
-return `401`.
+returns `401`. Precedence is **`--api-key` > `DIP_API_KEY` > none**; no key is
+bundled, so without one supplied the `Authorization` header is omitted entirely
+and requests return `401`.
 
 Request a personal key from `parlamentsdokumentation@bundestag.de`. The
 Bundestag also publishes a **shared** key (rate-limited, rotates yearly). For

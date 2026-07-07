@@ -29,9 +29,9 @@ dip vorgang list
 dip --api-key your-personal-key vorgang list
 ```
 
-Precedence is `--api-key` > `DIP_API_KEY` > the bundled shared key (which is
-**expired**, so without your own key requests return `401`). Request a personal
-key from `parlamentsdokumentation@bundestag.de`.
+Precedence is `--api-key` > `DIP_API_KEY` > none. **No key is bundled** — when
+neither is supplied the `Authorization` header is omitted and requests return
+`401`. Request a personal key from `parlamentsdokumentation@bundestag.de`.
 
 ## Use cases
 

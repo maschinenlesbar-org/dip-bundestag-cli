@@ -42,7 +42,8 @@ export function toEngineOptions(global: GlobalOptions): DipClientOptions {
   if (global.baseUrl !== undefined) options.baseUrl = global.baseUrl;
   // A blank/whitespace-only --api-key is treated as unset (mirroring the
   // DIP_API_KEY handling in readEnvApiKey) so it never produces a malformed
-  // `Authorization: ApiKey ` header; the client falls back to the default key.
+  // `Authorization: ApiKey ` header. No key is bundled: when none is supplied
+  // the header is omitted entirely and the API answers 401.
   if (global.apiKey !== undefined && global.apiKey.trim().length > 0) {
     options.apiKey = global.apiKey.trim();
   }

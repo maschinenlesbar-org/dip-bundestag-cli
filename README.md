@@ -53,9 +53,10 @@ the command):
 dip --api-key your-personal-key vorgang list
 ```
 
-Precedence is `--api-key` > `DIP_API_KEY` env var > built-in default (which is
-expired — without your own key, requests return `401`). On a `401` the CLI
-prints a plain-language hint with the address to request a key.
+Precedence is `--api-key` > `DIP_API_KEY` env var > none. **No key is bundled**:
+when neither is supplied the `Authorization` header is omitted entirely and the
+API returns `401`. On a `401` the CLI prints a plain-language hint with the
+address to request a key.
 
 ## Quickstart
 

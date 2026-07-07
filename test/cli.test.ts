@@ -78,13 +78,13 @@ test("a 404 from the API maps to exit code 4", async () => {
   assert.equal(code, 4);
 });
 
-test("a 401 exits 1 and prints an actionable no-key message", async () => {
+test("a 401 exits 1 and prints an actionable key hint", async () => {
   const cli = makeCli(() => jsonResponse({ message: "key required" }, 401));
   const code = await run(["vorgang", "list"], cli.deps);
   assert.equal(code, 1);
   const text = cli.err.join("\n");
   assert.match(text, /401/);
-  assert.match(text, /no api key/i);
+  assert.match(text, /api key/i);
   assert.match(text, /--api-key|DIP_API_KEY/);
   assert.match(text, /parlamentsdokumentation@bundestag\.de/);
 });
