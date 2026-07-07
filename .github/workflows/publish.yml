@@ -42,8 +42,11 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       # Trusted publishing requires npm >= 11.5.1 (newer than the bundled npm).
+      # Pin to an exact version rather than @latest: this step runs inside the
+      # OIDC id-token: write job, so a compromised npm@latest would execute with
+      # the token that mints the provenance attestation. Bump deliberately.
       - name: Update npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Verify package.json matches the requested version
         env:
