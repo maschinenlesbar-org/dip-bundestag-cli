@@ -22,6 +22,12 @@ jobs:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           persist-credentials: false
+          # Full history + tags — the changelog step below walks `git log`/`git
+          # tag` back to the previous release, which a shallow (default) clone
+          # doesn't have. fetch-depth: 0 alone doesn't reliably fetch every tag,
+          # so fetch-tags is set explicitly too.
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Use Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
@@ -43,6 +49,20 @@ jobs:
             echo "::error::Tag '$GITHUB_REF_NAME' does not match package.json version '$PKG_VERSION'."
             exit 1
           fi
+
+      # Grouped by Conventional Commits type (feat/fix/docs/...) from the log
+      # since the previous v* tag. Not committed to the repo — generated fresh
+      # per release and attached to the GitHub Release only.
+      - name: Generate changelog since the previous tag
+        id: changelog
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          mkdir -p dist-artifacts
+          out="dist-artifacts/dip-bundestag-cli-${VERSION}.changelog.md"
+          node .github/scripts/changelog.mjs "$GITHUB_REF_NAME" > "$out"
+          echo "path=$out" >> "$GITHUB_OUTPUT"
+          cat "$out"
 
       - name: Install
         run: npm ci
@@ -80,7 +100,12 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
+          body_path: ${{ steps.changelog.outputs.path }}
           files: |
             dist-artifacts/*.tgz
             dist-artifacts/*.cdx.json
+            dist-artifacts/*.changelog.md
+          # No PRs land in this repo (see CONTRIBUTING.md), so GitHub's own
+          # generated notes have nothing to list — this only adds the
+          # "Full Changelog: vX...vY" compare link after our own notes above.
           generate_release_notes: true
