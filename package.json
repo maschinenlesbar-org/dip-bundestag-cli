@@ -53,6 +53,10 @@
     "url": "https://github.com/maschinenlesbar-org/dip-bundestag-cli/issues"
   },
   "homepage": "https://github.com/maschinenlesbar-org/dip-bundestag-cli#readme",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/sebs"
+  },
   "publishConfig": {
     "access": "public"
   },
