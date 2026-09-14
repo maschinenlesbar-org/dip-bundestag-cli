@@ -43,16 +43,19 @@ them each time.
 
 ### Plugin marketplace (recommended)
 
-This repo is a Claude Code **plugin marketplace**, so installation is two commands inside
-Claude Code:
+The skills are published as the `dip-bundestag` plugin in the
+[maschinenlesbar.org plugin marketplace](https://github.com/maschinenlesbar-org/plugins),
+which lists the plugins for all maschinenlesbar.org CLIs. Installation is two commands
+inside Claude Code:
 
 ```
-/plugin marketplace add maschinenlesbar-org/dip-bundestag-cli
-/plugin install dip-bundestag@dip-bundestag-skills
+/plugin marketplace add maschinenlesbar-org/plugins
+/plugin install dip-bundestag@maschinenlesbar
 ```
 
-The first command registers the marketplace; the second installs the `dip-bundestag`
-plugin, which bundles all three skills. Update later with `/plugin marketplace update`.
+The first command registers the marketplace (once, for all maschinenlesbar.org
+plugins); the second installs the `dip-bundestag` plugin, which bundles all three
+skills. Update later with `/plugin marketplace update maschinenlesbar`.
 
 ### Manual (copy the skill folders)
 
