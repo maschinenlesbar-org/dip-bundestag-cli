@@ -1,0 +1,9 @@
+{
+  "name": "docs-toolchain",
+  "private": true,
+  "description": "Isolated TypeDoc toolchain for `npm run docs`. TypeDoc needs the TypeScript 6 compiler API, which TypeScript 7 (the root build compiler) no longer ships. Install once with `npm ci --prefix tools/docs`.",
+  "devDependencies": {
+    "typedoc": "0.28.20",
+    "typescript": "6.0.3"
+  }
+}

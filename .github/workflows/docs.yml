@@ -42,6 +42,12 @@ jobs:
       - name: Install
         run: npm ci
 
+      # TypeDoc runs from its own lockfile-pinned toolchain: it needs the
+      # TypeScript 6 compiler API, which TypeScript 7 (used for the build) no
+      # longer ships.
+      - name: Install docs toolchain
+        run: npm ci --prefix tools/docs
+
       - name: Build docs
         run: npm run docs
 

@@ -29,7 +29,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "pretest": "npm run build",
     "test": "node --test dist/test/*.test.js",
-    "docs": "typedoc src/index.ts --out out",
+    "docs": "node tools/docs/node_modules/typedoc/bin/typedoc src/index.ts --out out",
     "start": "node dist/src/cli/index.js",
     "fetch-key": "node scripts/fetch-api-key.mjs"
   },
@@ -65,7 +65,6 @@
   },
   "devDependencies": {
     "@types/node": "^26.5.1",
-    "typedoc": "0.28.20",
-    "typescript": "6.0.3"
+    "typescript": "7.0.2"
   }
 }
