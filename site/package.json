@@ -1,0 +1,27 @@
+{
+  "name": "site",
+  "private": true,
+  "description": "Website of a maschinenlesbar.org CLI: Jekyll, banira web components, Fylgja CSS",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build:css": "node scripts/vendor-css.mjs",
+    "build:js": "banira compile components/copy-command.ts -o assets/js --no-source-map",
+    "build:cli": "node scripts/cli-reference.mjs",
+    "build:assets": "npm run build:css && npm run build:js && npm run build:cli",
+    "test": "banira test components/*.ts && banira lint components/*.ts --strict",
+    "build": "npm run build:assets && bundle exec jekyll build",
+    "serve": "npm run build:assets && bundle exec jekyll serve --livereload"
+  },
+  "devDependencies": {
+    "@fylgja/badge": "2.0.0",
+    "@fylgja/base": "2.1.6",
+    "@fylgja/card": "2.0.2",
+    "@fylgja/tokens": "2.2.1",
+    "@fylgja/utilities": "2.1.4",
+    "banira": "0.6.0"
+  }
+}

@@ -1,0 +1,17 @@
+# The only repo-specific texts of the website. Everything else comes from the
+# repository: the English intro from README.md, the commands from the built CLI.
+
+# How the API is accessed: open | key (env: VAR) | account (token, user, password: VARs)
+access:
+  type: key
+  env: DIP_API_KEY
+
+de:
+  # German version of the README's intro paragraph. Keep it in step with README.md.
+  intro: >-
+    Die **parlamentarische Dokumentation des Bundestages** direkt im Terminal durchsuchen.
+    `dip` ist ein Kommandozeilen-Tool für die [DIP-API des
+    Bundestages](https://dip.bundestag.de/über-dip/hilfe/api)
+    (`search.dip.bundestag.de/api/v1`): Vorgänge, Drucksachen, Plenarprotokolle, Aktivitäten
+    und Personen suchen – als sauberes JSON, das Sie direkt an
+    [`jq`](https://jqlang.github.io/jq/) weitergeben können.

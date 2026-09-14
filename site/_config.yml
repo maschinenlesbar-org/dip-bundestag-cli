@@ -1,0 +1,39 @@
+# Website of this CLI. Everything in site/ is shared by every maschinenlesbar.org CLI
+# except this file and _data/project.yml; see "Website" in DEVELOPING.md.
+
+repository: maschinenlesbar-org/dip-bundestag-cli
+url: https://maschinenlesbar-org.github.io
+baseurl: /dip-bundestag-cli
+
+org_url: https://maschinenlesbar-org.github.io/
+plugins_url: https://maschinenlesbar-org.github.io/plugins/
+
+# Read by _plugins/project.rb: the repository root with package.json, README.md, dist/ ...
+project_root: ..
+
+# Every language gets the full site; strings live in _data/i18n/<lang>.yml.
+# The default language is served at the root, the others under /<lang>/.
+languages: [en, de]
+default_lang: en
+
+markdown: kramdown
+kramdown:
+  input: GFM
+  hard_wrap: false
+permalink: pretty
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      lang: en
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - package.json
+  - package-lock.json
+  - node_modules
+  - components
+  - scripts
+  - vendor

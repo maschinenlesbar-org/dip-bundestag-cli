@@ -22,3 +22,6 @@ dist-artifacts/
 
 # The full OpenAPI spec is large and only needed for development.
 openapi.json
+
+# Website (Jekyll source; built into GitHub Pages by docs.yml)
+site/

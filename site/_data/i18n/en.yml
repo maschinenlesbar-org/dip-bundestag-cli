@@ -1,0 +1,84 @@
+# English interface strings, shared by every maschinenlesbar.org CLI website.
+# de.yml must have exactly the same keys (the build fails otherwise).
+# Placeholders like %bin% are filled in by the templates.
+
+name: English
+
+nav:
+  label: Main
+  commands: Commands
+  usage: Guide
+  glossary: Glossary
+  api: API
+  github: GitHub
+  language: Language
+  skip: Skip to content
+
+home:
+  eyebrow: Command-line tool and TypeScript library
+  install_title: Install
+  install_text: "Needs Node.js %node% or newer. Installs the <code>%bin%</code> command:"
+  quickstart_title: Quick start
+  commands_title: Commands
+  commands_more: All commands, arguments and options
+  access_title: Access
+  skills_title: Claude Code skills
+  skills_text: >-
+    The <code>%plugin%</code> plugin teaches Claude to use <code>%bin%</code>. Install it from
+    the maschinenlesbar.org marketplace:
+  skills_more: Skill descriptions and requirements
+  library_title: TypeScript library
+  library_text: >-
+    <code>%package%</code> is also a typed API client you can import in your own code, with
+    no runtime HTTP dependencies.
+  api_link: API reference
+  developing_link: Library usage and architecture
+  data_title: The tool, not the data
+  data_text: >-
+    The data comes from the provider behind the API, under its own terms — see
+    <a href="%url%">DATA_LICENSE.md</a>. The code is dual-licensed AGPL-3.0-or-later or
+    commercial — see <a href="%licensing%">LICENSING.md</a>.
+  version: Version
+  english_note: ""
+
+access:
+  open: No account, no API key, no configuration — install and query.
+  key: >-
+    Needs the free, publicly documented API key: pass <code>--api-key</code> or set
+    <code>%env%</code>. No key is bundled; the <a href="%readme%">README</a> explains where
+    to get it.
+  account: >-
+    Needs a free account with the data provider: set <code>%token%</code>, or
+    <code>%user%</code> and <code>%password%</code>. No credentials are bundled; the
+    <a href="%readme%">README</a> explains how to register.
+
+commands:
+  title: Commands
+  intro: Every command, argument and option of <code>%bin%</code> %version%, read from the CLI itself.
+  note: ""
+  global_title: Global options
+  global_text: These options work with every command.
+  arguments: Arguments
+  options: Options
+  option: Option
+  description: Description
+  default: Default
+  choices: "Choices:"
+  required: required
+  optional: optional
+
+doc:
+  note: ""
+  source: View the source on GitHub
+
+copy:
+  label: Copy
+  copied: Copied
+  failed: Copying failed — select the text instead.
+
+footer:
+  part_of: >-
+    Part of <a href="%org_url%">maschinenlesbar.org</a> — open German public-sector APIs on the
+    command line
+  plugins: Claude Code plugins
+  license: AGPL-3.0-or-later or commercial

@@ -4,6 +4,8 @@
 [![Release](https://github.com/maschinenlesbar-org/dip-bundestag-cli/actions/workflows/release.yml/badge.svg)](https://github.com/maschinenlesbar-org/dip-bundestag-cli/actions/workflows/release.yml)
 [![npm](https://img.shields.io/npm/v/@maschinenlesbar.org/dip-bundestag-cli)](https://www.npmjs.com/package/@maschinenlesbar.org/dip-bundestag-cli)
 
+**Website:** [English](https://maschinenlesbar-org.github.io/dip-bundestag-cli/) · [Deutsch](https://maschinenlesbar-org.github.io/dip-bundestag-cli/de/) — command reference, guides and API docs
+
 Browse Germany's **Bundestag parliamentary record** from your terminal. `dip` is
 a command-line tool over the
 [Bundestag DIP API](https://dip.bundestag.de/über-dip/hilfe/api)

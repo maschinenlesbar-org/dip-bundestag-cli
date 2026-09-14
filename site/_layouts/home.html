@@ -1,0 +1,99 @@
+---
+layout: default
+---
+{%- assign t = site.data.i18n[page.lang] -%}
+{%- assign r = site.data.repo -%}
+{%- assign cli = site.data.cli -%}
+{%- assign intro = r.intro[page.lang] -%}
+{%- if page.lang == site.default_lang -%}
+  {%- assign home = '/' -%}
+  {%- assign plugins_home = site.plugins_url -%}
+{%- else -%}
+  {%- assign home = '/' | append: page.lang | append: '/' -%}
+  {%- assign plugins_home = site.plugins_url | append: page.lang | append: '/' -%}
+{%- endif -%}
+<section class="hero flow">
+  <p class="eyebrow">{{ t.home.eyebrow }}</p>
+  <h1><code>{{ r.bin }}</code></h1>
+  <div class="intro"{% if intro.lang %} lang="{{ intro.lang }}"{% endif %}>{{ intro.markdown | markdownify }}</div>
+  <p class="meta-row">
+    <span class="badge">{{ t.home.version }} {{ r.version }}</span>
+    <a href="{{ r.npm_url }}">npm</a>
+    <a href="{{ r.github_url }}">GitHub</a>
+    <a href="{{ '/api/' | relative_url }}">{{ t.home.api_link }}</a>
+  </p>
+</section>
+
+<section id="install" class="flow">
+  <h2>{{ t.home.install_title }}</h2>
+  <p>{{ t.home.install_text | replace: "%node%", r.node | replace: "%bin%", r.bin }}</p>
+  {%- capture install %}npm i -g {{ r.package }}{% endcapture %}
+  {% include copy.html code=install %}
+</section>
+
+<section id="access" class="flow">
+  <h2>{{ t.home.access_title }}</h2>
+  {%- assign a = r.access %}
+  <p>
+  {%- case a.type -%}
+    {%- when "key" -%}{{ t.access.key | replace: "%env%", a.env | replace: "%readme%", r.readme_url }}
+    {%- when "account" -%}{{ t.access.account | replace: "%token%", a.token | replace: "%user%", a.user | replace: "%password%", a.password | replace: "%readme%", r.readme_url }}
+    {%- else -%}{{ t.access.open }}
+  {%- endcase -%}
+  </p>
+</section>
+
+{%- if r.quickstart %}
+<section id="quickstart" class="flow">
+  <h2>{{ t.home.quickstart_title }}</h2>
+  {% include copy.html code=r.quickstart %}
+</section>
+{%- endif %}
+
+<section id="commands" class="flow">
+  <h2>{{ t.home.commands_title }}</h2>
+  {%- if t.home.english_note != "" %}
+  <p class="note">{{ t.home.english_note }}</p>
+  {%- endif %}
+  <ul role="list" class="command-list auto-grid gap">
+    {%- for c in cli.commands %}
+    <li class="card --hover">
+      <h3><a class="stretched-link" href="{{ home | append: 'commands/#' | append: c.id | relative_url }}"><code>{{ c.name }}</code></a></h3>
+      <p lang="en">{{ c.description | escape }}</p>
+    </li>
+    {%- endfor %}
+  </ul>
+  <p><a href="{{ home | append: 'commands/' | relative_url }}">{{ t.home.commands_more }} →</a></p>
+</section>
+
+{%- if r.plugin %}
+<section id="skills" class="flow">
+  <h2>{{ t.home.skills_title }}</h2>
+  <p>{{ t.home.skills_text | replace: "%plugin%", r.plugin | replace: "%bin%", r.bin }}</p>
+  {%- capture plugin_install %}/plugin marketplace add maschinenlesbar-org/plugins
+/plugin install {{ r.plugin }}@maschinenlesbar{% endcapture %}
+  {% include copy.html code=plugin_install %}
+  <ul role="list" class="skill-list">
+    {%- for skill in r.skills %}
+    <li><code>/{{ r.plugin }}:{{ skill }}</code></li>
+    {%- endfor %}
+  </ul>
+  <p><a href="{{ plugins_home | append: r.plugin | append: '/' }}">{{ t.home.skills_more }} →</a></p>
+</section>
+{%- endif %}
+
+<section id="library" class="flow">
+  <h2>{{ t.home.library_title }}</h2>
+  <p>{{ t.home.library_text | replace: "%package%", r.package }}</p>
+  <p class="link-row">
+    <a href="{{ '/api/' | relative_url }}">{{ t.home.api_link }} →</a>
+    <a href="{{ r.developing_url }}">{{ t.home.developing_link }} →</a>
+  </p>
+</section>
+
+{%- if r.data_license_url %}
+<section id="data" class="flow">
+  <h2>{{ t.home.data_title }}</h2>
+  <p>{{ t.home.data_text | replace: "%url%", r.data_license_url | replace: "%licensing%", r.licensing_url }}</p>
+</section>
+{%- endif %}

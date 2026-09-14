@@ -216,11 +216,31 @@ GitHub Actions workflows under `.github/workflows/`:
   `npm pack`, and create a GitHub Release with the tarball.
 - **publish.yml** — manual dispatch: publish to npm via OIDC **Trusted
   Publishing** (no stored `NPM_TOKEN`) with provenance.
-- **docs.yml** — build TypeDoc API docs and deploy to GitHub Pages on each `v*`
+- **docs.yml** — build the project website (`site/`, English and German) with the TypeDoc API docs
+  under `/api/`, and deploy both to GitHub Pages on each `v*`
   tag.
   TypeDoc runs from the isolated, lockfile-pinned `tools/docs/` toolchain because it
   needs the TypeScript 6 compiler API, which TypeScript 7 no longer ships; locally,
   run `npm ci --prefix tools/docs` once before `npm run docs`.
+
+## Website
+
+The project website — <https://maschinenlesbar-org.github.io/dip-bundestag-cli/> in English and
+<https://maschinenlesbar-org.github.io/dip-bundestag-cli/de/> in German — is built from `site/`
+with [Jekyll](https://jekyllrb.com/), [banira](https://sebs.github.io/banira/) web components
+and [Fylgja](https://fylgja.dev/) CSS, and deployed by `docs.yml` together with the TypeDoc API
+reference under `/api/`. Its content comes from this repository: the README intro and quick
+start, the command tree of the built CLI (`site/scripts/cli-reference.mjs`), `Usage.md`,
+`GLOSSARY.md` and the skills. The only repo-specific files are `site/_config.yml` and
+`site/_data/project.yml` (the German intro and the access requirements); the rest of `site/` is
+identical in every maschinenlesbar.org CLI, so change it in all of them together. When the
+README intro changes, update the German intro in `site/_data/project.yml`.
+
+```bash
+npm run build                        # the CLI, for the command reference
+cd site && npm ci && bundle install  # once (Node >= 22.12, Ruby 3.4, Bundler)
+npm run serve                        # http://127.0.0.1:4000/dip-bundestag-cli/
+```
 
 ## License
 

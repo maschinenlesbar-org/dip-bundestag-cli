@@ -1,0 +1,38 @@
+{%- comment -%}
+  One CLI command with its arguments, options and subcommands (recursively).
+  Params: command (an entry of _data/cli.json), level (heading level, 2–4).
+  Expects `t` (the page's i18n strings) from the calling layout.
+
+  Reads only include.* on purpose: Liquid's `assign` is global and a caller's loop
+  variable of the same name would shadow it, so plain variables break under recursion.
+{%- endcomment -%}
+<article class="command flow" id="{{ include.command.id }}">
+  <h{{ include.level | at_most: 4 }} class="command-name"><a href="#{{ include.command.id }}"><code>{{ include.command.path }}</code></a></h{{ include.level | at_most: 4 }}>
+  {%- if include.command.description != "" %}
+  <p lang="en">{{ include.command.description | escape }}</p>
+  {%- endif %}
+  {%- if include.command.commands.size == 0 %}
+  {% include copy.html code=include.command.usage %}
+  {%- endif %}
+
+  {%- if include.command.arguments.size > 0 %}
+  <p class="sub-head">{{ t.commands.arguments }}</p>
+  <dl class="arguments">
+    {%- for arg in include.command.arguments %}
+    <dt><code>{% if arg.required %}&lt;{{ arg.name }}{% if arg.variadic %}…{% endif %}&gt;{% else %}[{{ arg.name }}{% if arg.variadic %}…{% endif %}]{% endif %}</code>
+      <span class="req">{% if arg.required %}{{ t.commands.required }}{% else %}{{ t.commands.optional }}{% endif %}</span></dt>
+    <dd lang="en">{{ arg.description | escape }}</dd>
+    {%- endfor %}
+  </dl>
+  {%- endif %}
+
+  {%- if include.command.options.size > 0 %}
+  <p class="sub-head">{{ t.commands.options }}</p>
+  {% include options.html options=include.command.options %}
+  {%- endif %}
+
+  {%- for sub in include.command.commands %}
+  {%- assign command_next_level = include.level | plus: 1 %}
+  {% include command.html command=sub level=command_next_level %}
+  {%- endfor %}
+</article>

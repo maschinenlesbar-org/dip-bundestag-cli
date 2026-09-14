@@ -1,0 +1,365 @@
+/* Site styles on top of Fylgja (tokens, base, theme, utilities, card, badge).
+   Shared by every maschinenlesbar.org CLI website. */
+
+:root {
+  --brand: hsl(203 86% 30%);
+  --on-brand: hsl(0 0% 100%);
+  --container-size: 72rem;
+  --muted: color-mix(in oklab, var(--root-fg) 72%, var(--root-bg));
+  --hairline: color-mix(in oklab, var(--root-bg) 85%, var(--root-fg));
+  --anchor-offset: 5rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --brand: hsl(200 85% 64%);
+    --on-brand: hsl(205 70% 10%);
+  }
+}
+
+a {
+  color: var(--brand);
+  text-underline-offset: 0.15em;
+}
+
+code {
+  font-size: 0.9em;
+}
+
+/* Header & footer */
+
+.skip-link {
+  position: absolute;
+  inset-block-start: 0.5rem;
+  inset-inline-start: 0.5rem;
+  z-index: 10;
+  padding: 0.5rem 1rem;
+  background: var(--root-bg);
+}
+
+.site-header {
+  border-block-end: 1px solid var(--hairline);
+}
+
+.site-header nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
+  padding-block: 0.9rem;
+}
+
+.site-header ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0;
+}
+
+.site-header ul a {
+  color: inherit;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.site-header ul a:hover,
+.site-header ul a[aria-current="page"] {
+  color: var(--brand);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.brand code {
+  font-size: 1.1rem;
+  font-weight: 700;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.brand-org {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.site-footer {
+  margin-block-start: 4rem;
+  padding-block: 2rem;
+  border-block-start: 1px solid var(--hairline);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.site-footer p {
+  margin-block: 0.25rem;
+}
+
+/* Page sections */
+
+main {
+  padding-block: 2rem 1rem;
+}
+
+main > section + section {
+  margin-block-start: 3.5rem;
+}
+
+.hero {
+  max-inline-size: 50rem;
+  padding-block: 1.5rem 0.5rem;
+}
+
+.hero h1 {
+  font-size: clamp(2.2rem, 6vw, 3.5rem);
+  line-height: 1.1;
+}
+
+.hero h1 code {
+  font-size: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.eyebrow {
+  color: var(--brand);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.intro,
+.intro p {
+  font-size: 1.15rem;
+  color: var(--muted);
+  max-inline-size: 48rem;
+}
+
+.intro p {
+  margin: 0;
+}
+
+.note {
+  color: var(--muted);
+  font-size: 0.95rem;
+  max-inline-size: 50rem;
+}
+
+.meta-row,
+.link-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.25rem;
+}
+
+/* Room for the copy button; long commands wrap instead of hiding under it. */
+copy-command pre {
+  margin: 0;
+  padding-inline-end: 5rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+main > section > copy-command,
+main > section > p {
+  max-inline-size: 50rem;
+}
+
+/* Home: command cards and skills */
+
+.command-list {
+  --max-col-size: 17rem;
+  padding: 0;
+}
+
+.command-list .card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.command-list h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.command-list h3 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.command-list .card:hover h3 a,
+.command-list .card:focus-within h3 a {
+  color: var(--brand);
+}
+
+.command-list p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.skill-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0;
+}
+
+/* Commands reference */
+
+.page-head {
+  max-inline-size: 50rem;
+}
+
+.toc ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  padding: 0;
+  margin-block: 1.5rem 0;
+}
+
+.command-group {
+  margin-block-start: 3rem;
+  padding-block-start: 1rem;
+  border-block-start: 1px solid var(--hairline);
+}
+
+.command {
+  max-inline-size: 60rem;
+}
+
+.command .command {
+  margin-block-start: 2rem;
+  padding-inline-start: 1rem;
+  border-inline-start: 3px solid var(--hairline);
+}
+
+.command-name a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.command-name a:hover {
+  color: var(--brand);
+}
+
+.command-name code {
+  font-size: 0.95em;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.sub-head {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.arguments {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  align-items: baseline;
+  gap: 0.35rem 1.25rem;
+}
+
+.arguments dt,
+.arguments dd {
+  margin: 0;
+}
+
+.req,
+.choices {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.options {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.options th,
+.options td {
+  padding: 0.45rem 0.75rem 0.45rem 0;
+  border-block-end: 1px solid var(--hairline);
+  text-align: start;
+  vertical-align: top;
+}
+
+.options td:first-child {
+  white-space: nowrap;
+}
+
+/* Documents rendered from Markdown (Usage.md, GLOSSARY.md) */
+
+.doc {
+  max-inline-size: 52rem;
+}
+
+.doc h2 {
+  margin-block-start: 2.5rem;
+}
+
+.doc h3,
+.doc h4 {
+  margin-block-start: 1.75rem;
+}
+
+.doc table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.doc th,
+.doc td {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--hairline);
+  text-align: start;
+  vertical-align: top;
+}
+
+.doc blockquote {
+  margin-inline: 0;
+  padding-inline-start: 1rem;
+  border-inline-start: 3px solid var(--brand);
+  color: var(--muted);
+}
+
+.doc-note {
+  margin-block-end: 1.5rem;
+}
+
+@media (width < 36rem) {
+  .arguments {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+
+  .arguments dd + dt {
+    margin-block-start: 0.6rem;
+  }
+
+  .options td:first-child {
+    white-space: normal;
+  }
+}

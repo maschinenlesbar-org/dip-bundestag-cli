@@ -1,0 +1,20 @@
+{%- comment -%}
+  A table of CLI options. Param: options (list from _data/cli.json).
+  Expects `t` (the page's i18n strings) from the calling layout.
+{%- endcomment -%}
+<div class="table-scroll">
+  <table class="options">
+    <thead>
+      <tr><th scope="col">{{ t.commands.option }}</th><th scope="col">{{ t.commands.description }}</th><th scope="col">{{ t.commands.default }}</th></tr>
+    </thead>
+    <tbody>
+      {%- for o in include.options %}
+      <tr>
+        <td><code>{{ o.flags | escape }}</code>{% if o.required %} <span class="req">{{ t.commands.required }}</span>{% endif %}</td>
+        <td lang="en">{{ o.description | escape }}{% if o.choices %} <span class="choices">{{ t.commands.choices }} {{ o.choices | join: ", " | escape }}</span>{% endif %}</td>
+        <td>{% if o.default %}<code>{{ o.default | escape }}</code>{% endif %}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+</div>

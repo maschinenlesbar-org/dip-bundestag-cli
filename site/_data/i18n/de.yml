@@ -1,0 +1,87 @@
+# Deutsche Oberflächentexte, gemeinsam für alle CLI-Websites von maschinenlesbar.org.
+# Gleiche Schlüssel wie en.yml (sonst bricht der Build ab).
+# Platzhalter wie %bin% setzen die Templates ein.
+
+name: Deutsch
+
+nav:
+  label: Hauptnavigation
+  commands: Befehle
+  usage: Anleitung
+  glossary: Glossar
+  api: API
+  github: GitHub
+  language: Sprache
+  skip: Zum Inhalt springen
+
+home:
+  eyebrow: Kommandozeilen-Tool und TypeScript-Bibliothek
+  install_title: Installation
+  install_text: "Benötigt Node.js %node% oder neuer. Installiert den Befehl <code>%bin%</code>:"
+  quickstart_title: Schnellstart
+  commands_title: Befehle
+  commands_more: Alle Befehle, Argumente und Optionen
+  access_title: Zugang
+  skills_title: Skills für Claude Code
+  skills_text: >-
+    Das Plugin <code>%plugin%</code> bringt Claude bei, <code>%bin%</code> zu nutzen.
+    Installation über den Marketplace von maschinenlesbar.org:
+  skills_more: Beschreibungen und Voraussetzungen der Skills
+  library_title: TypeScript-Bibliothek
+  library_text: >-
+    <code>%package%</code> ist auch ein typisierter API-Client, den Sie in eigenem Code
+    importieren können – ohne HTTP-Abhängigkeiten zur Laufzeit.
+  api_link: API-Referenz
+  developing_link: Nutzung als Bibliothek und Architektur
+  data_title: Das Werkzeug, nicht die Daten
+  data_text: >-
+    Die Daten stammen vom Anbieter hinter der API und unterliegen dessen Bedingungen – siehe
+    <a href="%url%">DATA_LICENSE.md</a>. Der Code steht unter AGPL-3.0-or-later oder einer
+    kommerziellen Lizenz – siehe <a href="%licensing%">LICENSING.md</a>.
+  version: Version
+  english_note: >-
+    Die Beschreibungen der Befehle stammen direkt aus der CLI und sind englisch.
+
+access:
+  open: Kein Konto, kein API-Schlüssel, keine Konfiguration – installieren und loslegen.
+  key: >-
+    Benötigt den kostenlosen, öffentlich dokumentierten API-Schlüssel: per
+    <code>--api-key</code> oder über <code>%env%</code>. Es ist kein Schlüssel enthalten; woher
+    Sie ihn bekommen, steht in der <a href="%readme%">README</a>.
+  account: >-
+    Benötigt ein kostenloses Konto beim Datenanbieter: <code>%token%</code> setzen oder
+    <code>%user%</code> und <code>%password%</code>. Es sind keine Zugangsdaten enthalten; wie Sie
+    sich registrieren, steht in der <a href="%readme%">README</a>.
+
+commands:
+  title: Befehle
+  intro: Alle Befehle, Argumente und Optionen von <code>%bin%</code> %version%, direkt aus der CLI gelesen.
+  note: >-
+    Die Beschreibungen der Befehle, Argumente und Optionen stammen direkt aus der CLI und sind
+    englisch.
+  global_title: Globale Optionen
+  global_text: Diese Optionen gelten für jeden Befehl.
+  arguments: Argumente
+  options: Optionen
+  option: Option
+  description: Beschreibung
+  default: Standard
+  choices: "Werte:"
+  required: erforderlich
+  optional: optional
+
+doc:
+  note: Dieses Dokument gibt es nur auf Englisch.
+  source: Quelle auf GitHub ansehen
+
+copy:
+  label: Kopieren
+  copied: Kopiert
+  failed: Kopieren fehlgeschlagen – bitte den Text markieren.
+
+footer:
+  part_of: >-
+    Teil von <a href="%org_url%">maschinenlesbar.org</a> – offene APIs aus Staat und Verwaltung
+    auf der Kommandozeile
+  plugins: Plugins für Claude Code
+  license: AGPL-3.0-or-later oder kommerziell

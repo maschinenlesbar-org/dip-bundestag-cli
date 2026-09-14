@@ -1,0 +1,5 @@
+{%- comment -%}
+  A copyable command or snippet. Usage: {% include copy.html code=some_string %}
+  Expects `t` (the page's i18n strings) to be assigned by the calling layout.
+{%- endcomment -%}
+<copy-command label="{{ t.copy.label | escape }}" copied-label="{{ t.copy.copied | escape }}" failed-label="{{ t.copy.failed | escape }}"><pre><code>{{ include.code | escape }}</code></pre></copy-command>
