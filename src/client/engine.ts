@@ -59,8 +59,9 @@ export function escapeRawControlCharsInStrings(text: string): string {
  * into a real ESC byte, so without this a hostile or MITM'd endpoint could drive
  * ANSI/OSC escape sequences into the user's terminal when the message is printed
  * to stderr. Removes all C0 (except tab/newline are kept implicitly by the range
- * choice below), DEL, and C1 control characters. The success path is already safe
- * (`JSON.stringify` re-escapes these), so this only needs to cover text that flows
+ * choice below), DEL, and C1 control characters. The CLI's JSON output is escaped
+ * separately (`escapeControlChars` in `cli/shared.ts`: `JSON.stringify` alone
+ * leaves DEL and the C1 range raw), so this only needs to cover text that flows
  * into an error message.
  *
  * Implemented as an explicit char-code filter so no raw control byte ever appears
