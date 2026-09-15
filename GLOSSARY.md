@@ -37,11 +37,12 @@ materials from both bodies.
 **API key.** DIP requires an API key, sent as the HTTP header
 `Authorization: ApiKey <key>`. The key is **not bundled** — supply it via
 `--api-key` or the `DIP_API_KEY` environment variable, else the header is omitted
-and the API returns `401`. Request a personal key from
-`parlamentsdokumentation@bundestag.de`. The Bundestag also publishes a shared,
-rate-limited key (rotates yearly); for CI / live testing it can be fetched
-out-of-band (never from the CLI) via `scripts/fetch-api-key.mjs`
-(`npm run fetch-key`).
+and the API returns `401`. The Bundestag publishes a public key on its
+[DIP API help page](https://dip.bundestag.de/über-dip/hilfe/api) (stated there in
+2026 as valid until the end of May 2027); a personal key can be requested from
+`parlamentsdokumentation@bundestag.de`. `scripts/fetch-api-key.mjs`
+(`npm run fetch-key`) reads an older source that is no longer current; take the key
+from the help page instead.
 
 ---
 
@@ -123,9 +124,10 @@ Wahlperiode.
 *Gesetzgebung* — legislation, *Antrag* — motion, *Kleine Anfrage* — minor
 interpellation). Filterable via `f.vorgangstyp`.
 
-**Dokumentart (document type).** For Drucksachen, whether a document is a
-*Drucksache* or an *Antwort* (answer); for Plenarprotokolle the analogous
-classification. Filterable via `f.dokumentart`.
+**Dokumentart (document type).** Whether a document is a *Drucksache* or a
+*Plenarprotokoll*. Filterable via `f.dokumentart` on `vorgang`, `vorgangsposition`
+and `aktivitaet`. The kind of Drucksache (Antrag, Gesetzentwurf, Antwort, …) is
+`drucksachetyp`, filterable via `f.drucksachetyp`.
 
 **Datum (date).** The date a document/activity is dated. Date-range filtering
 uses `f.datum.start` and `f.datum.end` (ISO `YYYY-MM-DD`). The query builder
@@ -142,8 +144,8 @@ serialises `Date` values to full ISO-8601 strings.
 `--base-url` (CLI) or `baseUrl` (library). All resource paths are under
 `/api/v1`.
 
-**Rate limiting.** The shared key in particular is rate-limited; the API returns
-**429** when exceeded. The client retries **429** and **503** automatically with
+**Rate limiting.** DIP limits the request rate; the API returns **429** when it is
+exceeded. The client retries **429** and **503** automatically with
 linear backoff (`--max-retries`, default 2).
 
 **Credential stripping on redirect.** The `Authorization` header (and

@@ -38,11 +38,13 @@ Materialien beider Organe.
 **API-Schlüssel.** Das DIP verlangt einen API-Schlüssel, der als HTTP-Header
 `Authorization: ApiKey <key>` gesendet wird. Der Schlüssel ist **nicht mitgeliefert** –
 geben Sie ihn über `--api-key` oder die Umgebungsvariable `DIP_API_KEY` an; andernfalls
-entfällt der Header und die API antwortet mit `401`. Einen persönlichen Schlüssel
-erhalten Sie auf Anfrage bei `parlamentsdokumentation@bundestag.de`. Der Bundestag
-veröffentlicht außerdem einen gemeinsam genutzten, rate-limitierten Schlüssel (der
-jährlich wechselt); für CI und Live-Tests lässt er sich separat (nie aus der CLI) über
-`scripts/fetch-api-key.mjs` abrufen (`npm run fetch-key`).
+entfällt der Header und die API antwortet mit `401`. Der Bundestag veröffentlicht einen
+öffentlichen Schlüssel auf seiner
+[Hilfeseite zur DIP-API](https://dip.bundestag.de/über-dip/hilfe/api) (dort 2026 als
+gültig bis Ende Mai 2027 angegeben); einen persönlichen Schlüssel erhalten Sie auf
+Anfrage bei `parlamentsdokumentation@bundestag.de`. `scripts/fetch-api-key.mjs`
+(`npm run fetch-key`) liest eine ältere, nicht mehr aktuelle Quelle aus; nehmen Sie den
+Schlüssel stattdessen von der Hilfeseite.
 
 ---
 
@@ -122,9 +124,10 @@ Wahlperiode.
 **Vorgangstyp.** Die Einordnung eines Vorgangs (z. B. *Gesetzgebung*, *Antrag*,
 *Kleine Anfrage*). Filterbar über `f.vorgangstyp`.
 
-**Dokumentart.** Bei Drucksachen, ob ein Dokument eine *Drucksache* oder eine
-*Antwort* ist; bei Plenarprotokollen die entsprechende Einordnung. Filterbar über
-`f.dokumentart`.
+**Dokumentart.** Ob ein Dokument eine *Drucksache* oder ein *Plenarprotokoll* ist.
+Filterbar über `f.dokumentart` bei `vorgang`, `vorgangsposition` und `aktivitaet`. Die
+Art einer Drucksache (Antrag, Gesetzentwurf, Antwort, …) steht in `drucksachetyp` und
+ist über `f.drucksachetyp` filterbar.
 
 **Datum.** Das Datum, auf das ein Dokument bzw. eine Aktivität datiert ist. Die
 Filterung nach Datumsbereich nutzt `f.datum.start` und `f.datum.end` (ISO
@@ -143,8 +146,8 @@ ISO-8601-Zeichenketten.
 `--base-url` (CLI) oder `baseUrl` (Bibliothek). Alle Ressourcenpfade liegen unter
 `/api/v1`.
 
-**Rate-Limiting.** Vor allem der gemeinsam genutzte Schlüssel ist rate-limitiert; bei
-Überschreitung antwortet die API mit **429**. Der Client wiederholt **429** und **503**
+**Rate-Limiting.** Das DIP begrenzt die Anfragerate; bei Überschreitung antwortet die
+API mit **429**. Der Client wiederholt **429** und **503**
 automatisch mit linearem Backoff (`--max-retries`, Standard 2).
 
 **Entfernen von Zugangsdaten bei Weiterleitungen.** Der Header `Authorization` (sowie
