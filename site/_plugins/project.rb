@@ -2,20 +2,23 @@
 #
 # Reads ../package.json, the README (intro paragraph and quick start), the command
 # tree of the built CLI (_data/cli.json, written by scripts/cli-reference.mjs),
-# Usage.md, GLOSSARY.md, the Claude Code plugin and skills, and _data/project.yml
-# (the only repo-specific texts), and exposes them as site.data["repo"].
+# Usage.md, EXAMPLE.md, GLOSSARY.md, the Claude Code plugin and skills, and
+# _data/project.yml (the only repo-specific texts), and exposes them as
+# site.data["repo"].
 #
 # Every page exists in each language listed under `languages` in _config.yml: the
 # default language at the root, the others under /<lang>/. Pages that translate
 # each other share a `ref`, which the layout uses for the language switch and the
-# hreflang links. Interface strings live in _data/i18n/<lang>.yml.
+# hreflang links. Interface strings live in _data/i18n/<lang>.yml. A document can
+# have a translation next to it (EXAMPLE.de.md); without one, the page in that
+# language shows the English document.
 
 require "json"
 require "yaml"
 
 module ProjectSite
-  # Markdown documents rendered as pages, by slug.
-  DOCS = { "usage" => "Usage.md", "glossary" => "GLOSSARY.md" }.freeze
+  # Markdown documents rendered as pages, by slug, in navigation order.
+  DOCS = { "usage" => "Usage.md", "examples" => "EXAMPLE.md", "glossary" => "GLOSSARY.md" }.freeze
 
   class Generator < Jekyll::Generator
     safe true
@@ -39,7 +42,7 @@ module ProjectSite
       docs = DOCS.select { |_, file| File.exist?(File.join(root, file)) }
       baseurl = site.config.fetch("baseurl", "")
       prefix = ->(lang) { lang == default_lang ? "/" : "/#{lang}/" }
-      link_context = ->(lang) { { baseurl: baseurl, prefix: prefix.call(lang), blob: blob, repository: repository, ref: ref, docs: docs } }
+      link_context = ->(lang) { { baseurl: baseurl, prefix: prefix.call(lang), blob: blob, repository: repository, ref: ref, docs: docs, languages: languages } }
 
       intro_en = readme_intro(readme) or raise fatal("README.md has no intro paragraph")
       intro = languages.to_h do |lang|
@@ -84,12 +87,15 @@ module ProjectSite
                  "layout" => "commands", "ref" => "commands", "title" => i18n.dig(lang, "commands", "title"))
 
         docs.each do |slug, file|
-          markdown = File.read(File.join(root, file))
+          translated = translation(file, lang)
+          source, doc_lang = File.exist?(File.join(root, translated)) ? [translated, lang] : [file, default_lang]
+          markdown = File.read(File.join(root, source))
           title = markdown[/\A#\s+(.+)$/, 1] || slug.capitalize
           body = rewrite_links(markdown.sub(/\A#\s+.+\n/, ""), link_context.call(lang))
           add_page(site, lang, default_lang, slug, "index.md",
                    { "layout" => "doc", "ref" => "doc/#{slug}", "title" => i18n.dig(lang, "nav", slug) || title,
-                     "doc_title" => title, "source_url" => "#{blob}/#{file}", "render_with_liquid" => false },
+                     "doc_title" => title, "doc_lang" => doc_lang, "source_url" => "#{blob}/#{source}",
+                     "render_with_liquid" => false },
                    body)
         end
       end
@@ -99,6 +105,11 @@ module ProjectSite
 
     def fatal(message)
       Jekyll::Errors::FatalException.new(message)
+    end
+
+    # EXAMPLE.md in German is EXAMPLE.de.md.
+    def translation(file, lang)
+      file.sub(/\.md\z/, ".#{lang}.md")
     end
 
     def add_page(site, lang, default_lang, slug, name, data, content = "")
@@ -152,9 +163,10 @@ module ProjectSite
       end
     end
 
-    # Rewrites repository-relative Markdown links (outside code blocks): the README,
-    # Usage.md and GLOSSARY.md go to this site's pages in the same language, images to
-    # raw.githubusercontent.com, everything else to the file on GitHub at SITE_REF.
+    # Rewrites repository-relative Markdown links (outside code blocks): the README and
+    # the documents (and their translations) go to this site's pages in the same
+    # language, images to raw.githubusercontent.com, everything else to the file on
+    # GitHub at SITE_REF.
     def rewrite_links(markdown, ctx)
       markdown.split(/(^```.*?^```[ \t]*$)/m).each_with_index.map do |part, i|
         next part if i.odd?
@@ -171,7 +183,11 @@ module ProjectSite
       path, anchor = target.split("#", 2)
       path = path.delete_prefix("./")
       suffix = anchor ? "##{anchor}" : ""
-      page = { "README.md" => "" }.merge(ctx[:docs].to_h { |slug, file| [file, "#{slug}/"] })[path]
+      pages = { "README.md" => "" }
+      ctx[:docs].each do |slug, file|
+        [file, *ctx[:languages].map { |lang| translation(file, lang) }].each { |f| pages[f] = "#{slug}/" }
+      end
+      page = pages[path]
       if page
         "#{ctx[:baseurl]}#{ctx[:prefix]}#{page}#{suffix}"
       elsif path.match?(/\.(png|jpe?g|gif|svg|webp)\z/i)

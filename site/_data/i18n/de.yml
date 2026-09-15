@@ -8,6 +8,7 @@ nav:
   label: Hauptnavigation
   commands: Befehle
   usage: Anleitung
+  examples: Beispiele
   glossary: Glossar
   api: API
   github: GitHub
@@ -27,6 +28,7 @@ home:
     Das Plugin <code>%plugin%</code> bringt Claude bei, <code>%bin%</code> zu nutzen.
     Installation über den Marketplace von maschinenlesbar.org:
   skills_more: Beschreibungen und Voraussetzungen der Skills
+  skills_examples: Was die Skills beantworten, mit echten Beispielen
   library_title: TypeScript-Bibliothek
   library_text: >-
     <code>%package%</code> ist auch ein typisierter API-Client, den Sie in eigenem Code

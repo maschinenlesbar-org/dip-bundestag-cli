@@ -2,10 +2,10 @@
 layout: default
 ---
 {%- assign t = site.data.i18n[page.lang] -%}
-{%- if t.doc.note != "" %}
+{%- if page.doc_lang != page.lang and t.doc.note != "" %}
 <p class="note doc-note">{{ t.doc.note }}</p>
 {%- endif %}
-<article class="doc flow" lang="en">
+<article class="doc flow" lang="{{ page.doc_lang }}">
   <h1>{{ page.doc_title }}</h1>
   {{ content }}
 </article>

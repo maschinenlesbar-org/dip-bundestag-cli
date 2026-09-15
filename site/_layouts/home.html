@@ -78,7 +78,12 @@ layout: default
     <li><code>/{{ r.plugin }}:{{ skill }}</code></li>
     {%- endfor %}
   </ul>
-  <p><a href="{{ plugins_home | append: r.plugin | append: '/' }}">{{ t.home.skills_more }} →</a></p>
+  <p class="link-row">
+    {%- if r.docs contains "examples" %}
+    <a href="{{ home | append: 'examples/' | relative_url }}">{{ t.home.skills_examples }} →</a>
+    {%- endif %}
+    <a href="{{ plugins_home | append: r.plugin | append: '/' }}">{{ t.home.skills_more }} →</a>
+  </p>
 </section>
 {%- endif %}
 

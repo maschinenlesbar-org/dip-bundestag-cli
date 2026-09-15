@@ -309,7 +309,7 @@ main > section > p {
   white-space: nowrap;
 }
 
-/* Documents rendered from Markdown (Usage.md, GLOSSARY.md) */
+/* Documents rendered from Markdown (Usage.md, EXAMPLE.md, GLOSSARY.md) */
 
 .doc {
   max-inline-size: 52rem;

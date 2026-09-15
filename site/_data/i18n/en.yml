@@ -8,6 +8,7 @@ nav:
   label: Main
   commands: Commands
   usage: Guide
+  examples: Examples
   glossary: Glossary
   api: API
   github: GitHub
@@ -27,6 +28,7 @@ home:
     The <code>%plugin%</code> plugin teaches Claude to use <code>%bin%</code>. Install it from
     the maschinenlesbar.org marketplace:
   skills_more: Skill descriptions and requirements
+  skills_examples: What the skills answer, with real examples
   library_title: TypeScript library
   library_text: >-
     <code>%package%</code> is also a typed API client you can import in your own code, with
