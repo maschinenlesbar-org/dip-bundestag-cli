@@ -3,7 +3,7 @@ name: dip-procedure-tracker
 description: >
   Track a Bundestag legislative procedure (Vorgang) end to end using the
   dip-bundestag-cli. Trigger when the user asks "what's the status of the
-  Heizungsgesetz?", "track the Bürgergeld bill", "where is procedure 282486 in
+  Heizungsgesetz?", "track the Bürgergeld bill", "where is procedure 298723 in
   the process?", "show the readings and committee referrals for this law", "did
   the Bundestag pass X?", or wants the timeline / current Beratungsstand of a
   German parliamentary process. Resolves the Vorgang, then assembles its
@@ -29,12 +29,12 @@ client over the Bundestag DIP API. It queries **one resource per call**; the who
 this skill is the cross-resource join (Vorgang ↔ Vorgangspositionen) the CLI deliberately
 does not do.
 
-**API key is mandatory.** DIP returns `401` (CLI exit `1`) without one. Supply it via the
-`DIP_API_KEY` env var (preferred) or the global `--api-key <key>` flag (works before or
-after the subcommand). There is **no working bundled key** — the published shared key
-rotates yearly and is usually expired; for a guaranteed key request a personal one from
-`parlamentsdokumentation@bundestag.de`. If you hit a `401`, stop and tell the user a key is
-needed rather than retrying.
+**API key is mandatory** — DIP answers `401` (CLI exit `1`) without one. Set `DIP_API_KEY`
+(preferred) or pass `--api-key <key>` (global; before or after the subcommand). No key is
+bundled with the CLI. The Bundestag publishes a public key on its DIP API help page,
+https://dip.bundestag.de/über-dip/hilfe/api (stated there in 2026 as valid until the end of
+May 2027); a personal key can be requested from `parlamentsdokumentation@bundestag.de`. On a
+`401`, stop and tell the user a valid key is needed and where to get it instead of retrying.
 
 Pass `--compact` so each result is one line, easy to pipe into `jq`. A `list` that matches
 nothing returns `{ "numFound": 0, "documents": [] }` and exits `0` — that is **not** an
@@ -48,17 +48,24 @@ If the user gave a numeric id, skip to Step 2. Otherwise search by title keyword
 dip --compact vorgang list --filter f.titel=Heizungsgesetz --filter f.wahlperiode=20
 ```
 
-- `f.titel` is a **free-text** match and is the only practical way to find a procedure by
-  name — but note it is **not in DIP's formal filter spec**, so treat it as best-effort:
-  it can return loosely-related hits and occasionally misses. Always scope it with
-  `f.wahlperiode` (the current term is **21**, the prior **20**) to cut noise, and confirm
-  the right hit by reading each candidate's `titel` / `abstract` / `vorgangstyp` before
-  committing.
+- `f.titel` searches **whole words in the title only** — not the `abstract`, and not word
+  parts: `f.titel=Gebäudeenergie` finds nothing, `f.titel=Gebäudeenergiegesetzes` does.
+  Always scope it with `f.wahlperiode` (the current term is **21**, the prior **20**), and
+  confirm the right hit by reading each candidate's `titel` / `abstract` / `vorgangstyp`.
+- **A law's popular name is often not in its title.** `f.titel=Gebäudemodernisierungsgesetz`
+  (WP 21) returned only questions on 2026-09-15, no Gesetzgebung: the law is titled
+  "Gesetz zur Änderung des Gebäudeenergiegesetzes, …" and the popular name appears only in
+  its `abstract`. When the hits are only questions, retry with a word from the official
+  title and narrow by type:
+  ```bash
+  dip --compact vorgang list --filter f.titel=Gebäude --filter f.wahlperiode=21 \
+    --filter f.vorgangstyp=Gesetzgebung
+  ```
+  (Some titles carry the popular name in brackets, e.g. "… [Heizungsgesetz]".)
+- `f.vorgangstyp` (e.g. `Gesetzgebung`, `Antrag`, `Kleine Anfrage`) filters by type
+  server-side; use it to drop the questions that share a keyword with the bill.
 - The envelope is `{ numFound, documents[], cursor }`. If `numFound` is large, show the top
   few `titel`s and ask the user which one, rather than guessing.
-- **`f.vorgangstyp` is unreliable** (also not in the formal spec). Don't filter on it; read
-  the `vorgangstyp` field off the results and filter client-side if the user wants only
-  e.g. Gesetzgebung.
 
 The Vorgang fields that matter:
 
@@ -66,7 +73,7 @@ The Vorgang fields that matter:
 |---|---|
 | `id` | The procedure id — the join key for Step 2 |
 | `titel` | Title of the procedure |
-| `abstract` | Short summary (often the best one-line description) |
+| `abstract` | Short summary (often the best one-line description). **Contains HTML** (`<br />`, `<strong>`, `&quot;`, `&ndash;`) — strip tags and decode entities before quoting |
 | `vorgangstyp` | Type — `Gesetzgebung`, `Antrag`, `Kleine Anfrage`, … |
 | `beratungsstand` | **Current status** in plain German (e.g. "Verkündet", "Dem Bundesrat zugeleitet"). The headline of the briefing. |
 | `wahlperiode` | Electoral term |
@@ -81,7 +88,7 @@ This is the join. **`f.vorgang` is supported on `vorgangsposition`, not on `vorg
 that's the non-obvious part:
 
 ```bash
-dip --compact vorgangsposition list --filter f.vorgang=282486
+dip --compact vorgangsposition list --filter f.vorgang=298723
 ```
 
 Each document is one step in the procedure's history. Page with `--cursor` if `numFound`
@@ -95,7 +102,7 @@ that matter per step:
 | `vorgangstyp` | Step's procedure type |
 | `zuordnung` | Chamber: `BT` (Bundestag) or `BR` (Bundesrat) |
 | `fundstelle` | The document at this step — `fundstelle.dokumentart` (Drucksache/Plenarprotokoll), `fundstelle.dokumentnummer`, `fundstelle.pdf_url`, `fundstelle.herausgeber` |
-| `beschlussfassung[]` | **The vote**, when there was one: `beschlusstenor` (outcome, e.g. "Annahme der Vorlage"), `abstimmungsart`, `mehrheit`, `dokumentnummer` |
+| `beschlussfassung[]` | **A decision** taken at this step: `beschlusstenor` (e.g. "Annahme in Ausschussfassung", but also "Überweisung", "Annahme Geschäftsordnungsantrag", a Bundesrat "Stellungnahme"), `abstimmungsart` and `mehrheit` (only when given, e.g. "Namentliche Abstimmung"), `dokumentnummer`, `seite` |
 | `ueberweisung[]` | **Committee referral(s)**: `ausschuss` (committee), `ausschuss_kuerzel`, `federfuehrung` (lead committee, boolean), `ueberweisungsart` |
 | `urheber[]` | Originators (`bezeichnung`, `rolle`) |
 | `aktivitaet_anzahl` | How many activities (speeches/questions) attach to this step |
@@ -107,8 +114,12 @@ that matter per step:
    chronological.
 2. Tag each step with its chamber (`zuordnung`) so a reader sees the BT/BR ping-pong.
 3. Pull out the two things that carry real news:
-   - **Votes** — any step with `beschlussfassung[]`: report `beschlusstenor` +
-     `abstimmungsart` + `mehrheit`. "Annahme" = adopted, "Ablehnung" = rejected.
+   - **Votes** — steps whose `beschlussfassung[]` decides on the bill itself, typically
+     "2. Beratung" / "3. Beratung": report `beschlusstenor` + `abstimmungsart` + `mehrheit`
+     (the last two are often absent). "Annahme" = adopted, "Ablehnung" = rejected. **Not
+     every `beschlussfassung` is a vote on the bill:** `Überweisung` at a 1. Beratung is the
+     committee referral, `… Geschäftsordnungsantrag` is procedural, and a Bundesrat
+     `Stellungnahme` is an opinion — report those as what they are.
    - **Committee referrals** — any step with `ueberweisung[]`: list the committees, mark
      the `federfuehrung` (lead) one.
 4. Cross-check the Vorgang's `beratungsstand` against the last step; if `verkuendung[]` /
@@ -120,29 +131,33 @@ that matter per step:
 Lead with a one-line verdict (status), then the timeline, then notable votes/referrals.
 
 ```
-Gebäudeenergiegesetz (Heizungsgesetz) — WP 20 · Gesetzgebung
-Status: Verkündet (in Kraft seit 01.01.2024)
+Gebäudeenergiegesetz (Heizungsgesetz) — Vorgang 298723 · WP 20 · Gesetzgebung
+Status: Verkündet (BGBl I 2023, 280, 19.10.2023; in Kraft 01.10.2023 bzw. 01.01.2024)
 
 Timeline:
-  2023-04-19  BT  Gesetzentwurf eingebracht (Drs 20/6363)
-  2023-05-23  BT  1. Beratung → überwiesen an Ausschuss für Klimaschutz und Energie (federführend), +3 mitberatend
-  2023-09-08  BT  2./3. Beratung — ✅ Annahme der Vorlage (namentliche Abstimmung, Mehrheit der Koalition)
-  2023-09-29  BR  Durchgang — kein Einspruch
-  2023-10-19  —   Verkündung (BGBl.)
+  2023-04-20  BR  Gesetzentwurf (Drs 170/23)
+  2023-05-12  BR  1. Durchgang — Stellungnahme (PlPr 1033)
+  2023-05-17  BT  Gesetzentwurf (Drs 20/6875)
+  2023-06-15  BT  1. Beratung — Überweisung an den Ausschuss für Klimaschutz und Energie (federführend) und weitere Ausschüsse (PlPr 20/109)
+  2023-07-05  BT  Beschlussempfehlung und Bericht (Drs 20/7619)
+  2023-09-08  BT  3. Beratung — ✅ Annahme in Ausschussfassung, namentliche Abstimmung (PlPr 20/120)
+  2023-09-29  BR  2. Durchgang — kein Antrag auf Einberufung des Vermittlungsausschusses (PlPr 1036)
 
 Notable:
-  • Vote 2023-09-08: Annahme der Vorlage, namentliche Abstimmung.
+  • Vote 2023-09-08: Annahme in Ausschussfassung, namentliche Abstimmung.
   • Lead committee: Ausschuss für Klimaschutz und Energie.
 ```
 
 Rules:
 - **Lead with `beratungsstand`** — it's the answer to "where is it?".
 - Always render the timeline **chronologically**, with chamber tags.
-- Surface every **vote** (`beschlusstenor`) and the **lead committee** (`federfuehrung`).
+- Surface every **vote** on the bill (`beschlusstenor`) and the **lead committee**
+  (`federfuehrung`); list referrals and procedural decisions as such, not as votes.
 - For each step, cite the document (`fundstelle.dokumentnummer`) and offer its `pdf_url`.
 - If the user wants the actual text of a step's document, hand off to **dip-document-digest**
   (`drucksache-text` / `plenarprotokoll-text`).
 - A procedure with one step (e.g. an unanswered Kleine Anfrage) is normal — report it
   plainly rather than implying data is missing.
-- Don't infer "passed" from a 1. Beratung; only `Annahme`-tenor votes or
-  `verkuendung`/`inkrafttreten` mean enacted.
+- Don't infer "passed" from a 1. Beratung or from any `Annahme` tenor (a
+  `Geschäftsordnungsantrag` can be "angenommen" too); only the adoption of the bill in the
+  2./3. Beratung, or `verkuendung`/`inkrafttreten` on the Vorgang, mean passed/enacted.
