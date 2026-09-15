@@ -17,8 +17,8 @@ them each time.
 
 | Skill | What it does | Ask it… |
 |---|---|---|
-| **dip-procedure-tracker** | Resolves a procedure (Vorgang), assembles its steps (Vorgangspositionen) chronologically, and surfaces votes, committee referrals and current Beratungsstand. | "what's the status of the Heizungsgesetz?", "track procedure 282486", "did the Bundestag pass X?" |
-| **dip-member-dossier** | Resolves a person (handling DIP's missing name filter), reads their roles/Fraktion/Wahlkreis across terms, and optionally finds tied documents. | "who is MP X?", "what's Baerbock's role and party?", "look up person 7240" |
+| **dip-procedure-tracker** | Resolves a procedure (Vorgang), assembles its steps (Vorgangspositionen) chronologically, and surfaces votes, committee referrals and current Beratungsstand. | "what's the status of the Heizungsgesetz?", "track procedure 298723", "did the Bundestag pass X?" |
+| **dip-member-dossier** | Resolves a person by name (`f.person`) or id, reads their current function/Fraktion and earlier roles, and optionally lists their activities. | "who is MP X?", "what's Baerbock's role and party?", "look up person 7240" |
 | **dip-document-digest** | Searches Drucksachen / Plenarprotokolle, pulls the heavy full-text endpoints, and produces a sourced digest with citations. | "summarize Drucksache 20/6363", "digest the debate on X", "find recent papers about Klimaschutz" |
 
 ## Requirements
@@ -29,14 +29,16 @@ them each time.
   ```bash
   npm i -g @maschinenlesbar.org/dip-bundestag-cli   # installs the `dip` bin
   ```
-- **A DIP API key.** Unlike some sibling CLIs, DIP **requires a key** — there is no usable
-  bundled one (the published shared key rotates yearly and is usually expired). Supply it
-  via the `DIP_API_KEY` environment variable (preferred) or the global `--api-key <key>`
-  flag. Request a personal key free of charge from `parlamentsdokumentation@bundestag.de`.
-  Without a key, every request returns `401`.
+- **A DIP API key.** Unlike some sibling CLIs, DIP **requires a key**, and none is bundled.
+  The Bundestag publishes a public key on its
+  [DIP API help page](https://dip.bundestag.de/über-dip/hilfe/api) (stated there in 2026 as
+  valid until the end of May 2027); a personal key is available free of charge from
+  `parlamentsdokumentation@bundestag.de`. Supply it via the `DIP_API_KEY` environment
+  variable (preferred) or the global `--api-key <key>` flag. Without a valid key, every
+  request returns `401`.
 
   ```bash
-  export DIP_API_KEY=your-personal-key
+  export DIP_API_KEY=key-from-the-help-page-or-your-personal-key
   ```
 
 ## Installation
@@ -93,20 +95,22 @@ Every skill is a single `SKILL.md` — a short, model-facing playbook describing
 subcommands to call, in what order, and how to interpret the JSON. The skills encode the
 non-obvious parts of this API, for example:
 
-- **the key is mandatory and there's no working default** — the published shared key
-  rotates yearly and is normally expired, so a `401` (CLI exit `1`) means "set
-  `DIP_API_KEY`", not "retry";
+- **the key is mandatory and not bundled** — take the public key from the DIP API help page
+  (it is renewed periodically) or a personal one; a `401` (CLI exit `1`) means "set or
+  renew `DIP_API_KEY`", not "retry";
 - **`f.vorgang` lives on `vorgangsposition`, not on `vorgang`** — the procedure→steps join
   is `vorgangsposition list --filter f.vorgang=<id>`, and the steps come back **unordered**
   (sort by `datum`) (see **dip-procedure-tracker**);
-- **the `/person` endpoint has no working name filter** — `f.person` / `f.titel` are not in
-  DIP's formal spec there, so you resolve a person by id or by paging `person list` under
-  an `f.wahlperiode` scope and matching `nachname`/`vorname` client-side; the only formal
-  person filters are `f.wahlperiode`, `f.datum.*`, `f.aktualisiert.*`, `f.id`
-  (see **dip-member-dossier**);
-- **`f.titel` and `f.vorgangstyp` work but are undocumented** — `f.titel` does free-text
-  title search upstream yet isn't in the OpenAPI spec (best-effort), and `f.vorgangstyp` is
-  unreliable; the CLI passes any `--filter` verbatim, so unknown filters are silently sent;
+- **people are found with `f.person`, which needs a complete name** (`Klöckner`, not
+  `Klöck`); current function and Fraktion are top-level fields, while `person_roles[]` holds
+  only earlier roles, without role titles; a fallback scan of `person list` must run to the
+  last page, since it is ordered by date (see **dip-member-dossier**);
+- **`f.titel` matches whole words in the title only** — a law's popular name is often only
+  in its `abstract` (which contains HTML), so retry with a word from the official title
+  plus `f.vorgangstyp=Gesetzgebung`; the CLI passes any `--filter` verbatim, so unknown
+  filters are silently sent;
+- **not every `beschlussfassung` is a vote** — at a 1. Beratung it is usually the
+  committee referral (`Überweisung`) (see **dip-procedure-tracker**);
 - **metadata vs full text** — `drucksache`/`plenarprotokoll` are light; the `*-text`
   variants embed the whole document body, so search on metadata and only fetch text for the
   doc you want; a Plenarprotokoll's `text` is the **entire sitting** (find the agenda item
