@@ -25,6 +25,17 @@ export function parseIntArg(value: string): number {
   return n;
 }
 
+/** Build a commander value-parser for a plain decimal integer constrained to [min, max]. */
+export function parseBoundedInt(min: number, max: number): (value: string) => number {
+  return (value: string) => {
+    const n = parseIntArg(value);
+    if (n < min || n > max) {
+      throw new InvalidArgumentError(`Expected an integer between ${min} and ${max}.`);
+    }
+    return n;
+  };
+}
+
 export interface GlobalOptions {
   baseUrl?: string;
   apiKey?: string;

@@ -246,7 +246,7 @@ These may be given **before or after** the command, e.g.
 | `-o, --output <file>` | Write output to this file instead of stdout (refuses to overwrite an existing file) |
 | `--force` | With `-o`, overwrite the output file if it already exists |
 | `--base-url <url>` | API base URL (default `https://search.dip.bundestag.de`) |
-| `--timeout <ms>` | Time limit per request, reading the whole response included (default `30000`) |
+| `--timeout <ms>` | Time limit per request, reading the whole response included (default `30000`; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`) |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |

@@ -66,6 +66,25 @@ test("timeoutMs bounds the whole response, not just idle gaps", async () => {
   );
 });
 
+test("a timeoutMs beyond Node's timer range is capped, not fired after 1 ms", async () => {
+  const warnings: string[] = [];
+  const onWarning = (warning: Error) => void warnings.push(warning.name);
+  process.on("warning", onWarning);
+  try {
+    await withServer(
+      (_req, res) => void setTimeout(() => res.end("{}"), 50),
+      async (baseUrl) => {
+        const resp = await nodeHttpTransport({ method: "GET", url: baseUrl, timeoutMs: 3_000_000_000 });
+        assert.equal(resp.body.toString("utf8"), "{}");
+      },
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(warnings.filter((name) => name === "TimeoutOverflowWarning"), []);
+  } finally {
+    process.off("warning", onWarning);
+  }
+});
+
 test("enforces maxResponseBytes", async () => {
   await withServer(
     (_req, res) => res.end("x".repeat(1000)),

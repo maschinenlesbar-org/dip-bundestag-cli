@@ -210,7 +210,7 @@ Global options go **before** the command (e.g. `dip --api-key … vorgang list`)
 | `-V, --version` | Print the CLI version |
 | `--base-url <url>` | API base URL (default `https://search.dip.bundestag.de`) |
 | `--api-key <key>` | DIP API key (env `DIP_API_KEY`) |
-| `--timeout <ms>` | Time limit per request in milliseconds, reading the whole response included |
+| `--timeout <ms>` | Time limit per request in milliseconds, reading the whole response included (at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |

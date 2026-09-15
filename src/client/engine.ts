@@ -94,7 +94,7 @@ export interface EngineOptions {
   defaultHeaders?: Record<string, string>;
   /**
    * Time limit per request in milliseconds, covering the whole response body, not
-   * only idle gaps (0 disables).
+   * only idle gaps (0 disables; capped at `MAX_TIMEOUT_MS`, 2^31 - 1 ms).
    */
   timeoutMs?: number;
   /** Number of automatic retries for transient (429/503) responses. */
