@@ -114,6 +114,7 @@ test("a 401 exits 1 and prints an actionable key hint", async () => {
   assert.match(text, /api key/i);
   assert.match(text, /--api-key|DIP_API_KEY/);
   assert.match(text, /parlamentsdokumentation@bundestag\.de/);
+  assert.match(text, /https:\/\/dip\.bundestag\.de\/über-dip\/hilfe\/api/);
 });
 
 test("a network failure maps to exit code 1", async () => {

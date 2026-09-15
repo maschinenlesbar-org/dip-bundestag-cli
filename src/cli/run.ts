@@ -44,8 +44,9 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       if (err.status === 401) {
         deps.io.err(
           "Authentication failed (401). Check your API key, or if none was set " +
-            "pass --api-key <key> or set DIP_API_KEY. Request a personal key from " +
-            "parlamentsdokumentation@bundestag.de.",
+            "pass --api-key <key> or set DIP_API_KEY. The current public key is " +
+            "published at https://dip.bundestag.de/über-dip/hilfe/api; a personal " +
+            "key can be requested from parlamentsdokumentation@bundestag.de.",
         );
       }
       // Map a few notable statuses to distinct exit codes for scripting.
