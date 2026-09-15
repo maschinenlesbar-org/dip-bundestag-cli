@@ -27,10 +27,12 @@ This skill drives the `dip` command. **Before anything else, validate it is avai
 Data comes from the `dip` CLI (`@maschinenlesbar.org/dip-bundestag-cli`), read-only over
 the Bundestag DIP API, **one resource per call**.
 
-**API key is mandatory** — `401` (CLI exit `1`) without one. Set `DIP_API_KEY` (preferred)
-or pass `--api-key <key>` (global; before or after the subcommand). There is **no working
-bundled key** (the shared key rotates yearly and is usually expired); request a personal
-key from `parlamentsdokumentation@bundestag.de`. On a `401`, tell the user a key is needed.
+**API key is mandatory** — DIP answers `401` (CLI exit `1`) without one. Set `DIP_API_KEY`
+(preferred) or pass `--api-key <key>` (global; before or after the subcommand). No key is
+bundled with the CLI. The Bundestag publishes a public key on its DIP API help page,
+https://dip.bundestag.de/über-dip/hilfe/api (stated there in 2026 as valid until the end of
+May 2027); a personal key can be requested from `parlamentsdokumentation@bundestag.de`. On a
+`401`, stop and tell the user a valid key is needed and where to get it instead of retrying.
 
 Use `--compact`. An empty result is `{ "numFound": 0, "documents": [] }`, exit `0` — a
 valid "nothing matched", not an error.
@@ -52,7 +54,7 @@ valid "nothing matched", not an error.
 
 ## Step 1 — Find the document(s)
 
-If the user gave a document number (e.g. "20/6363") or id, jump to Step 2. Otherwise search
+If the user gave a document number (e.g. "20/6875") or id, jump to Step 2. Otherwise search
 metadata by keyword, **always scoped by term**:
 
 ```bash
@@ -63,7 +65,7 @@ Filter notes (grounded in DIP's spec):
 
 | Filter | Use |
 |---|---|
-| `f.titel=<text>` | Free-text title search. **Best-effort** — works upstream but is *not* in DIP's formal spec, so it can over- or under-match. The main way to search by topic. |
+| `f.titel=<text>` | Title search — the main way to search by topic. Matches **whole words** in the title (`Gebäudeenergie` does not find "Gebäudeenergiegesetzes"); several words are searched as a phrase. |
 | `f.wahlperiode=<n>` | Term — **always set it** (current **21**, prior **20**) to cut volume |
 | `f.datum.start` / `f.datum.end` | Date range, plain `YYYY-MM-DD` |
 | `f.aktualisiert.start` / `.end` | Last-updated range — **requires full ISO datetime** `YYYY-MM-DDThh:mm:ss`; a bare date returns `400`. Use this for "what changed since…" monitoring. |
@@ -83,14 +85,14 @@ Metadata fields that matter for picking the right hit: `id`, `titel`, `dokumentn
 Single document (preferred):
 
 ```bash
-dip drucksache-text get 282486            # by id → has the `text` field
+dip drucksache-text get 267686            # by id → has the `text` field
 dip plenarprotokoll-text get 5678         # plenary transcript
 ```
 
 Or pin by number without first knowing the id:
 
 ```bash
-dip --compact drucksache-text list --filter f.dokumentnummer=20/6363 --filter f.wahlperiode=20
+dip --compact drucksache-text list --filter f.dokumentnummer=20/6875 --filter f.wahlperiode=20
 ```
 
 Text-endpoint fields: `text` (the extracted body — the substance), `titel`, `datum`,
@@ -119,13 +121,13 @@ Text-endpoint fields: `text` (the extracted body — the substance), `titel`, `d
 ## Step 4 — Present
 
 ```
-Drucksache 20/6363 (WP 20, 2023-04-19) — Gesetzentwurf der Bundesregierung
+Drucksache 20/6875 (WP 20, 2023-05-17) — Gesetzentwurf der Bundesregierung
 Gebäudeenergiegesetz (Heizungsgesetz)
 
 Kern: Pflicht, neue Heizungen ab 2024 zu mind. 65 % mit erneuerbaren Energien zu
 betreiben; Übergangsfristen, Härtefälle, Förderung. Einbringer: Bundesregierung.
-Bezug: Vorgang 282486 (→ dip-procedure-tracker für den Verlauf).
-Quelle: https://dserver.bundestag.de/btd/20/063/2006363.pdf
+Bezug: Vorgang 298723 (→ dip-procedure-tracker für den Verlauf).
+Quelle: https://dserver.bundestag.de/btd/20/068/2006875.pdf
 ```
 
 Rules:
