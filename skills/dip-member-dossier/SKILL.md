@@ -6,9 +6,9 @@ description: >
   Annalena Baerbock's role / fraction / Wahlkreis?", "profile this Abgeordnete",
   "which committees does X sit on?", "look up person 7240", or wants a
   capsule biography / role history of a Bundestag member from the parliamentary
-  record. Resolves the person, reads their roles across electoral terms, and can
-  pull the documents/activities tied to them — handling the fact that DIP has no
-  reliable name filter on the person endpoint.
+  record. Resolves the person by name or id, reads their current function and
+  Fraktion plus earlier roles, and can pull the activities (speeches, questions)
+  tied to them.
 version: 1.0.0
 userInvocable: true
 ---
@@ -27,108 +27,107 @@ Data comes from the `dip` CLI (`@maschinenlesbar.org/dip-bundestag-cli`), read-o
 the Bundestag DIP API, **one resource per call**.
 
 **API key is mandatory** — DIP answers `401` (CLI exit `1`) without one. Set `DIP_API_KEY`
-(preferred) or pass `--api-key <key>` (global; before or after the subcommand). There is
-**no working bundled key**; the published shared key rotates yearly and is usually expired.
-Request a personal key from `parlamentsdokumentation@bundestag.de`. On a `401`, tell the
-user a key is required instead of retrying.
+(preferred) or pass `--api-key <key>` (global; before or after the subcommand). No key is
+bundled with the CLI. The Bundestag publishes a public key on its DIP API help page,
+https://dip.bundestag.de/über-dip/hilfe/api (stated there in 2026 as valid until the end of
+May 2027); a personal key can be requested from `parlamentsdokumentation@bundestag.de`. On a
+`401`, stop and tell the user a valid key is needed and where to get it instead of retrying.
 
 Use `--compact`. An empty result is `{ "numFound": 0, "documents": [] }`, exit `0` — not an
 error.
 
-## Step 1 — Resolve the person — the hard part
-
-> **Critical trap.** The `/person` endpoint has **no working name filter**. `f.person` and
-> `f.titel` are *not* in DIP's formal spec for this resource and are silently ignored or
-> unreliable. The only formal filters here are `f.wahlperiode`, `f.datum.*`,
-> `f.aktualisiert.*`, and `f.id`. So you cannot just `person list --filter f.person=Merkel`
-> and trust it.
-
-Resolve a person one of two ways:
+## Step 1 — Resolve the person
 
 - **If the user gave a numeric id**, go straight to `person get`:
   ```bash
-  dip --compact person get 7240
+  dip --compact person get 1502
   ```
-- **If the user gave a name**, scope by electoral term and match client-side. List the
-  term and walk the pages, filtering on the `nachname` / `vorname` fields yourself:
+- **If the user gave a name**, use the `f.person` filter, scoped by electoral term:
   ```bash
-  dip --compact person list --filter f.wahlperiode=21 \
-    | jq -r '.documents[] | select(.nachname=="Baerbock") | "\(.id)\t\(.vorname) \(.nachname)\t\(.titel)"'
-  # capture .cursor and repeat with --cursor until cursor stops changing
+  dip --compact person list --filter f.person=Baerbock --filter f.wahlperiode=21 \
+    | jq -r '.documents[] | "\(.id)\t\(.titel)"'
   ```
-  The list is large — paginate with `--cursor` (capture `cursor` from each response, pass
-  it back; stop when it no longer changes). If you find several matches (common surnames),
-  list them with id + Fraktion and ask the user which one. If you genuinely can't find the
-  person within a couple of pages, say so and ask for the id or the correct term — don't
-  invent one.
+  `f.person` matches a **complete** first or last name (`Klöckner` finds Julia Klöckner,
+  `Klöck` finds nothing); several words are searched as the phrase "Nachname Vorname".
+  Common surnames return several people (`f.person=Schmidt`) — list them with id + `titel`
+  and ask which one. Drop `f.wahlperiode` for people outside the current term.
 
-Person fields:
+> **If `f.person` finds nothing**, the name may be spelled differently in DIP. Fall back to
+> paging `person list --filter f.wahlperiode=<n>` and matching `nachname` / `vorname`
+> client-side, **to the last page**: the list is ordered by `datum`, not by name, at 100
+> per page, and WP 21 alone spanned 9 pages on 2026-09-15. Capture `cursor` from each
+> response and pass it back with `--cursor` until it stops changing. Only then say the
+> person wasn't found and ask for the id or the correct term — don't invent one.
+
+Person fields (top level — the **current** state):
 
 | Field | Meaning |
 |---|---|
-| `id` | Person id (for `get`, and for follow-up filters) |
+| `id` | Person id (for `get`, and for `f.person_id` in Step 3) |
 | `nachname` / `vorname` / `namenszusatz` | Name parts — **match on these**, not `titel` |
-| `titel` | Display name, e.g. "Dr. Annalena Baerbock, MdB" |
-| `wahlperiode` | Term(s) the record covers |
-| `basisdatum` | Base date of the record |
-| `person_roles[]` | **The substance** — see below |
+| `titel` | Display name with current function and Fraktion, e.g. "Annalena Baerbock, MdB, BÜNDNIS 90/DIE GRÜNEN" |
+| `funktion[]` | Current function, abbreviated: `MdB`, `Bundesmin.`, `Parl. Staatssekr.`, `MdBR`, … |
+| `fraktion[]` | Current Fraktion — only when `funktion` is `MdB`; a member whose current function is `Bundesmin.`, `Bundeskanzl.` or `Bundestagsvizepräs.` has none here |
+| `ressort[]` | Ministry, for a government function |
+| `bundesland[]` / `funktionszusatz[]` | Land and office for Bundesrat members (e.g. "Ministerin für …") |
+| `wahlkreiszusatz` | Place added to tell namesakes apart ("Wetzlar" in "Dagmar Schmidt (Wetzlar)"); rare, and not a full Wahlkreis |
+| `wahlperiode[]` | Term(s) the person appears in |
+| `datum` / `basisdatum` | Latest and first date in the record |
 
-## Step 2 — Read the roles
+## Step 2 — Read the earlier roles
 
-`person_roles[]` is where party, function and Wahlkreis live. Each entry:
+`person_roles[]` holds **other or earlier** roles and name variants, and many records have
+none at all. Current function and Fraktion are the top-level fields above. Each entry:
 
 | Field | Meaning |
 |---|---|
-| `funktion` | Role, e.g. "Mitglied des Bundestages", "Bundesministerin", "Abg." |
-| `funktionszusatz` | Role detail |
-| `fraktion` | **Party / parliamentary group** (e.g. "BÜNDNIS 90/DIE GRÜNEN") |
-| `nachname` / `vorname` / `namenszusatz` | Name as held in that role |
+| `ressort_titel` | Ministry of an earlier government role — the role title itself is **not** given |
+| `fraktion` | Fraktion held in those terms (e.g. an earlier `fraktionslos` spell) |
+| `funktionszusatz` / `bundesland` | Office and Land of a Bundesrat role |
+| `nachname` / `vorname` / `namenszusatz` | Name as held in that role (can differ from today's) |
+| `wahlkreiszusatz` | Name suffix used then |
 | `wahlperiode_nummer[]` | Which term(s) this role applied to |
-| `wahlkreiszusatz` | Constituency detail |
-| `ressort_titel` | Ministry, if a government role |
-| `bundesland` | State |
 
-A person can hold several roles across terms (e.g. MdB in WP19/20, then Bundesministerin).
-Group roles by `fraktion` / `funktion` and show the term spans from `wahlperiode_nummer`.
+There is **no `funktion` inside `person_roles[]`**: a ministerial role shows up only as
+`ressort_titel` + terms. Say "Ressort Auswärtiges Amt (WP 20)", not "Bundesministerin",
+unless another source in the record states the title.
 
-## Step 3 — (Optional) documents & activities tied to the person
+## Step 3 — (Optional) activities tied to the person
 
-> **Trap.** There is **no `f.person` filter on `aktivitaet` either** — you cannot list a
-> person's activities directly by person id. The activity/document endpoints join on
-> *documents* (`f.drucksache`, `f.plenarprotokoll`, `f.vorgang`), not on people.
+`aktivitaet` takes the person id directly (`f.person_id`, or `f.person` by name), so a
+member's speeches, questions and co-signed papers come back in one query:
 
-So a person's parliamentary output is reached **indirectly**:
+```bash
+dip --compact aktivitaet list --filter f.person_id=1502 --filter f.wahlperiode=21 \
+  | jq -r '.documents[] | "\(.datum)\t\(.aktivitaetsart)\t\(.fundstelle.dokumentart) \(.fundstelle.dokumentnummer)\t\(.vorgangsbezug[0].titel // "")"'
+```
 
-- The most reliable signal of authorship is in **Drucksachen**: search recent papers and
-  match the person in `autoren_anzeige[]` / `urheber[]` (`urheber[].bezeichnung`)
-  client-side:
-  ```bash
-  dip --compact drucksache list --filter f.wahlperiode=21 --filter f.datum.start=2025-01-01 \
-    | jq -r '.documents[] | select([.autoren_anzeige[]?] | any(test("Baerbock"))) | "\(.datum)\t\(.dokumentnummer)\t\(.titel)"'
-  ```
-- If the user only wants the profile (role/party/Wahlkreis), **skip this step** — it's
-  expensive (broad date scan + client-side match) and only loosely attributable. Offer it
-  as a follow-up rather than running it by default.
+`numFound` gives the total; page with `--cursor` for more than 100. `drucksache` has no
+person filter — to find papers a person signed without going through `aktivitaet`, match
+`autoren_anzeige[]` (objects with `id`, `titel`, `autor_titel`) client-side:
+`select(any(.autoren_anzeige[]?; .id == "1502"))`.
+
+If the user only wants the profile (function/Fraktion/roles), **skip this step** and offer
+it as a follow-up.
 
 ## Step 4 — Present the dossier
 
 ```
-Annalena Baerbock — Person 7240
-Aktuell: Bundesministerin (Auswärtiges Amt) · zuvor MdB, BÜNDNIS 90/DIE GRÜNEN
+Annalena Baerbock — Person 1502
+Aktuell (laut DIP): MdB · BÜNDNIS 90/DIE GRÜNEN · in WP 18–21
 
-Rollen:
-  • WP 19–20  MdB · BÜNDNIS 90/DIE GRÜNEN · Wahlkreis Potsdam
-  • WP 20–21  Bundesministerin des Auswärtigen (Auswärtiges Amt)
+Frühere Rollen:
+  • WP 20  Ressort Auswärtiges Amt (Rollentitel nicht im Datensatz)
 
-(Optional) jüngere Drucksachen mit Beteiligung: 3 in 2025 — frag nach für die Liste.
+(Optional) Aktivitäten in WP 21 (Reden, Anfragen) — auf Nachfrage als Liste.
 ```
 
 Rules:
-- Lead with **current role + Fraktion** from the most recent `person_roles[]` entry.
-- Show the role history with term spans (`wahlperiode_nummer`); distinguish parliamentary
-  (MdB) from government roles (`ressort_titel`).
-- Be explicit about the name-resolution caveat if you had to match client-side ("matched
-  on surname within WP 21").
+- Lead with **current function + Fraktion** from the top-level `funktion[]` / `fraktion[]`.
+- Show earlier roles with term spans (`wahlperiode_nummer`); distinguish parliamentary
+  roles (`fraktion`) from government ones (`ressort_titel`).
+- Say how you resolved the person ("`f.person=Baerbock` within WP 21", or "matched on
+  surname across all WP 21 pages").
 - Don't fabricate committee memberships, vote records, or biography facts the DIP record
   doesn't contain — DIP carries roles, not full biographies. Say what's absent.
-- Offer `person get <id>` for the raw record, and the optional document scan as a follow-up.
+- Offer `person get <id>` for the raw record, and the optional activity list as a follow-up.
