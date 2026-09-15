@@ -5,9 +5,9 @@
 // Auth: an API key sent as `Authorization: ApiKey <key>`. No key is bundled with
 // this client — pass it via `apiKey` (CLI: `--api-key` / `DIP_API_KEY`). When no
 // key is supplied the header is omitted and the API answers 401. The Bundestag
-// publishes a shared key (rate-limited, rotates yearly); request a personal key
-// from parlamentsdokumentation@bundestag.de. For CI / live testing the shared
-// key can be fetched out-of-band via scripts/fetch-api-key.mjs.
+// publishes a public key on https://dip.bundestag.de/über-dip/hilfe/api (renewed
+// periodically); a personal key can be requested from
+// parlamentsdokumentation@bundestag.de.
 //
 //   client.vorgaenge.list({ "f.titel": "Klimaschutz" })
 //   client.drucksachen.get("123456")
@@ -23,8 +23,9 @@ const enc = encodeURIComponent;
 export interface DipClientOptions extends EngineOptions {
   /**
    * The DIP API key, sent as `Authorization: ApiKey <key>`. No key is bundled;
-   * when omitted (or blank) the header is not sent. Obtain a key from the
-   * Bundestag, or fetch the shared key via scripts/fetch-api-key.mjs.
+   * when omitted (or blank) the header is not sent. The public key is published on
+   * https://dip.bundestag.de/über-dip/hilfe/api; a personal key can be requested
+   * from parlamentsdokumentation@bundestag.de.
    */
   apiKey?: string;
 }

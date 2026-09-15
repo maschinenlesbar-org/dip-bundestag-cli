@@ -83,19 +83,17 @@ returns `401`. Precedence is **`--api-key` > `DIP_API_KEY` > none**; no key is
 bundled, so without one supplied the `Authorization` header is omitted entirely
 and requests return `401`.
 
-Request a personal key from `parlamentsdokumentation@bundestag.de`. The
-Bundestag also publishes a **shared** key (rate-limited, rotates yearly). For
-CI or local live testing — never from the CLI/production — you can fetch the
-current shared key out-of-band with the bundled script:
+The Bundestag publishes a **public** key on its
+[DIP API help page](https://dip.bundestag.de/über-dip/hilfe/api) (stated there in
+2026 as valid until the end of May 2027; check the page for the current key); a
+personal key can be requested from `parlamentsdokumentation@bundestag.de`. For CI or
+local live testing, take the key from that page and pass it in via `DIP_API_KEY`.
 
-```bash
-npm run fetch-key                                    # prints the current shared key
-DIP_API_KEY="$(npm run --silent fetch-key)" dip vorgang list
-```
-
-The script scrapes the key from the upstream
-[bundesAPI README](https://github.com/bundesAPI/dip-bundestag-api); it is a
-dev/CI tool only and is not part of the published package.
+`npm run fetch-key` (`scripts/fetch-api-key.mjs`) still scrapes the key from the
+[bundesAPI README](https://github.com/bundesAPI/dip-bundestag-api), which is **no
+longer current**: on 2026-09-15 its key was rejected with `401` while the help
+page's key worked. The script prints a reminder to stderr and names the help page in
+its errors; it is a dev/CI tool only and is not part of the published package.
 
 **Redirect safety.** When the API issues a redirect that crosses an origin
 boundary (a different scheme, host, or port), the client **strips credential

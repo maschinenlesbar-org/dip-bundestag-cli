@@ -31,7 +31,10 @@ dip --api-key your-personal-key vorgang list
 
 Precedence is `--api-key` > `DIP_API_KEY` > none. **No key is bundled** — when
 neither is supplied the `Authorization` header is omitted and requests return
-`401`. Request a personal key from `parlamentsdokumentation@bundestag.de`.
+`401`. The Bundestag publishes a public key on its
+[DIP API help page](https://dip.bundestag.de/über-dip/hilfe/api) (stated there in
+2026 as valid until the end of May 2027); a personal key can be requested from
+`parlamentsdokumentation@bundestag.de`.
 
 ## Use cases
 

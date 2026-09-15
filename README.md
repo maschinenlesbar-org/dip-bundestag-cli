@@ -41,11 +41,14 @@ dip --help
 
 ## API key
 
-**DIP requires an API key** — it is not bundled. Request a personal key free of
-charge from `parlamentsdokumentation@bundestag.de`, then export it:
+**DIP requires an API key** — it is not bundled. The Bundestag publishes a public
+key on its [DIP API help page](https://dip.bundestag.de/über-dip/hilfe/api) (stated
+there in 2026 as valid until the end of May 2027; check the page for the current key);
+you can also request a personal key free of charge from
+`parlamentsdokumentation@bundestag.de`. Export either one:
 
 ```bash
-export DIP_API_KEY=your-personal-key
+export DIP_API_KEY=your-key
 ```
 
 The `DIP_API_KEY` environment variable is the **recommended, more secure** way to
@@ -217,13 +220,15 @@ deliberately.
   `PATH`. Run `npm bin -g` to find it and add it, or run via
   `npx @maschinenlesbar.org/dip-bundestag-cli …`.
 - **Exit `1` / "Authentication failed (401)"** — no key was sent, or the key
-  has expired. Export `DIP_API_KEY` or pass `--api-key`. Request a personal key
-  from `parlamentsdokumentation@bundestag.de`.
+  is not (or no longer) valid. Export `DIP_API_KEY` or pass `--api-key` with the
+  current public key from the
+  [DIP API help page](https://dip.bundestag.de/über-dip/hilfe/api), or request a
+  personal key from `parlamentsdokumentation@bundestag.de`.
 - **Exit `4` / "not found"** — the id passed to `get` doesn't exist. Re-fetch
   it from a fresh `list` result; ids can change as the catalogue updates.
-- **Exit `1` / rate-limited** — the shared key (if used) is rate-limited;
-  the client retries `429`/`503` automatically up to `--max-retries` times. If
-  the error persists, use a personal key or increase `--timeout`.
+- **Exit `1` / rate-limited** — DIP answered `429`; the client retries
+  `429`/`503` automatically up to `--max-retries` times. If the error persists,
+  slow down and try again later.
 - **Exit `1` / network error** — connectivity, DNS, or a timeout. Try again or
   raise the limit with `--timeout 60000`.
 - **Empty `documents` array** — the query matched nothing; try a broader
