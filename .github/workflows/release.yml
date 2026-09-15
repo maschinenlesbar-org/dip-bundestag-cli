@@ -11,12 +11,17 @@ on:
 permissions:
   contents: read
 
+# One release run per tag; never cancel one part-way through.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
+    name: Create GitHub Release
     runs-on: ubuntu-latest
-    # Needed for softprops/action-gh-release to create the GitHub release.
     permissions:
-      contents: write
+      contents: write # create the GitHub Release and upload its assets
 
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
@@ -97,15 +102,23 @@ jobs:
             --output-file "${base}.dev.cdx.json"
           ls -la dist-artifacts
 
+      # The runner's preinstalled gh CLI rather than a third-party action, so no
+      # extra code runs with contents: write. With assets, gh creates the release
+      # as a draft, uploads them, then publishes it.
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
-        with:
-          body_path: ${{ steps.changelog.outputs.path }}
-          files: |
-            dist-artifacts/*.tgz
-            dist-artifacts/*.cdx.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          NOTES_PATH: ${{ steps.changelog.outputs.path }}
+        # No PRs land in this repo (see CONTRIBUTING.md), so GitHub's own
+        # generated notes have nothing to list — --generate-notes only adds the
+        # "Full Changelog: vX...vY" compare link after our own notes above.
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --verify-tag \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file "$NOTES_PATH" \
+            --generate-notes \
+            dist-artifacts/*.tgz \
+            dist-artifacts/*.cdx.json \
             dist-artifacts/*.changelog.md
-          # No PRs land in this repo (see CONTRIBUTING.md), so GitHub's own
-          # generated notes have nothing to list — this only adds the
-          # "Full Changelog: vX...vY" compare link after our own notes above.
-          generate_release_notes: true

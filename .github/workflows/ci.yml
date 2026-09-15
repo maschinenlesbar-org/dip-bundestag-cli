@@ -8,8 +8,14 @@ on:
 permissions:
   contents: read
 
+# One run per branch or PR: a newer push supersedes the in-flight run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
+    name: Build & test (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
 
     strategy:

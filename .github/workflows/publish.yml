@@ -15,10 +15,10 @@ on:
         required: true
         type: string
 
-# OIDC trusted publishing needs an id-token; provenance is attached automatically.
+# Least privilege at the workflow level: only read. The OIDC id-token scope is
+# granted per-job, to the publish job that actually needs it.
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: publish-${{ inputs.version }}
@@ -26,7 +26,11 @@ concurrency:
 
 jobs:
   publish:
+    name: Publish to npm
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm Trusted Publishing (OIDC); provenance is attached automatically
 
     steps:
       # Publish exactly the tagged source for the requested version.
@@ -38,15 +42,22 @@ jobs:
       - name: Use Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 22.x
+          # Trusted publishing requires npm >= 11.5.1. Node 24 bundles it (Node 22
+          # still ships npm 10), so npm itself is never installed ad hoc from the
+          # registry inside this id-token: write job, where a compromised package
+          # would run with the token that mints the provenance attestation.
+          node-version: 24.x
           registry-url: 'https://registry.npmjs.org'
+          # No cache restoration in the publishing job (cache-poisoning hardening).
+          package-manager-cache: false
 
-      # Trusted publishing requires npm >= 11.5.1 (newer than the bundled npm).
-      # Pin to an exact version rather than @latest: this step runs inside the
-      # OIDC id-token: write job, so a compromised npm@latest would execute with
-      # the token that mints the provenance attestation. Bump deliberately.
-      - name: Update npm
-        run: npm install -g npm@11.5.1
+      - name: Verify bundled npm supports Trusted Publishing (>= 11.5.1)
+        run: |
+          npm_version="$(npm --version)"
+          if ! node -e 'const [a, b, c] = process.argv[1].split(".").map(Number); process.exit(a > 11 || (a === 11 && (b > 5 || (b === 5 && c >= 1))) ? 0 : 1)' "$npm_version"; then
+            echo "::error::npm $npm_version is older than 11.5.1, which Trusted Publishing requires."
+            exit 1
+          fi
 
       - name: Verify package.json matches the requested version
         env:
