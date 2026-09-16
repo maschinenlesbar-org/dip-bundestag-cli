@@ -42,9 +42,11 @@ entfällt der Header und die API antwortet mit `401`. Der Bundestag veröffentli
 öffentlichen Schlüssel auf seiner
 [Hilfeseite zur DIP-API](https://dip.bundestag.de/über-dip/hilfe/api) (dort 2026 als
 gültig bis Ende Mai 2027 angegeben); einen persönlichen Schlüssel erhalten Sie auf
-Anfrage bei `parlamentsdokumentation@bundestag.de`. `scripts/fetch-api-key.mjs`
-(`npm run fetch-key`) liest eine ältere, nicht mehr aktuelle Quelle aus; nehmen Sie den
-Schlüssel stattdessen von der Hilfeseite.
+Anfrage bei `parlamentsdokumentation@bundestag.de`. Der CLI-Befehl `obtain-key` liest
+die einzige maschinenlesbare Quelle (das bundesAPI-README) und **prüft den Schlüssel
+vor der Ausgabe gegen die Live-API**; er schlägt also fehl, statt den dort noch
+hinterlegten, veralteten Schlüssel auszugeben. Nehmen Sie den Schlüssel dann von der
+Hilfeseite.
 
 ---
 

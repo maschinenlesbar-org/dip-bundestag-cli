@@ -38,7 +38,9 @@ them each time.
   request returns `401`.
 
   ```bash
-  export DIP_API_KEY=key-from-the-help-page-or-your-personal-key
+  dip obtain-key                       # checks a key works before printing it
+  eval "$(dip obtain-key --export)"    # ...or put it straight into this shell
+  export DIP_API_KEY=key-from-the-help-page-or-your-personal-key   # or set it yourself
   ```
 
 ## Installation

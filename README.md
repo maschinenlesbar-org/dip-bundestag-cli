@@ -51,6 +51,8 @@ you can also request a personal key free of charge from
 export DIP_API_KEY=your-key
 ```
 
+See **[Obtain key](#obtain-key)** for having the CLI fetch and check one for you.
+
 The `DIP_API_KEY` environment variable is the **recommended, more secure** way to
 supply the key. The `--api-key` flag also works but puts the secret on the process
 command line, where it is visible to other local users via `ps` and may be
@@ -66,6 +68,44 @@ Precedence is `--api-key` > `DIP_API_KEY` env var > none. **No key is bundled**:
 when neither is supplied the `Authorization` header is omitted entirely and the
 API returns `401`. On a `401` the CLI prints a plain-language hint with the
 address to request a key.
+
+## Obtain key
+
+`dip obtain-key` reads the key from the only machine-readable source — the
+upstream [bundesAPI/dip-bundestag-api](https://github.com/bundesAPI/dip-bundestag-api)
+README — and then **proves it still works** against the live API before printing it:
+
+```bash
+dip obtain-key               # -> the key, or a clear failure  (notes on stderr)
+```
+
+That verification is the point. DIP's published key moves, and the README lags
+behind it: at the time of writing the key it carries is rejected with `401`. A
+command that printed it anyway would hand you something that cannot authenticate,
+so `obtain-key` fails instead and tells you the two places a working key comes
+from — the [DIP API help page](https://dip.bundestag.de/über-dip/hilfe/api) (prose
+on a JS page, so there is nothing to scrape) or a free personal key from
+`parlamentsdokumentation@bundestag.de`.
+
+**From obtaining the key to having it where it is used, in one line:**
+
+```bash
+# this shell only
+eval "$(dip obtain-key --export)"
+
+# or keep it for later — appends one `export …` line to your shell profile
+dip obtain-key --export >> ~/.zshrc     # ~/.bashrc on bash
+```
+
+Once you have a key from the help page or by email, the same one-liner shape
+works without the network round-trip:
+
+```bash
+export DIP_API_KEY=your-key
+```
+
+`--no-verify` skips the live check and prints the published candidate with a loud
+warning — useful offline, but expect a `401` if the source has drifted.
 
 ## Quickstart
 
@@ -220,7 +260,8 @@ deliberately.
   `PATH`. Run `npm bin -g` to find it and add it, or run via
   `npx @maschinenlesbar.org/dip-bundestag-cli …`.
 - **Exit `1` / "Authentication failed (401)"** — no key was sent, or the key
-  is not (or no longer) valid. Export `DIP_API_KEY` or pass `--api-key` with the
+  is not (or no longer) valid. Try `dip obtain-key` (it checks a key before
+  printing it), or export `DIP_API_KEY` / pass `--api-key` with the
   current public key from the
   [DIP API help page](https://dip.bundestag.de/über-dip/hilfe/api), or request a
   personal key from `parlamentsdokumentation@bundestag.de`.

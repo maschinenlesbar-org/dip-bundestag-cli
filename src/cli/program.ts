@@ -11,6 +11,8 @@ import { DipClient } from "../client/client.js";
 import { MAX_TIMEOUT_MS } from "../client/http.js";
 import { parseBoundedInt, parseIntArg } from "./shared.js";
 import { registerResourceCommands } from "./commands/resources.js";
+import { registerObtainKeyCommands } from "./commands/obtain-key.js";
+import { nodeHttpTransport } from "../client/http.js";
 
 /**
  * Single source of truth for the version: read from package.json at runtime
@@ -35,6 +37,7 @@ export const defaultDeps: CliDeps = {
   io: defaultIO,
   createClient: (options) => new DipClient(options),
   env: process.env,
+  transport: nodeHttpTransport,
 };
 
 /**
@@ -87,6 +90,7 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
   const envKey = readEnvApiKey(deps.env ?? process.env);
   if (envKey !== undefined) program.setOptionValue("apiKey", envKey);
 
+  registerObtainKeyCommands(program, deps);
   registerResourceCommands(program, deps);
 
   return program;

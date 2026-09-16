@@ -89,11 +89,15 @@ The Bundestag publishes a **public** key on its
 personal key can be requested from `parlamentsdokumentation@bundestag.de`. For CI or
 local live testing, take the key from that page and pass it in via `DIP_API_KEY`.
 
-`npm run fetch-key` (`scripts/fetch-api-key.mjs`) still scrapes the key from the
-[bundesAPI README](https://github.com/bundesAPI/dip-bundestag-api), which is **no
-longer current**: on 2026-09-15 its key was rejected with `401` while the help
-page's key worked. The script prints a reminder to stderr and names the help page in
-its errors; it is a dev/CI tool only and is not part of the published package.
+`obtain-key` (`src/client/obtain-key.ts`, exposed as `dip obtain-key` and
+`npm run obtain-key`) reads the key from the
+[bundesAPI README](https://github.com/bundesAPI/dip-bundestag-api) — the only
+machine-readable source — and then **verifies it against the live API before
+printing it**. That source is **no longer current**: on 2026-09-15, and again on
+2026-09-16, its key was rejected with `401` while the help page's key worked. So the
+verified path fails by design and names the help page and the contact address;
+`--no-verify` prints the unchecked candidate with a loud warning. Unlike the old
+`scripts/fetch-api-key.mjs`, this ships with the package.
 
 **Redirect safety.** When the API issues a redirect that crosses an origin
 boundary (a different scheme, host, or port), the client **strips credential

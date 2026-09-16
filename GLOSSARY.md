@@ -40,9 +40,10 @@ materials from both bodies.
 and the API returns `401`. The Bundestag publishes a public key on its
 [DIP API help page](https://dip.bundestag.de/über-dip/hilfe/api) (stated there in
 2026 as valid until the end of May 2027); a personal key can be requested from
-`parlamentsdokumentation@bundestag.de`. `scripts/fetch-api-key.mjs`
-(`npm run fetch-key`) reads an older source that is no longer current; take the key
-from the help page instead.
+`parlamentsdokumentation@bundestag.de`. The CLI's `obtain-key` command reads the
+only machine-readable source (the bundesAPI README) and **verifies the key against
+the live API before printing it**, so it fails rather than hand over the stale one
+that source still carries; take the key from the help page in that case.
 
 ---
 

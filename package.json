@@ -31,7 +31,7 @@
     "test": "node --test dist/test/*.test.js",
     "docs": "node tools/docs/node_modules/typedoc/bin/typedoc src/index.ts --out out",
     "start": "node dist/src/cli/index.js",
-    "fetch-key": "node scripts/fetch-api-key.mjs"
+    "obtain-key": "node dist/src/cli/index.js obtain-key"
   },
   "keywords": [
     "dip",

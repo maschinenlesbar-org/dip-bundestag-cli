@@ -26,12 +26,25 @@ This skill drives the `dip` command. **Before anything else, validate it is avai
 Data comes from the `dip` CLI (`@maschinenlesbar.org/dip-bundestag-cli`), read-only over
 the Bundestag DIP API, **one resource per call**.
 
-**API key is mandatory** — DIP answers `401` (CLI exit `1`) without one. Set `DIP_API_KEY`
-(preferred) or pass `--api-key <key>` (global; before or after the subcommand). No key is
-bundled with the CLI. The Bundestag publishes a public key on its DIP API help page,
-https://dip.bundestag.de/über-dip/hilfe/api (stated there in 2026 as valid until the end of
-May 2027); a personal key can be requested from `parlamentsdokumentation@bundestag.de`. On a
-`401`, stop and tell the user a valid key is needed and where to get it instead of retrying.
+**API key — obtain it once, then reuse it.** DIP answers `401` (CLI exit `1`) without a
+key, and **none is bundled**. Do not ask the user to go and find one: run
+
+```bash
+dip obtain-key
+```
+
+It reads the published key and **verifies it against the live API before printing it**, so
+whatever it gives you actually authenticates. If it fails, it says where a working key comes
+from — the help page https://dip.bundestag.de/über-dip/hilfe/api or a free personal key from
+`parlamentsdokumentation@bundestag.de`. Relay that to the user and stop; never invent a key.
+
+If `DIP_API_KEY` is already set in the environment, use it and skip `obtain-key`. **Keep the
+key for the rest of the session** and put it on every later call — a shell `export` does not
+survive between separate commands:
+
+```bash
+DIP_API_KEY="<the key>" dip --compact vorgang list --filter f.wahlperiode=21
+```
 
 Use `--compact`. An empty result is `{ "numFound": 0, "documents": [] }`, exit `0` — not an
 error.

@@ -3,6 +3,7 @@
 
 import { writeFileSync } from "node:fs";
 import type { DipClient, DipClientOptions } from "../client/client.js";
+import type { Transport } from "../client/http.js";
 
 export interface CliIO {
   out(text: string): void;
@@ -25,6 +26,12 @@ export interface CliDeps {
    * testable without mutating process.env. Defaults to process.env.
    */
   env?: Record<string, string | undefined>;
+  /**
+   * Transport for requests made *outside* the API client — currently only
+   * `obtain-key`, which runs before a key (and therefore a client) exists.
+   * Defaults to the built-in node:http/https transport.
+   */
+  transport?: Transport;
 }
 
 export const defaultIO: CliIO = {
