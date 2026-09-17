@@ -90,14 +90,37 @@ personal key can be requested from `parlamentsdokumentation@bundestag.de`. For C
 local live testing, take the key from that page and pass it in via `DIP_API_KEY`.
 
 `obtain-key` (`src/client/obtain-key.ts`, exposed as `dip obtain-key` and
-`npm run obtain-key`) reads the key from the
-[bundesAPI README](https://github.com/bundesAPI/dip-bundestag-api) — the only
-machine-readable source — and then **verifies it against the live API before
-printing it**. That source is **no longer current**: on 2026-09-15, and again on
-2026-09-16, its key was rejected with `401` while the help page's key worked. So the
-verified path fails by design and names the help page and the contact address;
-`--no-verify` prints the unchecked candidate with a loud warning. Unlike the old
-`scripts/fetch-api-key.mjs`, this ships with the package.
+`npm run obtain-key`) reads the published key and **verifies it against the live API
+before printing it**. Unlike the old `scripts/fetch-api-key.mjs`, this ships with
+the package.
+
+**Where the key is read from.** The help page is a React single-page app — its
+served HTML holds no key — but the prose it renders is a plain JSON document from
+DIP's own content service, and that document states the key:
+
+```
+https://content.dip.bundestag.de/content-api/v1/content/help-api
+```
+
+That is `KEY_SOURCE_URL`, tried first. The
+[bundesAPI README](https://github.com/bundesAPI/dip-bundestag-api) is kept as
+`KEY_SOURCE_FALLBACK_URL` and tried only if the help document is unreachable or its
+key is rejected; its key has been rejected with `401` since at least 2026-09-15.
+Until 2026-09-17 the README was the *only* source, which is why `obtain-key` failed
+outright — reading the help document is the fix.
+
+**How a key is picked out of a document.** `extractKeyCandidates` returns every
+key-shaped string (`prefix.body`), labelled forms first: the help document's
+`… gültige API-Key lautet:<br />…` and the README's `Authorization: ApiKey …`, then
+anything else token-shaped, capped at five per source. Each candidate is verified in
+turn, so a reworded sentence degrades to "try the other matches" rather than to
+failure. A non-401/403 verification status is treated as *the API being unwell*, not
+as a bad key, and aborts instead of walking the rest. `--no-verify` prints the first
+candidate unchecked with a loud warning.
+
+Do **not** read the portal's own `https://dip.bundestag.de/dip-config.js`
+(`portalApiKey`): that is the web front end's internal credential, scoped to the
+portal services, and it is rejected with `401` on `/api/v1/`.
 
 **Redirect safety.** When the API issues a redirect that crosses an origin
 boundary (a different scheme, host, or port), the client **strips credential

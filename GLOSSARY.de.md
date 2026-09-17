@@ -43,10 +43,10 @@ entfällt der Header und die API antwortet mit `401`. Der Bundestag veröffentli
 [Hilfeseite zur DIP-API](https://dip.bundestag.de/über-dip/hilfe/api) (dort 2026 als
 gültig bis Ende Mai 2027 angegeben); einen persönlichen Schlüssel erhalten Sie auf
 Anfrage bei `parlamentsdokumentation@bundestag.de`. Der CLI-Befehl `obtain-key` liest
-die einzige maschinenlesbare Quelle (das bundesAPI-README) und **prüft den Schlüssel
-vor der Ausgabe gegen die Live-API**; er schlägt also fehl, statt den dort noch
-hinterlegten, veralteten Schlüssel auszugeben. Nehmen Sie den Schlüssel dann von der
-Hilfeseite.
+den Schlüssel dieser Seite aus dem JSON-Dokument, das der Content-Dienst des DIP
+dahinter ausliefert, weicht notfalls auf das bundesAPI-README aus und **prüft den
+Schlüssel vor der Ausgabe gegen die Live-API** – er schlägt also fehl, statt einen von
+der API abgelehnten Schlüssel auszugeben.
 
 ---
 

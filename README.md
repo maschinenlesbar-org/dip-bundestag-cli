@@ -71,20 +71,26 @@ address to request a key.
 
 ## Obtain key
 
-`dip obtain-key` reads the key from the only machine-readable source — the
-upstream [bundesAPI/dip-bundestag-api](https://github.com/bundesAPI/dip-bundestag-api)
-README — and then **proves it still works** against the live API before printing it:
+`dip obtain-key` reads the key the Bundestag publishes on its
+[DIP API help page](https://dip.bundestag.de/über-dip/hilfe/api) and then **proves
+it still works** against the live API before printing it:
 
 ```bash
 dip obtain-key               # -> the key, or a clear failure  (notes on stderr)
 ```
 
-That verification is the point. DIP's published key moves, and the README lags
-behind it: at the time of writing the key it carries is rejected with `401`. A
-command that printed it anyway would hand you something that cannot authenticate,
-so `obtain-key` fails instead and tells you the two places a working key comes
-from — the [DIP API help page](https://dip.bundestag.de/über-dip/hilfe/api) (prose
-on a JS page, so there is nothing to scrape) or a free personal key from
+The help page is a JS app with nothing in its served HTML, but the prose it renders
+comes from DIP's own content service as plain JSON, so the key is read from there —
+`content.dip.bundestag.de/content-api/v1/content/help-api`. If that document is
+unreachable or its key is rejected, the upstream
+[bundesAPI/dip-bundestag-api](https://github.com/bundesAPI/dip-bundestag-api)
+README is tried as a fallback.
+
+That verification is the point. DIP rotates its published key (the one in place in
+2026 is stated as valid until the end of May 2027), and a command that printed a
+rejected key anyway would hand you something that cannot authenticate. So when no
+published key is accepted, `obtain-key` fails instead and names the two places a
+working key comes from — the help page, or a free personal key from
 `parlamentsdokumentation@bundestag.de`.
 
 **From obtaining the key to having it where it is used, in one line:**

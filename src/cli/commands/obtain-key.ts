@@ -19,9 +19,9 @@ export function registerObtainKeyCommands(program: Command, deps: CliDeps): void
   program
     .command("obtain-key")
     .description(
-      "Obtain the DIP API key and check it still works. DIP's published key moves, " +
-        `so the candidate is verified against the live API before it is printed; if it ` +
-        `is rejected the command fails and points at ${HELP_PAGE_URL}.`,
+      "Obtain the DIP API key and check it still works. DIP rotates its published key, " +
+        `so the candidate is verified against the live API before it is printed; if no ` +
+        `published key is accepted the command fails and points at ${HELP_PAGE_URL}.`,
     )
     .option("--export", `print "export ${API_KEY_ENV_VAR}=<key>" for use with eval`)
     .option("--no-verify", "skip the live check and print the published candidate unchecked")
@@ -39,8 +39,8 @@ export function registerObtainKeyCommands(program: Command, deps: CliDeps): void
       deps.io.err(
         verified
           ? `Obtained the key from ${sourceUrl} and verified it against the live API.`
-          : `Obtained the key from ${sourceUrl} WITHOUT verifying it. This source is known ` +
-              `to lag behind the current key; if DIP answers 401, get the current one from ` +
+          : `Obtained the key from ${sourceUrl} WITHOUT verifying it. DIP rotates its ` +
+              `published key; if DIP answers 401, get the current one from ` +
               `${HELP_PAGE_URL} or request a personal key from ${KEY_CONTACT}.`,
       );
       deps.io.out(opts["export"] ? `export ${API_KEY_ENV_VAR}=${shellQuoteSingle(key)}` : key);
