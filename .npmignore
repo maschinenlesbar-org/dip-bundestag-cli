@@ -14,6 +14,11 @@ tsconfig.json
 .gitignore
 .npmignore
 
+# Skills & Claude Code plugin packaging (not part of the npm package)
+skills/
+.claude-plugin/
+SKILLS.md
+
 # Build/scratch artifacts
 out/
 dist-artifacts/
