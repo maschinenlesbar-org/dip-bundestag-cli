@@ -4,7 +4,7 @@
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "../io.js";
-import { action, renderJson } from "../shared.js";
+import { action, parseNonEmpty, renderJson } from "../shared.js";
 import { DipUsageError } from "../../client/errors.js";
 import type { DipClient } from "../../client/client.js";
 import type { QueryParams } from "../../client/query.js";
@@ -40,9 +40,12 @@ const RESOURCES: ResourceSpec[] = [
   { command: "person", resource: "personen", description: "Personen (members)" },
 ];
 
-/** commander accumulator for repeatable string options. */
-function collect(value: string, previous: string[] = []): string[] {
-  return previous.concat([value]);
+/**
+ * commander accumulator for repeatable, non-blank string options (`--id`). Each
+ * value is validated so a blank id is a usage error rather than being dropped.
+ */
+function collectNonEmpty(value: string, previous: string[] = []): string[] {
+  return previous.concat([parseNonEmpty(value)]);
 }
 
 type FilterMap = Record<string, string[]>;
@@ -72,21 +75,22 @@ export function registerResourceCommands(program: Command, deps: CliDeps): void 
     group
       .command("list")
       .description(`List/filter ${spec.command}`)
-      .option("--cursor <cursor>", "pagination cursor from a previous page")
-      .option("--id <id>", "filter by id (repeatable -> f.id)", collect)
+      .option("--cursor <cursor>", "pagination cursor from a previous page", parseNonEmpty)
+      .option("--id <id>", "filter by id (repeatable -> f.id)", collectNonEmpty)
       .option("--filter <key=value>", "raw DIP filter, e.g. f.titel=Klima (repeatable)", collectFilter)
       .action(
         action(deps, async ({ client, global, opts }) => {
           const filter = opts["filter"] as FilterMap | undefined;
           const params: QueryParams = { ...filter };
-          // Omit an empty/blank --cursor rather than sending a stray `cursor=`.
+          // A blank --cursor is rejected at parse time (parseNonEmpty).
           const cursor = opts["cursor"] as string | undefined;
-          if (cursor !== undefined && cursor.length > 0) params["cursor"] = cursor;
+          if (cursor !== undefined) params["cursor"] = cursor;
           // --id and --filter f.id=... both target the f.id query key. Rather than
           // letting one silently clobber the other, merge them: any f.id supplied
-          // via --filter is combined with the repeatable --id values. Empty ids
-          // are dropped so they never produce a stray `f.id=`.
-          const ids = (opts["id"] as string[] | undefined)?.filter((id) => id.length > 0);
+          // via --filter is combined with the repeatable --id values. A blank --id
+          // is rejected at parse time; an empty `--filter f.id=` value is still
+          // dropped so it never produces a stray `f.id=`.
+          const ids = opts["id"] as string[] | undefined;
           const fromFilter = filter?.["f.id"]?.filter((id) => id.length > 0);
           const mergedIds = [...(fromFilter ?? []), ...(ids ?? [])];
           if (mergedIds.length > 0) params["f.id"] = mergedIds;

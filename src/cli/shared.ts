@@ -25,6 +25,17 @@ export function parseIntArg(value: string): number {
   return n;
 }
 
+/**
+ * commander value-parser: a value that is not blank. A blank filter would
+ * otherwise be dropped and the command would silently run unfiltered.
+ */
+export function parseNonEmpty(value: string): string {
+  if (value.trim() === "") {
+    throw new InvalidArgumentError("Expected a non-empty value.");
+  }
+  return value;
+}
+
 /** Build a commander value-parser for a plain decimal integer constrained to [min, max]. */
 export function parseBoundedInt(min: number, max: number): (value: string) => number {
   return (value: string) => {

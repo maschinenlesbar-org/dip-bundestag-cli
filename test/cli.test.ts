@@ -174,3 +174,39 @@ test("--id and --filter f.id are merged, not clobbered", async () => {
   const url = new URL(cli.mt.last().url);
   assert.deepEqual(url.searchParams.getAll("f.id"), ["9", "1", "2"]);
 });
+
+// A blank --cursor or --id (often an unset shell variable) must be a usage error
+// before any request — dropping it would silently run the list unfiltered.
+const LIST_COMMANDS = [
+  "vorgang",
+  "vorgangsposition",
+  "drucksache",
+  "drucksache-text",
+  "plenarprotokoll",
+  "plenarprotokoll-text",
+  "aktivitaet",
+  "person",
+];
+const BLANK_CASES: Array<{ command: string; flag: string; value: string }> = [
+  ...LIST_COMMANDS.flatMap((command) =>
+    ["--cursor", "--id"].map((flag) => ({ command, flag, value: "" })),
+  ),
+  { command: "vorgang", flag: "--id", value: "   " },
+  { command: "vorgang", flag: "--cursor", value: " \t " },
+];
+
+for (const { command, flag, value } of BLANK_CASES) {
+  test(`${command} list rejects a blank ${flag} (${JSON.stringify(value)}) before any request`, async () => {
+    const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+    const code = await run(["--api-key", "KEY", command, "list", flag, value], cli.deps);
+    assert.notEqual(code, 0);
+    assert.equal(cli.mt.calls.length, 0);
+  });
+}
+
+test("a blank value among repeated --id values is rejected before any request", async () => {
+  const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+  const code = await run(["--api-key", "KEY", "vorgang", "list", "--id", "1", "--id", ""], cli.deps);
+  assert.notEqual(code, 0);
+  assert.equal(cli.mt.calls.length, 0);
+});
