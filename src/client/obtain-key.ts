@@ -19,7 +19,7 @@
 
 import type { Transport } from "./http.js";
 import { nodeHttpTransport } from "./http.js";
-import { DEFAULT_BASE_URL } from "./engine.js";
+import { DEFAULT_BASE_URL, assertHttpScheme } from "./engine.js";
 import { DipError } from "./errors.js";
 
 /** The environment variable the client and CLI read the key from. */
@@ -123,6 +123,9 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
   const timeout = options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {};
   const verify = options.verify !== false;
   const baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
+  // The verification request carries the candidate key, so refuse a non-http(s)
+  // base URL up front, as the engine does, whatever transport was injected.
+  if (verify) assertHttpScheme(baseUrl);
 
   // Why each source failed, in order, so the final error can say what was tried.
   const failures: string[] = [];

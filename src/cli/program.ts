@@ -9,7 +9,7 @@ import type { CliDeps } from "./io.js";
 import { defaultIO } from "./io.js";
 import { DipClient } from "../client/client.js";
 import { MAX_TIMEOUT_MS } from "../client/http.js";
-import { parseBoundedInt, parseIntArg } from "./shared.js";
+import { parseBaseUrl, parseBoundedInt, parseIntArg } from "./shared.js";
 import { registerResourceCommands } from "./commands/resources.js";
 import { registerObtainKeyCommands } from "./commands/obtain-key.js";
 import { nodeHttpTransport } from "../client/http.js";
@@ -64,7 +64,7 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
         "available from parlamentsdokumentation@bundestag.de).",
     )
     .version(VERSION)
-    .option("--base-url <url>", "API base URL", "https://search.dip.bundestag.de")
+    .option("--base-url <url>", "API base URL", parseBaseUrl, "https://search.dip.bundestag.de")
     .option("--api-key <key>", "DIP API key (prefer the DIP_API_KEY env var; a flag is visible in ps/history)")
     .option(
       "--timeout <ms>",

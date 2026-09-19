@@ -16,7 +16,7 @@ import {
   extractKeyCandidates,
   obtainKey,
 } from "../src/client/obtain-key.js";
-import { DipError } from "../src/client/errors.js";
+import { DipError, DipNetworkError } from "../src/client/errors.js";
 import { makeMockTransport, rawResponse, jsonResponse } from "./helpers.js";
 
 const KEY = "R2BZaee.DjdCyihKZMf8AOjtScubP2EVydegzjmBIQ";
@@ -191,4 +191,23 @@ test("--no-verify prints the candidate but warns loudly on stderr", async () => 
   assert.equal(code, 0);
   assert.deepEqual(cli.out, [KEY]);
   assert.match(cli.err.join("\n"), /WITHOUT verifying/);
+});
+
+// The verification request carries the candidate key, so a non-http(s) base URL
+// is refused before anything is sent, whatever transport is injected.
+test("obtainKey rejects a non-http(s) base URL before any request", async () => {
+  const mt = makeMockTransport(responder([KEY]));
+  await assert.rejects(
+    () => obtainKey({ transport: mt.transport, baseUrl: "file:///etc/passwd" }),
+    DipNetworkError,
+  );
+  assert.equal(mt.calls.length, 0);
+});
+
+test("obtain-key rejects --base-url file:///etc/passwd before any request", async () => {
+  const cli = makeCli(responder([KEY]));
+  const code = await run(["--base-url", "file:///etc/passwd", "obtain-key"], cli.deps);
+  assert.notEqual(code, 0);
+  assert.equal(cli.mt.calls.length, 0);
+  assert.match(cli.err.join(""), /--base-url/);
 });

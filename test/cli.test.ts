@@ -213,3 +213,15 @@ test("a blank value among repeated --id values is rejected before any request", 
   assert.notEqual(code, 0);
   assert.equal(cli.mt.calls.length, 0);
 });
+
+// A non-http(s) or malformed --base-url is a usage error at parse time, so the
+// API key is never handed to a transport for a file:/ftp: URL.
+for (const baseUrl of ["file:///etc/passwd", "ftp://example.org", "notaurl"]) {
+  test(`--base-url ${baseUrl} is rejected before any request`, async () => {
+    const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+    const code = await run(["--api-key", "KEY", "--base-url", baseUrl, "vorgang", "list"], cli.deps);
+    assert.notEqual(code, 0);
+    assert.equal(cli.mt.calls.length, 0);
+    assert.match(cli.err.join(""), /--base-url/);
+  });
+}

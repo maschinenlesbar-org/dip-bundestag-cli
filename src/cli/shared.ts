@@ -47,6 +47,25 @@ export function parseBoundedInt(min: number, max: number): (value: string) => nu
   };
 }
 
+/**
+ * commander value-parser: an absolute http(s) URL. A `file:`/`ftp:` or malformed
+ * --base-url is a usage error here rather than reaching the request engine.
+ */
+export function parseBaseUrl(value: string): string {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new InvalidArgumentError("Expected an absolute http(s) URL.");
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new InvalidArgumentError(
+      `Unsupported scheme "${url.protocol}". Expected an http(s) URL.`,
+    );
+  }
+  return value;
+}
+
 export interface GlobalOptions {
   baseUrl?: string;
   apiKey?: string;

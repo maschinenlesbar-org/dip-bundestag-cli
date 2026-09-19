@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { RequestEngine, escapeRawControlCharsInStrings } from "../src/client/engine.js";
-import { DipApiError, DipParseError } from "../src/client/errors.js";
+import { DipApiError, DipNetworkError, DipParseError } from "../src/client/errors.js";
 import type { HttpResponse } from "../src/client/http.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 
@@ -196,3 +196,13 @@ test("the error detail is stripped of terminal control characters", async () => 
     },
   );
 });
+
+// The default transport rejects a non-http(s) URL per hop, but a library consumer
+// may inject its own transport, so the engine gates the base URL itself.
+for (const baseUrl of ["file:///etc/passwd", "ftp://example.org", "notaurl"]) {
+  test(`the engine rejects the base URL ${baseUrl} before any request`, () => {
+    const mt = makeMockTransport(() => jsonResponse({ ok: true }));
+    assert.throws(() => new RequestEngine({ baseUrl, transport: mt.transport }), DipNetworkError);
+    assert.equal(mt.calls.length, 0);
+  });
+}
