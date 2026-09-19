@@ -9,8 +9,11 @@ description: >
   record. Resolves the person by name or id, reads their current function and
   Fraktion plus earlier roles, and can pull the activities (speeches, questions)
   tied to them.
-version: 1.0.0
-userInvocable: true
+compatibility: >
+  Requires the `dip` CLI (npm package @maschinenlesbar.org/dip-bundestag-cli) on
+  PATH, installed by the user; the skill never installs it. Uses jq for JSON
+  filtering. Network access to search.dip.bundestag.de. Needs the public API key
+  via --api-key or DIP_API_KEY (`dip obtain-key` prints it).
 ---
 
 # DIP Member Dossier
@@ -22,6 +25,8 @@ recent documents and activities tied to them.
 ## Tooling
 
 This skill drives the `dip` command. **Before anything else, validate it is available** — run `command -v dip` (or `dip --version`). If it is not on your PATH, STOP and inform the user that the `dip` CLI (`@maschinenlesbar.org/dip-bundestag-cli`) is not installed — installing it is their responsibility; never install it yourself, and do not fall back to `npx` or a local `node dist/...` build.
+
+This skill also filters JSON with `jq`. **Validate it too** — run `command -v jq`. If it is missing, inform the user that `jq` is not installed — installing it is their responsibility; never install it yourself — and carry on without it: filter the CLI output with `node -e` instead (Node is already on your PATH, since the CLI runs on it).
 
 Data comes from the `dip` CLI (`@maschinenlesbar.org/dip-bundestag-cli`), read-only over
 the Bundestag DIP API, **one resource per call**.

@@ -10,8 +10,11 @@ description: >
   substance (not just metadata) of German parliamentary documents. Resolves the
   doc, fetches the heavy full-text endpoint, and produces a sourced digest with
   citations.
-version: 1.0.0
-userInvocable: true
+compatibility: >
+  Requires the `dip` CLI (npm package @maschinenlesbar.org/dip-bundestag-cli) on
+  PATH, installed by the user; the skill never installs it. Network access to
+  search.dip.bundestag.de. Needs the public API key via --api-key or DIP_API_KEY
+  (`dip obtain-key` prints it).
 ---
 
 # DIP Document Digest
