@@ -42,6 +42,10 @@ offering the commercial option. The only third-party dependency that ships with
 the package, [`commander`](https://github.com/tj/commander.js), is MIT-licensed
 and compatible with both licensing options.
 
+> **The licence above covers this CLI's own source code only — not the data it
+> fetches.** That data is licensed separately by its provider, often per dataset;
+> see [DATA_LICENSE.md](DATA_LICENSE.md).
+
 ---
 
 Copyright © 2026 Sebastian Schürmann. All rights reserved.
