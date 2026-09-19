@@ -1,6 +1,6 @@
 {
   "name": "dip-bundestag",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Bundestag parliamentary-record intelligence skills powered by the dip-bundestag-cli (DIP API).",
   "author": {
     "name": "Sebastian Schürmann",
