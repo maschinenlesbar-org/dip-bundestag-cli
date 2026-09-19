@@ -193,6 +193,9 @@ const BLANK_CASES: Array<{ command: string; flag: string; value: string }> = [
   ),
   { command: "vorgang", flag: "--id", value: "   " },
   { command: "vorgang", flag: "--cursor", value: " \t " },
+  { command: "vorgang", flag: "--filter", value: "f.id=" },
+  { command: "drucksache", flag: "--filter", value: "f.titel=  " },
+  { command: "person", flag: "--filter", value: " =x" },
 ];
 
 for (const { command, flag, value } of BLANK_CASES) {

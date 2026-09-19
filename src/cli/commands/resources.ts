@@ -65,6 +65,13 @@ function collectFilter(value: string, previous: FilterMap = {}): FilterMap {
   if (eq <= 0) throw new InvalidArgumentError(`Invalid --filter "${value}". Expected key=value.`);
   const key = value.slice(0, eq);
   const val = value.slice(eq + 1);
+  // A blank key or value would be dropped (f.id) or sent as an empty parameter,
+  // so the list would silently run without that filter.
+  if (key.trim() === "" || val.trim() === "") {
+    throw new InvalidArgumentError(
+      `Invalid --filter "${value}". Both key and value must be non-empty.`,
+    );
+  }
   return { ...previous, [key]: (previous[key] ?? []).concat([val]) };
 }
 
@@ -87,11 +94,10 @@ export function registerResourceCommands(program: Command, deps: CliDeps): void 
           if (cursor !== undefined) params["cursor"] = cursor;
           // --id and --filter f.id=... both target the f.id query key. Rather than
           // letting one silently clobber the other, merge them: any f.id supplied
-          // via --filter is combined with the repeatable --id values. A blank --id
-          // is rejected at parse time; an empty `--filter f.id=` value is still
-          // dropped so it never produces a stray `f.id=`.
+          // via --filter is combined with the repeatable --id values. Blank ids
+          // and blank filter values are rejected at parse time.
           const ids = opts["id"] as string[] | undefined;
-          const fromFilter = filter?.["f.id"]?.filter((id) => id.length > 0);
+          const fromFilter = filter?.["f.id"];
           const mergedIds = [...(fromFilter ?? []), ...(ids ?? [])];
           if (mergedIds.length > 0) params["f.id"] = mergedIds;
           else delete params["f.id"];
