@@ -111,7 +111,9 @@ Query-Schlüssel gesendet (`?f.id=1&f.id=2`), die das DIP als ODER-Menge behande
 Listenantwort enthält einen `cursor`; geben Sie ihn über `--cursor` (CLI) oder
 `{ cursor }` (Bibliothek) zurück, um die nächste Seite abzurufen. Der Cursor ist
 opak – behandeln Sie ihn als Token, nicht als Zahl. Ändert sich der zurückgegebene
-Cursor nicht mehr, ist das Ende erreicht.
+Cursor nicht mehr, ist das Ende erreicht. **Senden Sie mit jedem Cursor dieselben Filter
+erneut:** Das DIP bindet einen Cursor nicht an die Abfrage, aus der er stammt, daher
+blättert ein Cursor ohne die Filter durch die ganze ungefilterte Liste.
 
 **numFound.** Die Gesamtzahl der Dokumente, die zu einer Listenabfrage passen (über
 alle Seiten hinweg); sie steht in der Listenhülle neben den `documents` der aktuellen

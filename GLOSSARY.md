@@ -110,7 +110,9 @@ value may itself contain `=`. Repeating the same key sends repeated query keys
 **cursor.** DIP list endpoints are **cursor-paginated**. A list response carries
 a `cursor`; pass it back via `--cursor` (CLI) or `{ cursor }` (library) to fetch
 the next page. The cursor is opaque — treat it as a token, not a number. When the
-returned cursor stops changing, you have reached the end.
+returned cursor stops changing, you have reached the end. **Send the same filters
+again with every cursor:** DIP does not bind a cursor to the query it came from, so
+a cursor sent without them pages through the whole unfiltered list.
 
 **numFound.** The total number of documents matching a list query (across all
 pages), returned in the list envelope alongside the current page's `documents`.

@@ -41,9 +41,12 @@ import { DipClient, DipApiError } from "@maschinenlesbar.org/dip-bundestag-cli";
 
 const client = new DipClient({ apiKey: process.env.DIP_API_KEY });
 
-const page = await client.vorgaenge.list({ "f.titel": "Klimaschutz" });
+const filters = { "f.titel": "Klimaschutz" };
+const page = await client.vorgaenge.list(filters);
 console.log(page.numFound, page.documents.length);
-const next = page.cursor ? await client.vorgaenge.list({ cursor: page.cursor }) : undefined;
+// Repeat the filters with the cursor: DIP does not bind a cursor to its query, so
+// `{ cursor }` alone returns the next page of the *unfiltered* list.
+const next = page.cursor ? await client.vorgaenge.list({ ...filters, cursor: page.cursor }) : undefined;
 
 const paper = await client.drucksachen.get("123456");
 
