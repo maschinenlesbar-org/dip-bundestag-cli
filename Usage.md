@@ -40,7 +40,9 @@ neither is supplied the `Authorization` header is omitted and requests return
 
 The examples assume `DIP_API_KEY` is exported. Filters are passed verbatim to DIP
 via `--filter <key=value>` (repeatable); `--id` is shorthand for the repeatable
-`f.id` filter.
+`f.id` filter. The key must be one of the resource's `f.*` filters — DIP ignores
+an unknown one and would return the whole unfiltered list, so the CLI rejects it
+(exit `2`) and lists the valid ones.
 
 ### Search Drucksachen by title
 
@@ -159,8 +161,8 @@ dip person list --filter f.person=Merkel \
 dip person get 7240
 ```
 
-Use the `f.person` filter for member names (`f.titel` is not a valid key for the
-person endpoint and is silently ignored).
+Use the `f.person` filter for member names (`f.titel` is not a filter of the
+person endpoint; DIP would ignore it, so the CLI rejects it).
 
 ### List recent Aktivitäten and save them to a file
 

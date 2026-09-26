@@ -109,8 +109,8 @@ non-obvious parts of this API, for example:
   last page, since it is ordered by date (see **dip-member-dossier**);
 - **`f.titel` matches whole words in the title only** — a law's popular name is often only
   in its `abstract` (which contains HTML), so retry with a word from the official title
-  plus `f.vorgangstyp=Gesetzgebung`; the CLI passes any `--filter` verbatim, so unknown
-  filters are silently sent;
+  plus `f.vorgangstyp=Gesetzgebung`; DIP ignores an unknown filter, so the CLI rejects a
+  `--filter` key the resource does not have (exit `2`, the error lists the valid ones);
 - **not every `beschlussfassung` is a vote** — at a 1. Beratung it is usually the
   committee referral (`Überweisung`) (see **dip-procedure-tracker**);
 - **metadata vs full text** — `drucksache`/`plenarprotokoll` are light; the `*-text`

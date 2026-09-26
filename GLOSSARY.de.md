@@ -98,8 +98,12 @@ Kurzform für `f.id` und kann mehrfach angegeben werden.
 **`f.*`-Filter.** DIP-Filter sind Query-Parameter mit dem Präfix `f.`, z. B. `f.titel`
 (Titel), `f.id`, `f.wahlperiode`, `f.datum.start` / `f.datum.end` (Datumsbereich),
 `f.vorgangstyp`, `f.dokumentart`, `f.aktualisiert.start` (Zeitraum der letzten
-Aktualisierung). Die CLI reicht sie über `--filter key=value` (mehrfach angebbar)
-unverändert weiter; nur das erste `=` trennt Schlüssel und Wert, ein Wert darf also
+Aktualisierung). Jeder Listen-Endpoint hat seine eigene Menge (`LIST_FILTERS`, aus der
+OpenAPI-Beschreibung des DIP): `f.vorgang` gibt es nur bei `vorgangsposition`, `f.person`
+nur bei `person` und `aktivitaet`. Das DIP **ignoriert einen unbekannten Filter** und
+liefert die ganze ungefilterte Liste, daher lehnt die CLI einen Schlüssel ab, der nicht
+zur Menge der Ressource gehört (Exit 2). Die übrigen reicht sie über `--filter key=value`
+(mehrfach angebbar) unverändert weiter; nur das erste `=` trennt Schlüssel und Wert, ein Wert darf also
 selbst `=` enthalten. Wird derselbe Schlüssel wiederholt, werden wiederholte
 Query-Schlüssel gesendet (`?f.id=1&f.id=2`), die das DIP als ODER-Menge behandelt.
 

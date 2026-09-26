@@ -8,6 +8,7 @@ import { action, parseNonEmpty, renderJson } from "../shared.js";
 import { DipUsageError } from "../../client/errors.js";
 import type { DipClient } from "../../client/client.js";
 import type { QueryParams } from "../../client/query.js";
+import { LIST_FILTERS, type ListResource } from "../../client/filters.js";
 
 type ResourceKey =
   | "vorgaenge"
@@ -20,7 +21,8 @@ type ResourceKey =
   | "personen";
 
 interface ResourceSpec {
-  command: string;
+  /** The command name, which is also the endpoint's path segment under /api/v1. */
+  command: ListResource;
   resource: ResourceKey;
   description: string;
 }
@@ -51,13 +53,37 @@ function collectNonEmpty(value: string, previous: string[] = []): string[] {
 type FilterMap = Record<string, string[]>;
 
 /**
- * commander accumulator for repeatable `key=value` filters.
+ * Build the commander accumulator for one resource's repeatable `key=value`
+ * filters.
  *
- * Repeated occurrences of the same key are accumulated into a list (the DIP API
- * supports repeated query keys) rather than letting the last value silently
+ * The key must be one of the resource's documented `f.*` filters: DIP ignores an
+ * unknown one and answers with the whole unfiltered list, so a typo (`f.titl`) or a
+ * filter of another resource (`f.person` on `vorgang`) would silently widen the
+ * query. Repeated occurrences of the same key are accumulated into a list (the DIP
+ * API supports repeated query keys) rather than letting the last value silently
  * clobber the earlier ones — mirroring how `--id`/`f.id` are merged below.
  */
-function collectFilter(value: string, previous: FilterMap = {}): FilterMap {
+function filterCollector(resource: ListResource): (value: string, previous?: FilterMap) => FilterMap {
+  const known = LIST_FILTERS[resource];
+  return (value, previous = {}) => {
+    const [key, val] = splitFilter(value);
+    if (key === "cursor") {
+      throw new InvalidArgumentError(
+        `"cursor" is a paging or sorting parameter, not a filter. Use --cursor on list instead.`,
+      );
+    }
+    if (!known.includes(key)) {
+      throw new InvalidArgumentError(
+        `Unknown filter "${key}" for ${resource}. DIP ignores unknown filters and would ` +
+          `return the whole unfiltered list. Filters for ${resource}: ${known.join(", ")}.`,
+      );
+    }
+    return { ...previous, [key]: (previous[key] ?? []).concat([val]) };
+  };
+}
+
+/** Split and check one `--filter key=value` argument. */
+function splitFilter(value: string): [string, string] {
   const eq = value.indexOf("=");
   // Throw commander's InvalidArgumentError (not a bare DipError) so the usual
   // parse-error path runs and showHelpAfterError() displays the command help,
@@ -72,7 +98,7 @@ function collectFilter(value: string, previous: FilterMap = {}): FilterMap {
       `Invalid --filter "${value}". Both key and value must be non-empty.`,
     );
   }
-  return { ...previous, [key]: (previous[key] ?? []).concat([val]) };
+  return [key, val];
 }
 
 export function registerResourceCommands(program: Command, deps: CliDeps): void {
@@ -84,7 +110,11 @@ export function registerResourceCommands(program: Command, deps: CliDeps): void 
       .description(`List/filter ${spec.command}`)
       .option("--cursor <cursor>", "pagination cursor from a previous page", parseNonEmpty)
       .option("--id <id>", "filter by id (repeatable -> f.id)", collectNonEmpty)
-      .option("--filter <key=value>", "raw DIP filter, e.g. f.titel=Klima (repeatable)", collectFilter)
+      .option(
+        "--filter <key=value>",
+        `DIP filter, e.g. f.titel=Klima (repeatable; one of ${spec.command}'s f.* filters)`,
+        filterCollector(spec.command),
+      )
       .action(
         action(deps, async ({ client, global, opts }) => {
           const filter = opts["filter"] as FilterMap | undefined;

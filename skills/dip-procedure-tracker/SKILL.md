@@ -103,7 +103,7 @@ The Vorgang fields that matter:
 ## Step 2 — Pull the steps (Vorgangspositionen) for that id
 
 This is the join. **`f.vorgang` is supported on `vorgangsposition`, not on `vorgang`** —
-that's the non-obvious part:
+that's the non-obvious part (on `vorgang` the CLI rejects it as an unknown filter, exit 2):
 
 ```bash
 dip --compact vorgangsposition list --filter f.vorgang=298723

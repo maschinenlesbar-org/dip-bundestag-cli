@@ -19,7 +19,7 @@ protocols, activities and people — as clean JSON you can pipe straight into
   one-line/scripting, `-o <file>` to write directly to disk.
 - **Cursor pagination built in** — pass the returned `cursor` back via
   `--cursor` to walk large result sets.
-- **Flexible filtering** — pass any DIP `f.*` filter verbatim via
+- **Flexible filtering** — pass any of the resource's DIP `f.*` filters via
   `--filter key=value`; `--id` is shorthand for the repeatable `f.id` filter.
 
 > Want to use this as a TypeScript library or understand how it's built?
@@ -161,9 +161,12 @@ New to terms like *Vorgang*, *Drucksache*, *Wahlperiode* or *Vorgangstyp*? The
 | --- | --- |
 | `--cursor <cursor>` | Pagination cursor from a previous page |
 | `--id <id>` | Filter by id — repeatable; maps to `f.id` |
-| `--filter <key=value>` | Raw DIP filter, e.g. `f.titel=Klima` — repeatable |
+| `--filter <key=value>` | DIP filter, e.g. `f.titel=Klima` — repeatable; the key must be one of the resource's `f.*` filters |
 
-`--filter` passes the key and value verbatim to DIP. Only the first `=` splits
+`--filter` passes the key and value verbatim to DIP. The key must be one of the
+`f.*` filters DIP documents for that resource (the error lists them): DIP ignores
+a key it does not know and answers with the whole unfiltered list, so a typo such
+as `f.titl`, or `f.person` on `vorgang`, is a usage error (exit `2`) instead. Only the first `=` splits
 key from value, so a value may itself contain `=`. Repeating the same key sends
 repeated query parameters, which DIP treats as an OR set. `--id` and
 `--filter f.id=…` are merged (neither silently wins).
@@ -182,7 +185,7 @@ repeated query parameters, which DIP treats as an OR set. `--id` and
 | `f.vorgangstyp=<type>` | Procedure type (e.g. `Gesetzgebung`) |
 | `f.dokumentart=<type>` | Document type |
 | `f.zuordnung=BT\|BR` | Chamber — Bundestag (`BT`) or Bundesrat (`BR`) |
-| `f.person=<name>` | Person surname (for the `person` resource) |
+| `f.person=<name>` | Person surname (on `person` and `aktivitaet` only) |
 
 ## Common tasks
 

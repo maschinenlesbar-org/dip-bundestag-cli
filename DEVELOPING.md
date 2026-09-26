@@ -135,6 +135,7 @@ src/
   client/
     types.ts     # ListResult (cursor envelope); documents as JsonObject
     query.ts     # dependency-free query-string builder
+    filters.ts   # LIST_FILTERS: the f.* filters each list endpoint accepts (OpenAPI 1.5)
     http.ts      # the Transport interface + default node:http/https transport
     engine.ts    # URL building, retry/backoff, redirects, default headers (auth), decoding, errors
     errors.ts    # DipError / DipApiError / DipNetworkError / DipParseError / DipUsageError
@@ -154,7 +155,12 @@ src/
   to inject `Authorization: ApiKey <key>`. The CLI surfaces it as `--api-key`
   (or `DIP_API_KEY`).
 - The eight resources share one generic `ResourceGroup`, so adding a resource is
-  a one-line change.
+  a one-line change (plus its filter set in `filters.ts`).
+- DIP ignores unknown query keys and then returns the unfiltered list, so the CLI
+  checks every `--filter` key against `LIST_FILTERS` (taken from the official
+  OpenAPI description, `https://search.dip.bundestag.de/api/v1/openapi.yaml`).
+  When DIP adds a filter, add it there. The library's `list(params)` passes any
+  key on unchecked.
 - The HTTP layer is a single `Transport` function; the default uses
   `node:http`/`node:https` and tests inject a mock.
 - The CLI is built around injectable `CliDeps`, so the whole program can be

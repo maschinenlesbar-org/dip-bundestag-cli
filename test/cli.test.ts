@@ -153,9 +153,9 @@ test("a blank DIP_API_KEY is treated as unset (no malformed header)", async () =
 
 test("--filter accepts a value containing '='", async () => {
   const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
-  await run(["vorgang", "list", "--filter", "f.datum=2024=x"], cli.deps);
+  await run(["vorgang", "list", "--filter", "f.titel=a=b"], cli.deps);
   const url = new URL(cli.mt.last().url);
-  assert.equal(url.searchParams.get("f.datum"), "2024=x");
+  assert.equal(url.searchParams.get("f.titel"), "a=b");
 });
 
 test("readEnvApiKey trims and treats blank/missing as undefined", () => {
@@ -246,5 +246,49 @@ test("--max-retries is bounded to 0..10", async () => {
       assert.equal(cli.mt.calls.length, 0);
       assert.match(cli.err.join("\n"), /Expected an integer between 0 and 10\./);
     }
+  }
+});
+
+test("an unknown or foreign --filter key is a usage error before any request", async () => {
+  for (const [command, key] of [
+    ["vorgang", "f.titl"], // typo
+    ["vorgang", "titel"], // no f. prefix
+    ["vorgang", "f.person"], // only person/aktivitaet have it
+    ["vorgang", "f.vorgang"], // only vorgangsposition has it
+    ["person", "f.nachname"],
+    ["drucksache", "format"],
+    ["drucksache", "apikey"],
+  ] as const) {
+    const cli = makeCli(() => jsonResponse({ numFound: 337303, documents: [] }));
+    const code = await run(["--compact", command, "list", "--filter", `${key}=x`], cli.deps);
+    assert.equal(code, 2, `${command} ${key}`);
+    assert.equal(cli.mt.calls.length, 0);
+    assert.deepEqual(cli.out, []);
+    const err = cli.err.join("\n");
+    assert.match(err, new RegExp(`Unknown filter "${key}" for ${command}\\. DIP ignores unknown filters`));
+    assert.match(err, /Filters for \S+: f\.aktualisiert\.start, /);
+  }
+});
+
+test("--filter cursor=... points at --cursor", async () => {
+  const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+  const code = await run(["vorgang", "list", "--filter", "cursor=abc"], cli.deps);
+  assert.equal(code, 2);
+  assert.equal(cli.mt.calls.length, 0);
+  assert.match(cli.err.join("\n"), /"cursor" is a paging or sorting parameter, not a filter\. Use --cursor on list instead\./);
+});
+
+test("each resource accepts its own documented filters", async () => {
+  for (const [command, key] of [
+    ["vorgangsposition", "f.vorgang"],
+    ["person", "f.person"],
+    ["aktivitaet", "f.person_id"],
+    ["drucksache", "f.zuordnung"],
+    ["drucksache-text", "f.dokumentnummer"],
+    ["plenarprotokoll", "f.aktualisiert.end"],
+  ] as const) {
+    const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+    assert.equal(await run([command, "list", "--filter", `${key}=1`], cli.deps), 0, `${command} ${key}`);
+    assert.equal(new URL(cli.mt.last().url).searchParams.get(key), "1");
   }
 });
