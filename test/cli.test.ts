@@ -348,3 +348,32 @@ test("a blank --api-key is a usage error instead of silently discarding DIP_API_
     assert.match(cli.err.join("\n"), /--api-key <key>.*Expected a non-empty value\./);
   }
 });
+
+test("control or non-Latin-1 characters in --api-key / --user-agent are usage errors", async () => {
+  for (const [flag, value, message] of [
+    ["--user-agent", "a\r\nX-Evil: 1", /Value contains control characters\./],
+    ["--api-key", "k\r\nX-Evil: 1", /Value contains control characters\./],
+    ["--api-key", "k\u20ac", /Value contains characters outside Latin-1 \(above U\+00FF\)\./],
+    ["--user-agent", "", /Expected a non-empty value\./],
+    ["--user-agent", "  ", /Expected a non-empty value\./],
+  ] as const) {
+    const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+    const code = await run([flag, value, "vorgang", "list"], cli.deps);
+    assert.equal(code, 2, `${flag} ${JSON.stringify(value)}`);
+    assert.equal(cli.mt.calls.length, 0);
+    assert.match(cli.err.join("\n"), message);
+    assert.doesNotMatch(cli.err.join("\n"), /Unexpected error/);
+  }
+  // Tab and Latin-1 are sendable and stay allowed.
+  const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+  assert.equal(await run(["--user-agent", "m\u00fcnchen\tbot", "vorgang", "list"], cli.deps), 0);
+  assert.equal(cli.mt.last().headers?.["User-Agent"], "m\u00fcnchen\tbot");
+});
+
+test("a DIP_API_KEY with control characters is a clear error, not an unexpected one", async () => {
+  const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }), { DIP_API_KEY: "a\nb" });
+  const code = await run(["vorgang", "list"], cli.deps);
+  assert.equal(code, 1);
+  assert.equal(cli.mt.calls.length, 0);
+  assert.match(cli.err.join("\n"), /^Error: Invalid apiKey: it contains control characters/);
+});

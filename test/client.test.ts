@@ -75,3 +75,19 @@ test("an id of . or .. is rejected before any request instead of re-targeting th
     [`${API}/vorgang/...`, `${API}/vorgang/%252e%252e`],
   );
 });
+
+test("the apiKey is sent trimmed", async () => {
+  const mt = constantJson({ numFound: 0, documents: [] });
+  await clientWith(mt, "  abc  ").vorgaenge.list();
+  assert.equal(mt.last().headers?.["Authorization"], "ApiKey abc");
+});
+
+test("an apiKey an HTTP header cannot carry is a DipError at construction", () => {
+  for (const apiKey of ["a\nb", "k\r\nX-Evil: 1", "a\u0000b", "schl\u00fcssel\u20ac"]) {
+    assert.throws(
+      () => new DipClient({ apiKey }),
+      (err: unknown) => err instanceof DipError && /^Invalid apiKey: it contains control characters/.test(err.message),
+      JSON.stringify(apiKey),
+    );
+  }
+});

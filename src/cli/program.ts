@@ -9,7 +9,7 @@ import type { CliDeps } from "./io.js";
 import { defaultIO } from "./io.js";
 import { DipClient } from "../client/client.js";
 import { MAX_TIMEOUT_MS } from "../client/http.js";
-import { parseBaseUrl, parseBoundedInt, parseIntArg, parseNonEmpty } from "./shared.js";
+import { parseBaseUrl, parseBoundedInt, parseHeaderValue, parseIntArg } from "./shared.js";
 import { registerResourceCommands } from "./commands/resources.js";
 import { registerObtainKeyCommands } from "./commands/obtain-key.js";
 import { nodeHttpTransport } from "../client/http.js";
@@ -74,15 +74,16 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
       "--api-key <key>",
       "DIP API key (prefer the DIP_API_KEY env var; a flag is visible in ps/history)",
       // A blank flag would replace the DIP_API_KEY value seeded below and send no
-      // key at all, so it is a usage error rather than "unset".
-      parseNonEmpty,
+      // key at all, so it is a usage error rather than "unset"; so is a value an
+      // HTTP header cannot carry.
+      parseHeaderValue,
     )
     .option(
       "--timeout <ms>",
       "time limit per request in milliseconds, whole response included",
       parseBoundedInt(0, MAX_TIMEOUT_MS),
     )
-    .option("--user-agent <ua>", "User-Agent header value")
+    .option("--user-agent <ua>", "User-Agent header value", parseHeaderValue)
     .option(
       "--max-retries <n>",
       "retries for transient 429/503 responses (0..10; each waits the server's Retry-After, up to 30 s)",

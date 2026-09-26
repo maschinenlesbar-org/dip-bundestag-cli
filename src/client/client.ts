@@ -13,6 +13,7 @@
 //   client.drucksachen.get("123456")
 
 import { RequestEngine, type EngineOptions } from "./engine.js";
+import { DipError } from "./errors.js";
 import type { QueryParams } from "./query.js";
 import type { ListResult, Document } from "./types.js";
 
@@ -50,6 +51,15 @@ class ResourceGroup {
   }
 }
 
+/** True if Node can send `value` in a header: no C0 control but tab, no DEL, Latin-1 only. */
+function isHeaderSafe(value: string): boolean {
+  for (let i = 0; i < value.length; i++) {
+    const c = value.charCodeAt(i);
+    if ((c < 0x20 && c !== 0x09) || c === 0x7f || c > 0xff) return false;
+  }
+  return true;
+}
+
 export class DipClient {
   private readonly engine: RequestEngine;
 
@@ -65,7 +75,14 @@ export class DipClient {
   constructor(options: DipClientOptions = {}) {
     const { apiKey, ...engineOptions } = options;
     // Only send Authorization when a non-blank key was supplied; never default one.
-    const key = apiKey?.trim() ? apiKey : undefined;
+    // Surrounding whitespace is dropped, as the CLI does for its sources.
+    const key = apiKey?.trim() || undefined;
+    if (key !== undefined && !isHeaderSafe(key)) {
+      throw new DipError(
+        "Invalid apiKey: it contains control characters or characters outside Latin-1 " +
+          "(above U+00FF), which an HTTP header cannot carry.",
+      );
+    }
     this.engine = new RequestEngine({
       ...engineOptions,
       defaultHeaders: {

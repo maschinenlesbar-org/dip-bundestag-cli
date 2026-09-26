@@ -36,6 +36,28 @@ export function parseNonEmpty(value: string): string {
   return value;
 }
 
+/**
+ * commander value-parser for a value that ends up in an HTTP header (`--api-key`,
+ * `--user-agent`). Node's HTTP layer throws an opaque "Invalid character in header
+ * content" at request time for a CR/LF (or any other C0 control or DEL) and for any
+ * character above U+00FF, which surfaced as "Unexpected error". Reject those here as
+ * a usage error, along with a blank value. Tab is allowed, as in HTTP. Checked by
+ * char code so the source stays free of control bytes.
+ */
+export function parseHeaderValue(value: string): string {
+  parseNonEmpty(value);
+  for (let i = 0; i < value.length; i++) {
+    const c = value.charCodeAt(i);
+    if ((c < 0x20 && c !== 0x09) || c === 0x7f) {
+      throw new InvalidArgumentError("Value contains control characters.");
+    }
+    if (c > 0xff) {
+      throw new InvalidArgumentError("Value contains characters outside Latin-1 (above U+00FF).");
+    }
+  }
+  return value;
+}
+
 /** Build a commander value-parser for a plain decimal integer constrained to [min, max]. */
 export function parseBoundedInt(min: number, max: number): (value: string) => number {
   return (value: string) => {
@@ -110,8 +132,8 @@ export function toEngineOptions(global: GlobalOptions): DipClientOptions {
     options.apiKey = global.apiKey.trim();
   }
   if (global.timeout !== undefined) options.timeoutMs = global.timeout;
-  // Likewise, a blank --user-agent falls back to the engine's default UA rather
-  // than sending an empty User-Agent header.
+  // A blank --user-agent is rejected at parse time (parseHeaderValue); the guard
+  // keeps an empty User-Agent header impossible.
   if (global.userAgent !== undefined && global.userAgent.trim().length > 0) {
     options.userAgent = global.userAgent;
   }
