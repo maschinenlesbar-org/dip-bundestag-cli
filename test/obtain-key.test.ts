@@ -237,3 +237,56 @@ test("obtain-key hands --timeout and --max-response-bytes to every request", asy
   assert.equal(code, 0);
   assert.ok(cli.mt.calls.every((c) => c.timeoutMs === 1500 && c.maxResponseBytes === 2048));
 });
+
+test("obtainKey falls back to the mirror when the help document fails at network level", async () => {
+  const base = responder([STALE_KEY]);
+  const mt = makeMockTransport((req) => {
+    if (req.url === KEY_SOURCE_URL) {
+      throw new DipNetworkError("getaddrinfo ENOTFOUND content.dip.bundestag.de");
+    }
+    return base(req);
+  });
+  const result = await obtainKey({ transport: mt.transport });
+  assert.equal(result.key, STALE_KEY);
+  assert.equal(result.sourceUrl, KEY_SOURCE_FALLBACK_URL);
+  assert.equal(result.verified, true);
+});
+
+test("obtainKey names every unreachable source in its final error", async () => {
+  const mt = makeMockTransport((req) => {
+    throw new DipNetworkError(req.url === KEY_SOURCE_URL ? "getaddrinfo ENOTFOUND" : "read ECONNRESET");
+  });
+  await assert.rejects(
+    () => obtainKey({ transport: mt.transport }),
+    (err: unknown) => {
+      assert.ok(err instanceof DipError);
+      assert.match(
+        err.message,
+        new RegExp(
+          `^No usable DIP key: ${KEY_SOURCE_URL} could not be read \\(getaddrinfo ENOTFOUND\\); ` +
+            `${KEY_SOURCE_FALLBACK_URL.replace(/\./g, "\\.")} could not be read \\(read ECONNRESET\\)\\.`,
+        ),
+      );
+      return true;
+    },
+  );
+  assert.equal(mt.calls.length, 2);
+});
+
+test("a verification request that fails at network level is reported as such, without a key", async () => {
+  const base = responder([KEY]);
+  const mt = makeMockTransport((req) => {
+    if (req.url === KEY_SOURCE_URL) return base(req);
+    throw new DipNetworkError("read ECONNRESET");
+  });
+  await assert.rejects(
+    () => obtainKey({ transport: mt.transport }),
+    (err: unknown) => {
+      assert.ok(err instanceof DipError);
+      assert.match(err.message, /^Could not verify the key against https:\/\/search\.dip\.bundestag\.de \(read ECONNRESET\)\. Re-run with --no-verify/);
+      assert.doesNotMatch(err.message, new RegExp(KEY));
+      return true;
+    },
+  );
+  assert.equal(mt.calls.length, 2);
+});

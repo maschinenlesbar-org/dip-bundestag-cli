@@ -17,7 +17,7 @@
 // moves on to the next candidate, then the next source, when one is rejected.
 // It never returns a key it knows to be dead.
 
-import type { Transport } from "./http.js";
+import type { HttpResponse, Transport } from "./http.js";
 import { nodeHttpTransport } from "./http.js";
 import {
   DEFAULT_BASE_URL,
@@ -153,15 +153,23 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
   const failures: string[] = [];
 
   for (const sourceUrl of sources) {
-    const response = await transport({
-      method: "GET",
-      url: sourceUrl,
-      headers: {
-        Accept: "application/json, text/plain, text/markdown;q=0.9, */*;q=0.8",
-        "User-Agent": userAgent,
-      },
-      ...limits,
-    });
+    let response: HttpResponse;
+    try {
+      response = await transport({
+        method: "GET",
+        url: sourceUrl,
+        headers: {
+          Accept: "application/json, text/plain, text/markdown;q=0.9, */*;q=0.8",
+          "User-Agent": userAgent,
+        },
+        ...limits,
+      });
+    } catch (err) {
+      // Unreachable (DNS, reset, timeout, size cap) is a reason to try the next
+      // source, just like a non-2xx status.
+      failures.push(`${sourceUrl} could not be read (${describeError(err)})`);
+      continue;
+    }
     if (response.status < 200 || response.status >= 300) {
       failures.push(`${sourceUrl} could not be read (HTTP ${response.status})`);
       continue;
@@ -176,16 +184,27 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
 
     let rejected = 0;
     for (const key of candidates) {
-      const check = await transport({
-        method: "GET",
-        url: `${baseUrl}/api/v1/vorgang`,
-        headers: {
-          Accept: "application/json",
-          Authorization: `ApiKey ${key}`,
-          "User-Agent": userAgent,
-        },
-        ...limits,
-      });
+      let check: HttpResponse;
+      try {
+        check = await transport({
+          method: "GET",
+          url: `${baseUrl}/api/v1/vorgang`,
+          headers: {
+            Accept: "application/json",
+            Authorization: `ApiKey ${key}`,
+            "User-Agent": userAgent,
+          },
+          ...limits,
+        });
+      } catch (err) {
+        // The API host is unreachable: no verdict on the key, and every other
+        // candidate would be checked against the same host, so stop here.
+        throw new DipError(
+          `Could not verify the key against ${baseUrl} (${describeError(err)}). ` +
+            `Re-run with --no-verify to print it unchecked, or see ${HELP_PAGE_URL}.`,
+          { cause: err },
+        );
+      }
       if (check.status >= 200 && check.status < 300) return { key, sourceUrl, verified: true };
       if (check.status === 401 || check.status === 403) {
         rejected += 1;
@@ -205,6 +224,13 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
   }
 
   throw new DipError(`No usable DIP key: ${failures.join("; ")}. ${WHERE_TO_GET_ONE}`);
+}
+
+/** A transport failure's message for the error text (never empty). */
+function describeError(err: unknown): string {
+  if (err instanceof Error && err.message.trim() !== "") return err.message;
+  const code = (err as { code?: unknown } | null)?.code;
+  return typeof code === "string" ? code : "network error";
 }
 
 /**
