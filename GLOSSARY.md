@@ -138,7 +138,11 @@ and `aktivitaet`. The kind of Drucksache (Antrag, Gesetzentwurf, Antwort, …) i
 
 **Datum (date).** The date a document/activity is dated. Date-range filtering
 uses `f.datum.start` and `f.datum.end` (ISO `YYYY-MM-DD`). The query builder
-serialises `Date` values to full ISO-8601 strings.
+serialises `Date` values to full ISO-8601 instants in UTC
+(`2024-01-01T00:00:00.000Z`), which DIP accepts for `f.aktualisiert.*` but **not**
+for `f.datum.*` (HTTP 400 `Invalid date`). Library users pass `f.datum.*` as a
+`"YYYY-MM-DD"` string: a `Date` is an instant, and a local midnight such as
+`new Date(2024, 0, 1)` in Berlin is `2023-12-31T23:00:00.000Z`, the day before.
 
 **Zuordnung (assignment).** Some resources can be filtered by chamber/assignment
 (`f.zuordnung`), distinguishing Bundestag (`BT`) from Bundesrat (`BR`) materials.

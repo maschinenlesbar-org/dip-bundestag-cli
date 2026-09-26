@@ -140,7 +140,11 @@ ist über `f.drucksachetyp` filterbar.
 **Datum.** Das Datum, auf das ein Dokument bzw. eine Aktivität datiert ist. Die
 Filterung nach Datumsbereich nutzt `f.datum.start` und `f.datum.end` (ISO
 `YYYY-MM-DD`). Der Query-Builder serialisiert `Date`-Werte zu vollständigen
-ISO-8601-Zeichenketten.
+ISO-8601-Zeitpunkten in UTC (`2024-01-01T00:00:00.000Z`), die das DIP für
+`f.aktualisiert.*` akzeptiert, für `f.datum.*` aber **nicht** (HTTP 400 `Invalid date`).
+In der Bibliothek wird `f.datum.*` daher als Zeichenkette `"YYYY-MM-DD"` übergeben: Ein
+`Date` ist ein Zeitpunkt, und eine lokale Mitternacht wie `new Date(2024, 0, 1)` in Berlin
+ist `2023-12-31T23:00:00.000Z`, also der Vortag.
 
 **Zuordnung.** Manche Ressourcen lassen sich nach Kammer bzw. Zuordnung filtern
 (`f.zuordnung`), um Materialien des Bundestages (`BT`) von denen des Bundesrates

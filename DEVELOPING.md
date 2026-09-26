@@ -213,7 +213,9 @@ contentType, status }` — raw bytes, never lossily decoded.
 
 **Query builder.** [`buildQueryString`](src/client/query.ts) — a
 dependency-free serialiser: omits `undefined`/`null`, repeats keys for arrays,
-renders booleans as `true`/`false`, dates as ISO-8601, and encodes spaces as
+renders booleans as `true`/`false`, `Date`s as full ISO-8601 UTC instants (right
+for `f.aktualisiert.*`; DIP rejects them for `f.datum.*`, so pass
+`"YYYY-MM-DD"` strings there), and encodes spaces as
 `%20` (not `+`).
 
 **CliDeps / CliIO.** The dependency-injection seam for the CLI
