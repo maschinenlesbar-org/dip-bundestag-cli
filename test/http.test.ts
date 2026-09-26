@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { nodeHttpTransport } from "../src/client/http.js";
+import { describeNetworkError, nodeHttpTransport } from "../src/client/http.js";
 import { DipNetworkError } from "../src/client/errors.js";
 
 /** Start a throwaway loopback server for one test and return its base URL. */
@@ -106,5 +106,24 @@ test("a header value Node cannot send is a DipNetworkError, not a raw TypeError"
         headers: { "User-Agent": "a\r\nX-Evil: 1" },
       }),
     (err: unknown) => err instanceof DipNetworkError && /^Invalid request: Invalid character in header content/.test(err.message),
+  );
+});
+
+test("describeNetworkError unwraps an AggregateError with an empty message", () => {
+  const refused = (addr: string) =>
+    Object.assign(new Error(`connect ECONNREFUSED ${addr}`), { code: "ECONNREFUSED" });
+  const agg = Object.assign(new AggregateError([refused("::1:1"), refused("127.0.0.1:1")], ""), {
+    code: "ECONNREFUSED",
+  });
+  assert.equal(describeNetworkError(agg), "connect ECONNREFUSED ::1:1; connect ECONNREFUSED 127.0.0.1:1");
+  assert.equal(describeNetworkError(Object.assign(new AggregateError([], ""), { code: "ECONNREFUSED" })), "ECONNREFUSED");
+  assert.equal(describeNetworkError(new Error("")), "network error");
+  assert.equal(describeNetworkError(new Error("socket hang up")), "socket hang up");
+});
+
+test("a refused connection to localhost names the reason", async () => {
+  await assert.rejects(
+    () => nodeHttpTransport({ method: "GET", url: "http://localhost:1/x", timeoutMs: 5000 }),
+    (err: unknown) => err instanceof DipNetworkError && /ECONNREFUSED/.test(err.message),
   );
 });

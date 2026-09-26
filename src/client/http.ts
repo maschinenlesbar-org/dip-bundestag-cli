@@ -38,6 +38,23 @@ export type Transport = (request: HttpRequest) => Promise<HttpResponse>;
 export const MAX_TIMEOUT_MS = 2_147_483_647;
 
 /**
+ * The message for a connection-level error, never empty. With a host name that
+ * resolves to several addresses (`localhost` → ::1 and 127.0.0.1), Node >= 20 tries
+ * each and reports the failure as an AggregateError whose own message is empty; the
+ * reasons are in its `errors`. Falls back to the error code.
+ */
+export function describeNetworkError(err: Error): string {
+  if (err.message.trim() !== "") return err.message;
+  if (err instanceof AggregateError) {
+    const inner = err.errors.map((e: unknown) => (e instanceof Error ? e.message : String(e)));
+    const messages = [...new Set(inner.filter((m) => m.trim() !== ""))];
+    if (messages.length > 0) return messages.join("; ");
+  }
+  const code = (err as NodeJS.ErrnoException).code;
+  return typeof code === "string" && code !== "" ? code : "network error";
+}
+
+/**
  * Default transport. Resolves with the raw response (including non-2xx) — status
  * interpretation is the client's job. Rejects only on transport-level failures
  * (connection errors, timeouts, malformed URLs).
@@ -130,7 +147,11 @@ export const nodeHttpTransport: Transport = (request) =>
 
     req.on("error", (err) => {
       // A timeout destroy already passes an DipNetworkError; don't double-wrap.
-      fail(err instanceof DipNetworkError ? err : new DipNetworkError(err.message, { cause: err }));
+      fail(
+        err instanceof DipNetworkError
+          ? err
+          : new DipNetworkError(describeNetworkError(err), { cause: err }),
+      );
     });
 
     if (request.body !== undefined) req.write(request.body);
