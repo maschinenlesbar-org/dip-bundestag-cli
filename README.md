@@ -211,7 +211,7 @@ dip drucksache list --filter f.wahlperiode=20 --filter f.zuordnung=BT
 # Look up a person, then fetch their full record
 dip person list --filter f.person=Merkel \
   | jq -r '.documents[] | "\(.id)\t\(.titel)"'
-dip person get 7240
+dip person get 14          # an id from the list above (14 = Angela Merkel)
 
 # Plenary protocol transcript to a file
 dip plenarprotokoll-text get 5678 | jq -r '.text' > protokoll.txt

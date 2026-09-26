@@ -158,8 +158,8 @@ Find members by name, then fetch one full record by id.
 dip person list --filter f.person=Merkel \
   | jq -r '.documents[] | "\(.id)\t\(.titel)"'
 
-# Fetch one person record
-dip person get 7240
+# Fetch one person record, by an id from the list above (14 = Angela Merkel)
+dip person get 14
 ```
 
 Use the `f.person` filter for member names (`f.titel` is not a filter of the
