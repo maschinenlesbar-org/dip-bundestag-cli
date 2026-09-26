@@ -17,6 +17,8 @@ import type { QueryParams } from "./query.js";
 import type { ListResult, Document } from "./types.js";
 
 const API = "/api/v1";
+// Percent-encodes one path segment. It leaves "." and ".." unchanged; the engine
+// rejects those (see RequestEngine.buildUrl), so they cannot re-target a request.
 const enc = encodeURIComponent;
 
 /** Options for the DIP client (engine options plus the API key). */

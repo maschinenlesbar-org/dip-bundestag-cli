@@ -225,3 +225,14 @@ for (const baseUrl of ["file:///etc/passwd", "ftp://example.org", "notaurl"]) {
     assert.match(cli.err.join(""), /--base-url/);
   });
 }
+
+test("get . / get .. is a usage error without a request instead of fetching the list or the root", async () => {
+  for (const id of [".", ".."]) {
+    const cli = makeCli(() => jsonResponse({ numFound: 1, documents: [] }));
+    const code = await run(["--compact", "vorgang", "get", id], cli.deps);
+    assert.equal(code, 2);
+    assert.equal(cli.mt.calls.length, 0);
+    assert.deepEqual(cli.out, []);
+    assert.match(cli.err.join("\n"), /^Error: Invalid id "\.\.?": "\." and "\.\." cannot be used as an id\./);
+  }
+});

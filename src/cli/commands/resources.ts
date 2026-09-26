@@ -116,6 +116,11 @@ export function registerResourceCommands(program: Command, deps: CliDeps): void 
           if (id === undefined || id.trim().length === 0) {
             throw new DipUsageError("An id is required, e.g. `vorgang get 123456`.");
           }
+          // "." and ".." survive encodeURIComponent and URL parsing resolves them,
+          // so `get .` would fetch the whole list and `get ..` the API root.
+          if (id === "." || id === "..") {
+            throw new DipUsageError(`Invalid id "${id}": "." and ".." cannot be used as an id.`);
+          }
           const resource = client[spec.resource] as DipClient[ResourceKey];
           renderJson(deps, global, await resource.get(id));
         }),

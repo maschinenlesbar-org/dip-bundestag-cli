@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DipClient } from "../src/client/client.js";
-import { DipApiError } from "../src/client/errors.js";
+import { DipApiError, DipError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, constantJson } from "./helpers.js";
 
 function clientWith(mt: ReturnType<typeof makeMockTransport>, apiKey?: string): DipClient {
@@ -52,5 +52,26 @@ test("a 401 raises DipApiError with status 401", async () => {
   await assert.rejects(
     () => clientWith(mt).vorgaenge.list(),
     (err) => err instanceof DipApiError && err.status === 401,
+  );
+});
+
+test("an id of . or .. is rejected before any request instead of re-targeting the URL", async () => {
+  for (const id of [".", ".."]) {
+    const mt = constantJson({ numFound: 0, documents: [] });
+    await assert.rejects(
+      () => clientWith(mt).vorgaenge.get(id),
+      (err: unknown) =>
+        err instanceof DipError &&
+        err.message === `Invalid path segment "${id}" in ${API}/vorgang/${id}: "." and ".." cannot be used as an id.`,
+    );
+    assert.equal(mt.calls.length, 0);
+  }
+  // Longer dot runs and percent forms are ordinary ids.
+  const mt = constantJson({ id: "x" });
+  await clientWith(mt).vorgaenge.get("...");
+  await clientWith(mt).vorgaenge.get("%2e%2e");
+  assert.deepEqual(
+    mt.calls.map((c) => new URL(c.url).pathname),
+    [`${API}/vorgang/...`, `${API}/vorgang/%252e%252e`],
   );
 });

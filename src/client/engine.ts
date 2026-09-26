@@ -4,7 +4,7 @@
 
 import { nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
-import { DipApiError, DipNetworkError, DipParseError } from "./errors.js";
+import { DipApiError, DipError, DipNetworkError, DipParseError } from "./errors.js";
 
 export const DEFAULT_BASE_URL = "https://search.dip.bundestag.de";
 const DEFAULT_USER_AGENT = "dip-bundestag-cli";
@@ -179,9 +179,24 @@ export class RequestEngine {
     this.sleep = options.sleep ?? realSleep;
   }
 
-  /** Build a fully-qualified URL from a path and optional query parameters. */
+  /**
+   * Build a fully-qualified URL from a path and optional query parameters.
+   *
+   * Throws a DipError for a path with a "." or ".." segment. The resource methods
+   * put ids into the path with `encodeURIComponent`, which leaves those two
+   * unchanged, and URL parsing then resolves them: `vorgang get .` would request
+   * `/api/v1/vorgang/` (the list) and print it with exit 0. Neither can name a
+   * document. (Percent-encoded forms such as "%2e%2e" are safe:
+   * encodeURIComponent turns their "%" into "%25".)
+   */
   buildUrl(path: string, query?: QueryParams): string {
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+    const dotSegment = normalizedPath.split("/").find((s) => s === "." || s === "..");
+    if (dotSegment !== undefined) {
+      throw new DipError(
+        `Invalid path segment "${dotSegment}" in ${normalizedPath}: "." and ".." cannot be used as an id.`,
+      );
+    }
     const qs = query ? buildQueryString(query) : "";
     return `${this.baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;
   }
