@@ -326,3 +326,15 @@ test("a password in --base-url never reaches an error message", async () => {
   // The request itself keeps the userinfo (a basic-auth mirror still works).
   assert.match(cli.mt.last().url, /^http:\/\/user:secret@localhost:18110\//);
 });
+
+test("prototype-named --filter keys are usage errors, not a crash", async () => {
+  for (const key of ["__proto__", "constructor", "toString", "valueOf", "hasOwnProperty"]) {
+    const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+    const code = await run(["vorgang", "list", "--filter", `${key}=x`], cli.deps);
+    assert.equal(code, 2, key);
+    assert.equal(cli.mt.calls.length, 0);
+    const err = cli.err.join("\n");
+    assert.doesNotMatch(err, /Unexpected error/);
+    assert.match(err, new RegExp(`Unknown filter "${key}" for vorgang`));
+  }
+});
