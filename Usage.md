@@ -25,7 +25,7 @@ way:
 export DIP_API_KEY=your-personal-key
 dip vorgang list
 
-# Or per-invocation (note: a global option, so it goes BEFORE the command)
+# Or per-invocation (a global option: it works before or after the command)
 dip --api-key your-personal-key vorgang list
 ```
 
@@ -179,8 +179,8 @@ date-time (`YYYY-MM-DDThh:mm:ss`); a bare date is rejected with `400 Invalid
 date-time`. (The `f.datum.start` / `f.datum.end` filters used above accept a
 plain `YYYY-MM-DD` date.)
 
-`-o, --output <file>` is a global option (place it before the command). It is
-also how you save binary downloads. It **refuses to overwrite an existing file**
+`-o, --output <file>` is a global option (before or after the command) and writes
+the JSON output to a file. It **refuses to overwrite an existing file**
 (exits with an error) so a mistyped path cannot clobber your data; add `--force`
 to overwrite deliberately.
 
@@ -209,7 +209,8 @@ dip drucksache list --id 123456 --id 123457 --id 123458 \
 
 ## Global options
 
-Global options go **before** the command (e.g. `dip --api-key … vorgang list`):
+Global options work **before or after** the command (`dip --compact vorgang list`
+and `dip vorgang list --compact` are the same):
 
 | Option | Description |
 | --- | --- |
