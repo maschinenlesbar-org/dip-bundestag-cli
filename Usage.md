@@ -221,7 +221,7 @@ Global options go **before** the command (e.g. `dip --api-key … vorgang list`)
 | `--max-retries <n>` | Retries for transient `429`/`503` responses (`0`–`10`, default `2`); each waits the server's `Retry-After` (up to 30 s; a longer one is not retried) or else backs off linearly |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
-| `-o, --output <file>` | Write output to this file instead of stdout (refuses to overwrite an existing file) |
+| `-o, --output <file>` | Write output to this file instead of stdout (refuses to overwrite an existing file; `-` = stdout; a blank path is a usage error, exit `2`) |
 | `--force` | With `-o`, overwrite the output file if it already exists |
 | `-h, --help` | Show help (also available per command, e.g. `dip vorgang list --help`) |
 

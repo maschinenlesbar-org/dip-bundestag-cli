@@ -58,6 +58,16 @@ export function parseHeaderValue(value: string): string {
   return value;
 }
 
+/**
+ * commander value-parser for `-o, --output <file>`. A blank or whitespace-only path
+ * is a usage error: `-o ""` used to print to stdout silently and `-o " "` created a
+ * file named " ". `-` is kept as is and means stdout (see {@link action}), the
+ * usual convention, rather than a file named "-".
+ */
+export function parseOutputPath(value: string): string {
+  return parseNonEmpty(value);
+}
+
 /** Build a commander value-parser for a plain decimal integer constrained to [min, max]. */
 export function parseBoundedInt(min: number, max: number): (value: string) => number {
   return (value: string) => {
@@ -217,6 +227,8 @@ export function action(
     const command = args[args.length - 1] as Command;
     const positionals = args.slice(0, Math.max(0, args.length - 2)) as string[];
     const global = command.optsWithGlobals() as GlobalOptions;
+    // `-o -` means stdout: from here on it is the same as no -o.
+    if (global.output === "-") delete global.output;
     const client = deps.createClient(toEngineOptions(global));
     await fn({ client, global, opts: command.opts() }, positionals);
   };

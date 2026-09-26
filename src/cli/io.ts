@@ -1,7 +1,8 @@
 // I/O seam for the CLI. Everything the CLI writes goes through a CliIO object so
 // tests can capture output instead of hitting the real stdout/stderr/filesystem.
 
-import { writeFileSync } from "node:fs";
+import { statSync, writeFileSync } from "node:fs";
+import { DipError } from "../client/errors.js";
 import type { DipClient, DipClientOptions } from "../client/client.js";
 import type { Transport } from "../client/http.js";
 
@@ -65,12 +66,39 @@ export function handleOutputErrors(
   });
 }
 
+function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 export const defaultIO: CliIO = {
   out: (text) => process.stdout.write(text + "\n"),
   err: (text) => process.stderr.write(text + "\n"),
-  // "wx" fails if the path already exists, turning an accidental overwrite into a
-  // clean EEXIST error (mapped to a non-zero exit) instead of silent data loss.
-  // With --force we fall back to the default truncating write.
-  writeFile: (path, data, force) => writeFileSync(path, data, force ? {} : { flag: "wx" }),
+  // "wx" fails if the path already exists (a dangling symlink included, since an
+  // exclusive create never follows one), turning an accidental overwrite into a
+  // clean error instead of silent data loss. With --force we fall back to the
+  // default truncating write.
+  writeFile: (path, data, force) => {
+    try {
+      writeFileSync(path, data, { flag: force ? "w" : "wx" });
+    } catch (cause) {
+      const code = (cause as NodeJS.ErrnoException | undefined)?.code;
+      // `wx` answers EEXIST and `w` EISDIR for a directory; --force cannot help there.
+      if ((code === "EEXIST" || code === "EISDIR") && isDirectory(path)) {
+        throw new DipError(`"${path}" is a directory; give a file path to --output.`, { cause });
+      }
+      if (code === "EEXIST") {
+        throw new DipError(
+          `Refusing to overwrite existing file "${path}"; pass --force to overwrite.`,
+          { cause },
+        );
+      }
+      const reason = cause instanceof Error ? cause.message : String(cause);
+      throw new DipError(`Could not write to "${path}": ${reason}`, { cause });
+    }
+  },
   outBinary: (data) => process.stdout.write(data),
 };

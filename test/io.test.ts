@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EventEmitter } from "node:events";
 import { defaultIO, handleOutputErrors } from "../src/cli/io.js";
+import { DipError } from "../src/client/errors.js";
 
 /** Run `body` with a fresh temp directory that is always cleaned up. */
 function withTempDir(body: (dir: string) => void): void {
@@ -22,7 +23,9 @@ test("writeFile refuses to overwrite an existing file (DIP-04)", () => {
     writeFileSync(path, "original");
     assert.throws(
       () => defaultIO.writeFile(path, Buffer.from("new")),
-      (err) => (err as NodeJS.ErrnoException).code === "EEXIST",
+      (err) =>
+        err instanceof DipError &&
+        err.message === `Refusing to overwrite existing file "${path}"; pass --force to overwrite.`,
     );
     // The original file is untouched.
     assert.equal(readFileSync(path, "utf8"), "original");
@@ -80,4 +83,26 @@ test("another stderr write error exits 1", () => {
   const s = outputStreams();
   s.stderr.emit("error", writeError("EIO"));
   assert.deepEqual(s.exits, [1]);
+});
+
+test("writeFile names a directory target instead of an overwrite refusal, with or without force", () => {
+  withTempDir((dir) => {
+    for (const force of [false, true]) {
+      assert.throws(
+        () => defaultIO.writeFile(dir, Buffer.from("x"), force),
+        (err) => err instanceof DipError && err.message === `"${dir}" is a directory; give a file path to --output.`,
+        String(force),
+      );
+    }
+  });
+});
+
+test("writeFile turns other fs errors into a DipError naming the path", () => {
+  withTempDir((dir) => {
+    const path = join(dir, "missing", "out.json");
+    assert.throws(
+      () => defaultIO.writeFile(path, Buffer.from("x")),
+      (err) => err instanceof DipError && err.message.startsWith(`Could not write to "${path}": ENOENT`),
+    );
+  });
 });

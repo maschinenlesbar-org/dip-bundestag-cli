@@ -254,9 +254,10 @@ option — works before or after the command):
 dip --output results.json drucksache list --filter f.titel=Bürgergeld
 ```
 
-`-o` **will not overwrite an existing file** — it exits with an error to protect
+`-o` **will not overwrite an existing file** — it exits with an error
+(`Refusing to overwrite existing file …; pass --force to overwrite.`) to protect
 against a mistyped path clobbering your data. Pass `--force` to overwrite
-deliberately.
+deliberately. A directory is refused either way, and `-o -` prints to stdout.
 
 **Exit codes** make the CLI easy to use in scripts:
 
@@ -303,7 +304,7 @@ These may be given **before or after** the command, e.g.
 | `-h, --help` | Show help for the program or a command |
 | `--api-key <key>` | DIP API key (env `DIP_API_KEY`). A blank value, control characters or characters above U+00FF are a usage error (exit `2`) |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
-| `-o, --output <file>` | Write output to this file instead of stdout (refuses to overwrite an existing file) |
+| `-o, --output <file>` | Write output to this file instead of stdout (refuses to overwrite an existing file; `-` = stdout; a blank path is a usage error, exit `2`) |
 | `--force` | With `-o`, overwrite the output file if it already exists |
 | `--base-url <url>` | API base URL: the host, **without** `/api/v1`, which the CLI adds (default `https://search.dip.bundestag.de`). `http:`/`https:` only; a query (`?`), fragment (`#`), surrounding whitespace or a trailing `/api/v1` is a usage error (exit `2`). A `user:password@` part is sent but shown as `***@` in error messages |
 | `--timeout <ms>` | Time limit per request, reading the whole response included (default `30000`; at most `2147483647`) |

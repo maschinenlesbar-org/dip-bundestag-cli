@@ -6,7 +6,7 @@ import { DipClient } from "../src/client/client.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
 import { makeMockTransport, jsonResponse } from "./helpers.js";
-import { DipNetworkError } from "../src/client/errors.js";
+import { DipError, DipNetworkError } from "../src/client/errors.js";
 
 const API = "/api/v1";
 
@@ -384,4 +384,34 @@ test("an empty list response exits 1 instead of printing null", async () => {
   assert.equal(code, 1);
   assert.deepEqual(cli.out, []);
   assert.match(cli.err.join("\n"), /^Error: Empty response body from \/api\/v1\/vorgang/);
+});
+
+test("a blank -o is a usage error before any request", async () => {
+  for (const value of ["", " "]) {
+    const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+    const code = await run(["-o", value, "vorgang", "list"], cli.deps);
+    assert.equal(code, 2, JSON.stringify(value));
+    assert.equal(cli.mt.calls.length, 0);
+    assert.equal(cli.files.size, 0);
+    assert.match(cli.err.join("\n"), /Expected a non-empty value\./);
+  }
+});
+
+test("-o - prints to stdout instead of writing a file named -", async () => {
+  const cli = makeCli(() => jsonResponse({ numFound: 1, documents: [{ id: "1" }] }));
+  const code = await run(["--compact", "-o", "-", "vorgang", "list"], cli.deps);
+  assert.equal(code, 0);
+  assert.deepEqual(cli.out, ['{"numFound":1,"documents":[{"id":"1"}]}']);
+  assert.equal(cli.files.size, 0);
+  assert.doesNotMatch(cli.err.join("\n"), /Wrote/);
+});
+
+test("an overwrite refusal is a clear error, not an unexpected one", async () => {
+  const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+  cli.deps.io.writeFile = (path) => {
+    throw new DipError(`Refusing to overwrite existing file "${path}"; pass --force to overwrite.`);
+  };
+  const code = await run(["-o", "out.json", "vorgang", "list"], cli.deps);
+  assert.equal(code, 1);
+  assert.match(cli.err.join("\n"), /^Error: Refusing to overwrite existing file "out\.json"; pass --force to overwrite\./);
 });
