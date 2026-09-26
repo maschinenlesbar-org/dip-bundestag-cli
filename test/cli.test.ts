@@ -377,3 +377,11 @@ test("a DIP_API_KEY with control characters is a clear error, not an unexpected 
   assert.equal(cli.mt.calls.length, 0);
   assert.match(cli.err.join("\n"), /^Error: Invalid apiKey: it contains control characters/);
 });
+
+test("an empty list response exits 1 instead of printing null", async () => {
+  const cli = makeCli(() => ({ status: 200, headers: {}, body: Buffer.alloc(0) }));
+  const code = await run(["--compact", "vorgang", "list"], cli.deps);
+  assert.equal(code, 1);
+  assert.deepEqual(cli.out, []);
+  assert.match(cli.err.join("\n"), /^Error: Empty response body from \/api\/v1\/vorgang/);
+});

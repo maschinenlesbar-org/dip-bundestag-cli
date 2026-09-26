@@ -288,3 +288,15 @@ test("redactUrl hides userinfo and leaves other URLs alone", () => {
   assert.equal(redactUrl("https://h.test/x"), "https://h.test/x");
   assert.equal(redactUrl("not a url"), "not a url");
 });
+
+test("an empty 2xx body or a 204 is a DipParseError, not null", async () => {
+  for (const [status, body] of [[200, ""], [200, "  \n"], [204, ""]] as const) {
+    const mt = makeMockTransport(() => rawResponse(body, "application/json", status));
+    const e = new RequestEngine({ transport: mt.transport });
+    await assert.rejects(
+      () => e.getJson("/api/v1/vorgang"),
+      (err: unknown) => err instanceof DipParseError && err.message === "Empty response body from /api/v1/vorgang",
+      `${status} ${JSON.stringify(body)}`,
+    );
+  }
+});
