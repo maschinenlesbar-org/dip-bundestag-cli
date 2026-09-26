@@ -300,3 +300,64 @@ test("an empty 2xx body or a 204 is a DipParseError, not null", async () => {
     );
   }
 });
+
+// ---- Redirects not followed ----
+
+test("a redirect loop ends with the target and the number of redirects followed", async () => {
+  const mt = makeMockTransport((req) => redirectResponse(req.url));
+  const e = new RequestEngine({ baseUrl: "https://api.test", transport: mt.transport });
+  await assert.rejects(
+    () => e.getJson("/api/v1/vorgang", { s: "loop" }),
+    (err: unknown) =>
+      err instanceof DipApiError &&
+      err.status === 302 &&
+      err.location === "https://api.test/api/v1/vorgang?s=loop" &&
+      err.message ===
+        "HTTP 302 for GET https://api.test/api/v1/vorgang?s=loop: redirect to " +
+          "https://api.test/api/v1/vorgang?s=loop not followed (stopped after 5 redirects)",
+  );
+  assert.equal(mt.calls.length, 6);
+});
+
+test("with maxRedirects 0 a redirect is named but not counted", async () => {
+  const mt = makeMockTransport(() => redirectResponse("/next"));
+  const e = new RequestEngine({ baseUrl: "https://api.test", transport: mt.transport, maxRedirects: 0 });
+  await assert.rejects(
+    () => e.getJson("/x"),
+    (err: unknown) =>
+      err instanceof DipApiError && err.message === "HTTP 302 for GET https://api.test/x: redirect to https://api.test/next not followed",
+  );
+  assert.equal(mt.calls.length, 1);
+});
+
+test("300/304/305, a malformed or a missing Location are not followed and name the target", async () => {
+  for (const [status, location, expected] of [
+    [300, "/choice", "redirect to https://api.test/choice not followed"],
+    [304, "/cached", "redirect to https://api.test/cached not followed"],
+    [305, "http://proxy.test/", "redirect to http://proxy.test/ not followed"],
+    [302, "http://[::1", "redirect to http://[::1 not followed"],
+    [301, "", "redirect not followed (no Location header)"],
+  ] as const) {
+    const mt = makeMockTransport(() => redirectResponse(location, status));
+    const e = new RequestEngine({ baseUrl: "https://api.test", transport: mt.transport });
+    await assert.rejects(
+      () => e.getJson("/x"),
+      (err: unknown) => err instanceof DipApiError && err.message === `HTTP ${status} for GET https://api.test/x: ${expected}`,
+      `${status} ${location}`,
+    );
+    assert.equal(mt.calls.length, 1);
+  }
+});
+
+test("a redirect target's userinfo is redacted and its control characters stripped", async () => {
+  const mt = makeMockTransport(() => redirectResponse(`https://u:secret@evil.test/a${String.fromCharCode(0x1b)}[2J`, 300));
+  const e = new RequestEngine({ baseUrl: "https://api.test", transport: mt.transport });
+  await assert.rejects(
+    () => e.getJson("/x"),
+    (err: unknown) =>
+      err instanceof DipApiError &&
+      !err.message.includes("secret") &&
+      !err.message.includes(String.fromCharCode(0x1b)) &&
+      /redirect to https:\/\/\*\*\*@evil\.test\/a/.test(err.message),
+  );
+});

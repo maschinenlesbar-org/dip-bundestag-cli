@@ -129,7 +129,11 @@ portal services, and it is rejected with `401` on `/api/v1/`.
 boundary (a different scheme, host, or port), the client **strips credential
 headers** (`Authorization`, `X-API-Key`, `Cookie`) before following it, so
 your API key is never sent to a host other than the one you targeted.
-Same-origin redirects keep it.
+Same-origin redirects keep it. Only 301/302/303/307/308 with a parseable
+`Location` are followed, up to `maxRedirects` (5); anything else — another 3xx, a
+missing or malformed `Location`, or the limit — is a `DipApiError` whose message
+names the target: `redirect to <url> not followed`, plus `(stopped after 5
+redirects)` when the limit ended a loop.
 
 ## Architecture
 
