@@ -415,3 +415,17 @@ test("an overwrite refusal is a clear error, not an unexpected one", async () =>
   assert.equal(code, 1);
   assert.match(cli.err.join("\n"), /^Error: Refusing to overwrite existing file "out\.json"; pass --force to overwrite\./);
 });
+
+test("a response nested too deeply to pretty-print is a clear error, not a stack overflow", async () => {
+  const depth = 200_000;
+  const body = Buffer.from("[".repeat(depth) + "]".repeat(depth));
+  const deep = () => ({ status: 200, headers: { "content-type": "application/json" }, body });
+  const pretty = makeCli(deep);
+  assert.equal(await run(["vorgang", "list"], pretty.deps), 1);
+  assert.deepEqual(pretty.out, []);
+  assert.match(pretty.err.join("\n"), /^Error: The response is nested too deeply to pretty-print; try --compact\./);
+  // Compact output needs far less stack: it either prints or fails with the compact message.
+  const compact = makeCli(deep);
+  const code = await run(["--compact", "vorgang", "list"], compact.deps);
+  if (code !== 0) assert.match(compact.err.join("\n"), /^Error: The response is nested too deeply to print\./);
+});
