@@ -146,8 +146,9 @@ serialises `Date` values to full ISO-8601 strings.
 `/api/v1`.
 
 **Rate limiting.** DIP limits the request rate; the API returns **429** when it is
-exceeded. The client retries **429** and **503** automatically with
-linear backoff (`--max-retries`, default 2).
+exceeded. The client retries **429** and **503** automatically (`--max-retries`,
+0–10, default 2), waiting the response's `Retry-After` (up to 30 s; a longer one
+is not retried) or else backing off linearly.
 
 **Credential stripping on redirect.** The `Authorization` header (and
 `X-API-Key` / `Cookie`) is removed on any redirect that crosses origins, so the

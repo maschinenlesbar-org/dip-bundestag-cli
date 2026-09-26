@@ -149,8 +149,9 @@ ISO-8601-Zeichenketten.
 `/api/v1`.
 
 **Rate-Limiting.** Das DIP begrenzt die Anfragerate; bei Überschreitung antwortet die
-API mit **429**. Der Client wiederholt **429** und **503**
-automatisch mit linearem Backoff (`--max-retries`, Standard 2).
+API mit **429**. Der Client wiederholt **429** und **503** automatisch
+(`--max-retries`, 0–10, Standard 2) und wartet dabei das `Retry-After` der Antwort ab
+(bis 30 s; ein längeres wird nicht wiederholt), sonst mit linearem Backoff.
 
 **Entfernen von Zugangsdaten bei Weiterleitungen.** Der Header `Authorization` (sowie
 `X-API-Key` / `Cookie`) wird bei jeder Weiterleitung auf einen anderen Origin entfernt,

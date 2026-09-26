@@ -185,7 +185,10 @@ and the transport.
 the seam that injects `Authorization: ApiKey <key>`.
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are
-retried automatically with backoff, up to `--max-retries`. `DipApiError`
+retried automatically, up to `--max-retries` (0–10). Each retry waits the
+response's `Retry-After` (`parseRetryAfter`: delay-seconds or an IMF-fixdate)
+up to `MAX_RETRY_AFTER_MS` (30 s) — a longer one is not retried, the error
+surfaces at once — or else backs off linearly (`retryDelayMs * attempt`). `DipApiError`
 exposes `isRetryable` (true for `429`/`503`).
 
 **Cross-origin credential stripping.** When the API issues a redirect that

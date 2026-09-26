@@ -274,7 +274,8 @@ deliberately.
 - **Exit `4` / "not found"** — the id passed to `get` doesn't exist. Re-fetch
   it from a fresh `list` result; ids can change as the catalogue updates.
 - **Exit `1` / rate-limited** — DIP answered `429`; the client retries
-  `429`/`503` automatically up to `--max-retries` times. If the error persists,
+  `429`/`503` automatically up to `--max-retries` times, honouring the server's
+  `Retry-After` up to 30 s. If the error persists,
   slow down and try again later.
 - **Exit `1` / network error** — connectivity, DNS, or a timeout. Try again or
   raise the limit with `--timeout 60000`.
@@ -300,7 +301,7 @@ These may be given **before or after** the command, e.g.
 | `--base-url <url>` | API base URL (default `https://search.dip.bundestag.de`) |
 | `--timeout <ms>` | Time limit per request, reading the whole response included (default `30000`; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value |
-| `--max-retries <n>` | Retries for transient `429`/`503` responses (default `2`) |
+| `--max-retries <n>` | Retries for transient `429`/`503` responses (`0`–`10`, default `2`). Each retry waits the server's `Retry-After` (up to 30 s; a longer one is not retried) or else backs off linearly |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 
 ## Learn more

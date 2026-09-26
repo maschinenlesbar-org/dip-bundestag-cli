@@ -1,6 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { RequestEngine, escapeRawControlCharsInStrings } from "../src/client/engine.js";
+import {
+  MAX_RETRY_AFTER_MS,
+  RequestEngine,
+  escapeRawControlCharsInStrings,
+  parseRetryAfter,
+} from "../src/client/engine.js";
 import { DipApiError, DipNetworkError, DipParseError } from "../src/client/errors.js";
 import type { HttpResponse } from "../src/client/http.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
@@ -206,3 +211,62 @@ for (const baseUrl of ["file:///etc/passwd", "ftp://example.org", "notaurl"]) {
     assert.equal(mt.calls.length, 0);
   });
 }
+
+// ---- Retry-After ----
+
+function retryingEngine(retryAfter: string | undefined, maxRetries = 2) {
+  const delays: number[] = [];
+  const mt = makeMockTransport(() => ({
+    status: 429,
+    headers: {
+      "content-type": "application/json",
+      ...(retryAfter === undefined ? {} : { "retry-after": retryAfter }),
+    },
+    body: Buffer.from(JSON.stringify({ detail: "slow down" })),
+  }));
+  const engine = new RequestEngine({
+    transport: mt.transport,
+    maxRetries,
+    sleep: async (ms) => {
+      delays.push(ms);
+    },
+  });
+  return { engine, mt, delays };
+}
+
+test("a 429 with Retry-After in seconds waits that long before each retry", async () => {
+  const { engine, mt, delays } = retryingEngine("1");
+  await assert.rejects(() => engine.getJson("/x"), (e: unknown) => e instanceof DipApiError && e.status === 429);
+  assert.equal(mt.calls.length, 3);
+  assert.deepEqual(delays, [1000, 1000]);
+});
+
+test("without a usable Retry-After the retries back off linearly", async () => {
+  for (const header of [undefined, "", "-1", "1.5", "soon", "1e3", "2026-09-26T10:00:00Z"]) {
+    const { engine, delays } = retryingEngine(header);
+    await assert.rejects(() => engine.getJson("/x"));
+    assert.deepEqual(delays, [200, 400], String(header));
+  }
+});
+
+test("a Retry-After above MAX_RETRY_AFTER_MS is not retried: the error surfaces at once", async () => {
+  for (const header of ["31", "99999999999999999999", "Fri, 31 Dec 9999 23:59:59 GMT"]) {
+    const { engine, mt, delays } = retryingEngine(header);
+    await assert.rejects(() => engine.getJson("/x"), (e: unknown) => e instanceof DipApiError && e.status === 429);
+    assert.equal(mt.calls.length, 1, header);
+    assert.deepEqual(delays, [], header);
+  }
+});
+
+test("parseRetryAfter reads delay-seconds and IMF-fixdate HTTP-dates", () => {
+  const now = Date.parse("Sat, 26 Sep 2026 10:00:00 GMT");
+  assert.equal(parseRetryAfter("0", now), 0);
+  assert.equal(parseRetryAfter(" 30 ", now), 30_000);
+  assert.equal(parseRetryAfter(["2", "9"], now), 2000);
+  assert.equal(parseRetryAfter("Sat, 26 Sep 2026 10:00:05 GMT", now), 5000);
+  assert.equal(parseRetryAfter("Sat, 26 Sep 2026 09:00:00 GMT", now), 0); // past date: retry now
+  for (const bad of [undefined, "", "-1", "+5", "1.5", "1e3", "0x10", "Saturday, 26-Sep-26 10:00:05 GMT"]) {
+    assert.equal(parseRetryAfter(bad, now), undefined, String(bad));
+  }
+  assert.equal(MAX_RETRY_AFTER_MS, 30_000);
+});

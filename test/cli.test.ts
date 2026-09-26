@@ -236,3 +236,15 @@ test("get . / get .. is a usage error without a request instead of fetching the 
     assert.match(cli.err.join("\n"), /^Error: Invalid id "\.\.?": "\." and "\.\." cannot be used as an id\./);
   }
 });
+
+test("--max-retries is bounded to 0..10", async () => {
+  for (const [value, ok] of [["0", true], ["10", true], ["11", false], ["1000000", false]] as const) {
+    const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+    const code = await run(["--max-retries", value, "vorgang", "list"], cli.deps);
+    assert.equal(code, ok ? 0 : 2, value);
+    if (!ok) {
+      assert.equal(cli.mt.calls.length, 0);
+      assert.match(cli.err.join("\n"), /Expected an integer between 0 and 10\./);
+    }
+  }
+});
