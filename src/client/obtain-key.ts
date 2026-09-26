@@ -134,7 +134,8 @@ export function extractKeyCandidates(document: string): string[] {
 export async function obtainKey(options: ObtainKeyOptions = {}): Promise<ObtainedKey> {
   const sources = options.sourceUrl !== undefined ? [options.sourceUrl] : [...KEY_SOURCE_URLS];
   const transport = options.transport ?? nodeHttpTransport;
-  const userAgent = options.userAgent ?? "dip-bundestag-cli";
+  // A blank User-Agent falls back to the default, as in the API client.
+  const userAgent = options.userAgent?.trim() ? options.userAgent : "dip-bundestag-cli";
   // Every request gets the client's limits: a source or API host that stalls, or
   // streams without end, must not hang the command.
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;

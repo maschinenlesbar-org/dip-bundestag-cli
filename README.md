@@ -89,6 +89,9 @@ unreachable or its key is rejected, the upstream
 README is tried as a fallback. Every request `obtain-key` makes has the same
 limits as the other commands — `--timeout` (default 30 s) and `--max-response-bytes`
 (default 100 MiB) — so a stalled host fails the command instead of hanging it.
+The key only ever goes to stdout: `-o` is refused (redirect stdout instead), and with
+`--base-url` the check runs against that host, which the stderr note then names
+instead of "the live API".
 
 That verification is the point. DIP rotates its published key (the one in place in
 2026 is stated as valid until the end of May 2027), and a command that printed a

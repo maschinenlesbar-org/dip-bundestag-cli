@@ -290,3 +290,38 @@ test("a verification request that fails at network level is reported as such, wi
   );
   assert.equal(mt.calls.length, 2);
 });
+
+test("obtain-key names a --base-url verification host instead of claiming the live API", async () => {
+  const cli = makeCli(responder([KEY]));
+  const code = await run(["--base-url", "http://u:secret@localhost:18110/s/ok", "obtain-key"], cli.deps);
+  assert.equal(code, 0);
+  const err = cli.err.join("\n");
+  assert.match(err, /verified it against http:\/\/\*\*\*@localhost:18110\/s\/ok \(--base-url\), not against the live DIP API\./);
+  assert.doesNotMatch(err, /secret/);
+  assert.equal(cli.mt.calls[1]?.url, "http://u:secret@localhost:18110/s/ok/api/v1/vorgang");
+});
+
+test("obtain-key refuses -o instead of silently printing the key to the terminal", async () => {
+  const cli = makeCli(responder([KEY]));
+  const code = await run(["-o", "k.txt", "obtain-key", "--no-verify"], cli.deps);
+  assert.equal(code, 2);
+  assert.equal(cli.mt.calls.length, 0);
+  assert.deepEqual(cli.out, []);
+  assert.match(cli.err.join("\n"), /^Error: obtain-key does not write files/);
+  // -o - is stdout, which is where the key goes anyway.
+  const ok = makeCli(responder([KEY]));
+  assert.equal(await run(["-o", "-", "obtain-key"], ok.deps), 0);
+  assert.deepEqual(ok.out, [KEY]);
+});
+
+test("obtainKey falls back to the default User-Agent for a blank one", async () => {
+  const mt = makeMockTransport(responder([KEY]));
+  await obtainKey({ transport: mt.transport, userAgent: " " });
+  assert.ok(mt.calls.every((c) => c.headers?.["User-Agent"] === "dip-bundestag-cli"));
+});
+
+test("obtain-key rejects a blank --user-agent before any request", async () => {
+  const cli = makeCli(responder([KEY]));
+  assert.equal(await run(["--user-agent", "", "obtain-key"], cli.deps), 2);
+  assert.equal(cli.mt.calls.length, 0);
+});

@@ -8,6 +8,8 @@ import {
   shellQuoteSingle,
 } from "../../client/obtain-key.js";
 import type { GlobalOptions } from "../shared.js";
+import { DEFAULT_BASE_URL } from "../../client/engine.js";
+import { DipUsageError, redactUrl } from "../../client/errors.js";
 
 /**
  * `obtain-key` — read the published DIP key, prove it works, and print it.
@@ -29,6 +31,15 @@ export function registerObtainKeyCommands(program: Command, deps: CliDeps): void
       const command = args[args.length - 1] as Command;
       const global = command.optsWithGlobals() as GlobalOptions;
       const opts = command.opts();
+      // The key goes to stdout only (so `$(...)` and `--export >> ~/.zshrc` compose);
+      // silently ignoring -o would put it on the terminal although a file was asked for.
+      if (global.output !== undefined && global.output !== "-") {
+        throw new DipUsageError(
+          "obtain-key does not write files: it prints the key on stdout, so redirect that " +
+            "instead of using --output.",
+        );
+      }
+      const baseUrl = (global.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
       const { key, sourceUrl, verified } = await obtainKey({
         ...(deps.transport !== undefined ? { transport: deps.transport } : {}),
         ...(global.baseUrl !== undefined ? { baseUrl: global.baseUrl } : {}),
@@ -39,7 +50,10 @@ export function registerObtainKeyCommands(program: Command, deps: CliDeps): void
       });
       deps.io.err(
         verified
-          ? `Obtained the key from ${sourceUrl} and verified it against the live API.`
+          ? baseUrl === DEFAULT_BASE_URL
+            ? `Obtained the key from ${sourceUrl} and verified it against the live API.`
+            : `Obtained the key from ${sourceUrl} and verified it against ${redactUrl(baseUrl)} ` +
+              `(--base-url), not against the live DIP API.`
           : `Obtained the key from ${sourceUrl} WITHOUT verifying it. DIP rotates its ` +
               `published key; if DIP answers 401, get the current one from ` +
               `${HELP_PAGE_URL} or request a personal key from ${KEY_CONTACT}.`,
