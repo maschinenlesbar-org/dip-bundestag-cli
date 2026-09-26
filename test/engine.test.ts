@@ -6,7 +6,7 @@ import {
   escapeRawControlCharsInStrings,
   parseRetryAfter,
 } from "../src/client/engine.js";
-import { DipApiError, DipNetworkError, DipParseError } from "../src/client/errors.js";
+import { DipApiError, DipNetworkError, DipParseError, redactUrl } from "../src/client/errors.js";
 import type { HttpResponse } from "../src/client/http.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 
@@ -269,4 +269,22 @@ test("parseRetryAfter reads delay-seconds and IMF-fixdate HTTP-dates", () => {
     assert.equal(parseRetryAfter(bad, now), undefined, String(bad));
   }
   assert.equal(MAX_RETRY_AFTER_MS, 30_000);
+});
+
+test("the engine rejects a base URL with a query or fragment, redacting userinfo", () => {
+  for (const baseUrl of ["https://api.test/?x=1", "https://u:secret@api.test/#f"]) {
+    assert.throws(
+      () => new RequestEngine({ baseUrl }),
+      (err: unknown) =>
+        err instanceof DipNetworkError &&
+        /^Base URL must not contain a query or fragment: /.test(err.message) &&
+        !err.message.includes("secret"),
+    );
+  }
+});
+
+test("redactUrl hides userinfo and leaves other URLs alone", () => {
+  assert.equal(redactUrl("http://user:secret@h.test/a?b=1"), "http://***@h.test/a?b=1");
+  assert.equal(redactUrl("https://h.test/x"), "https://h.test/x");
+  assert.equal(redactUrl("not a url"), "not a url");
 });

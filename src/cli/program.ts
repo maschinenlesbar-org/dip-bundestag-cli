@@ -64,7 +64,12 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
         "available from parlamentsdokumentation@bundestag.de).",
     )
     .version(VERSION)
-    .option("--base-url <url>", "API base URL", parseBaseUrl, "https://search.dip.bundestag.de")
+    .option(
+      "--base-url <url>",
+      "API base URL: the host, without /api/v1 (http/https only)",
+      parseBaseUrl,
+      "https://search.dip.bundestag.de",
+    )
     .option("--api-key <key>", "DIP API key (prefer the DIP_API_KEY env var; a flag is visible in ps/history)")
     .option(
       "--timeout <ms>",

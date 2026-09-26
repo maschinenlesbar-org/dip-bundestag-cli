@@ -292,3 +292,37 @@ test("each resource accepts its own documented filters", async () => {
     assert.equal(new URL(cli.mt.last().url).searchParams.get(key), "1");
   }
 });
+
+test("--base-url with a query, fragment, surrounding whitespace or /api/v1 is a usage error", async () => {
+  for (const [value, message] of [
+    ["http://localhost:18110/?s=ok", /A base URL cannot have a query \(\?\) or fragment \(#\)\./],
+    ["http://localhost:18110/#frag", /A base URL cannot have a query \(\?\) or fragment \(#\)\./],
+    [" https://search.dip.bundestag.de", /A base URL cannot have surrounding whitespace\./],
+    [
+      "https://search.dip.bundestag.de/api/v1",
+      /Leave out \/api\/v1: the base URL is the host, and the CLI adds \/api\/v1 itself \(try https:\/\/search\.dip\.bundestag\.de\)\./,
+    ],
+    ["https://mirror.test/dip/api/v1/", /\(try https:\/\/mirror\.test\/dip\)/],
+  ] as const) {
+    const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+    const code = await run(["--base-url", value, "vorgang", "list"], cli.deps);
+    assert.equal(code, 2, value);
+    assert.equal(cli.mt.calls.length, 0);
+    assert.match(cli.err.join("\n"), message, value);
+  }
+  // A mirror path prefix still works.
+  const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+  assert.equal(await run(["--base-url", "https://mirror.test/dip/", "vorgang", "list"], cli.deps), 0);
+  assert.equal(cli.mt.last().url, "https://mirror.test/dip/api/v1/vorgang");
+});
+
+test("a password in --base-url never reaches an error message", async () => {
+  const cli = makeCli(() => jsonResponse({ detail: "Not found" }, 404));
+  const code = await run(["--base-url", "http://user:secret@localhost:18110/", "vorgang", "list"], cli.deps);
+  assert.equal(code, 4);
+  const err = cli.err.join("\n");
+  assert.doesNotMatch(err, /secret|user:/);
+  assert.match(err, /^Error: HTTP 404 for GET http:\/\/\*\*\*@localhost:18110\/api\/v1\/vorgang: Not found/);
+  // The request itself keeps the userinfo (a basic-auth mirror still works).
+  assert.match(cli.mt.last().url, /^http:\/\/user:secret@localhost:18110\//);
+});

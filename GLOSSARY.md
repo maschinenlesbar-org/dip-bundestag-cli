@@ -149,7 +149,10 @@ serialises `Date` values to full ISO-8601 strings.
 
 **Base URL.** Defaults to `https://search.dip.bundestag.de`; override with
 `--base-url` (CLI) or `baseUrl` (library). All resource paths are under
-`/api/v1`.
+`/api/v1`, which the client adds: the base URL is the host (plus any mirror path
+prefix) without it, and the CLI rejects one that ends in `/api/v1`, or has a query
+or fragment. Userinfo in it (`user:password@`) is sent, but redacted to `***@` in
+error messages.
 
 **Rate limiting.** DIP limits the request rate; the API returns **429** when it is
 exceeded. The client retries **429** and **503** automatically (`--max-retries`,

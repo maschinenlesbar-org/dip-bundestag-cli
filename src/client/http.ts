@@ -8,7 +8,7 @@
 
 import http from "node:http";
 import https from "node:https";
-import { DipNetworkError } from "./errors.js";
+import { DipNetworkError, redactUrl } from "./errors.js";
 
 export interface HttpRequest {
   method: string;
@@ -56,7 +56,7 @@ export const nodeHttpTransport: Transport = (request) =>
     // typed error instead of letting Node throw an opaque ERR_INVALID_PROTOCOL
     // (and so this never reaches the file:/ftp:/etc. drivers).
     if (url.protocol !== "http:" && url.protocol !== "https:") {
-      reject(new DipNetworkError(`Unsupported protocol "${url.protocol}" in URL: ${request.url}`));
+      reject(new DipNetworkError(`Unsupported protocol "${url.protocol}" in URL: ${redactUrl(request.url)}`));
       return;
     }
 

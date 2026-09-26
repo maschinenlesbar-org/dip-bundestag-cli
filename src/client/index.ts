@@ -19,6 +19,6 @@ export { LIST_FILTERS } from "./filters.js";
 export type { ListResource } from "./filters.js";
 export { buildQueryString } from "./query.js";
 export type { QueryParams, QueryValue } from "./query.js";
-export { DipError, DipApiError, DipNetworkError, DipParseError } from "./errors.js";
+export { DipError, DipApiError, DipNetworkError, DipParseError, redactUrl } from "./errors.js";
 
 export * from "./types.js";
