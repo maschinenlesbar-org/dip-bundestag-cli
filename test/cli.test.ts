@@ -338,3 +338,13 @@ test("prototype-named --filter keys are usage errors, not a crash", async () => 
     assert.match(err, new RegExp(`Unknown filter "${key}" for vorgang`));
   }
 });
+
+test("a blank --api-key is a usage error instead of silently discarding DIP_API_KEY", async () => {
+  for (const value of ["", "   "]) {
+    const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }), { DIP_API_KEY: "ENVKEY" });
+    const code = await run(["--api-key", value, "vorgang", "list"], cli.deps);
+    assert.equal(code, 2, JSON.stringify(value));
+    assert.equal(cli.mt.calls.length, 0);
+    assert.match(cli.err.join("\n"), /--api-key <key>.*Expected a non-empty value\./);
+  }
+});

@@ -102,10 +102,10 @@ export interface GlobalOptions {
 export function toEngineOptions(global: GlobalOptions): DipClientOptions {
   const options: DipClientOptions = {};
   if (global.baseUrl !== undefined) options.baseUrl = global.baseUrl;
-  // A blank/whitespace-only --api-key is treated as unset (mirroring the
-  // DIP_API_KEY handling in readEnvApiKey) so it never produces a malformed
-  // `Authorization: ApiKey ` header. No key is bundled: when none is supplied
-  // the header is omitted entirely and the API answers 401.
+  // A blank --api-key is rejected at parse time and a blank DIP_API_KEY is
+  // treated as unset (readEnvApiKey), so this guard only keeps a malformed
+  // `Authorization: ApiKey ` header impossible. No key is bundled: when none is
+  // supplied the header is omitted entirely and the API answers 401.
   if (global.apiKey !== undefined && global.apiKey.trim().length > 0) {
     options.apiKey = global.apiKey.trim();
   }

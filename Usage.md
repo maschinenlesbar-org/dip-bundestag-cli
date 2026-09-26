@@ -29,7 +29,8 @@ dip vorgang list
 dip --api-key your-personal-key vorgang list
 ```
 
-Precedence is `--api-key` > `DIP_API_KEY` > none. **No key is bundled** — when
+Precedence is `--api-key` > `DIP_API_KEY` > none; a blank `--api-key ""` is a usage
+error (exit `2`). **No key is bundled** — when
 neither is supplied the `Authorization` header is omitted and requests return
 `401`. The Bundestag publishes a public key on its
 [DIP API help page](https://dip.bundestag.de/über-dip/hilfe/api) (stated there in

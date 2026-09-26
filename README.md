@@ -64,7 +64,9 @@ dip --api-key your-personal-key vorgang list
 
 (`--api-key` is a global option, so it works **before or after** the command.)
 
-Precedence is `--api-key` > `DIP_API_KEY` env var > none. **No key is bundled**:
+Precedence is `--api-key` > `DIP_API_KEY` env var > none. A blank `--api-key ""` is
+a usage error (exit `2`), not a way to unset the env var; a blank `DIP_API_KEY` counts
+as unset. **No key is bundled**:
 when neither is supplied the `Authorization` header is omitted entirely and the
 API returns `401`. On a `401` the CLI prints a plain-language hint with the
 address to request a key.
