@@ -33,6 +33,7 @@ export function registerObtainKeyCommands(program: Command, deps: CliDeps): void
         ...(deps.transport !== undefined ? { transport: deps.transport } : {}),
         ...(global.baseUrl !== undefined ? { baseUrl: global.baseUrl } : {}),
         ...(global.timeout !== undefined ? { timeoutMs: global.timeout } : {}),
+        ...(global.maxResponseBytes !== undefined ? { maxResponseBytes: global.maxResponseBytes } : {}),
         ...(global.userAgent !== undefined ? { userAgent: global.userAgent } : {}),
         verify: opts["verify"] !== false,
       });

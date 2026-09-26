@@ -19,7 +19,12 @@
 
 import type { Transport } from "./http.js";
 import { nodeHttpTransport } from "./http.js";
-import { DEFAULT_BASE_URL, assertHttpScheme } from "./engine.js";
+import {
+  DEFAULT_BASE_URL,
+  DEFAULT_MAX_RESPONSE_BYTES,
+  DEFAULT_TIMEOUT_MS,
+  assertHttpScheme,
+} from "./engine.js";
 import { DipError } from "./errors.js";
 
 /** The environment variable the client and CLI read the key from. */
@@ -78,7 +83,17 @@ export interface ObtainKeyOptions {
   baseUrl?: string;
   /** Check the candidate against the live API before returning it (default true). */
   verify?: boolean;
+  /**
+   * Time limit per request in milliseconds, whole response included. Defaults to
+   * `DEFAULT_TIMEOUT_MS` (30 s), like the API client, so a stalled source cannot hang
+   * `eval "$(dip obtain-key --export)"`; 0 disables it.
+   */
   timeoutMs?: number;
+  /**
+   * Cap on each response body in bytes. Defaults to `DEFAULT_MAX_RESPONSE_BYTES`
+   * (100 MiB), like the API client; 0 disables it.
+   */
+  maxResponseBytes?: number;
   userAgent?: string;
 }
 
@@ -120,7 +135,14 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
   const sources = options.sourceUrl !== undefined ? [options.sourceUrl] : [...KEY_SOURCE_URLS];
   const transport = options.transport ?? nodeHttpTransport;
   const userAgent = options.userAgent ?? "dip-bundestag-cli";
-  const timeout = options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {};
+  // Every request gets the client's limits: a source or API host that stalls, or
+  // streams without end, must not hang the command.
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
+  const limits = {
+    ...(timeoutMs > 0 ? { timeoutMs } : {}),
+    ...(maxResponseBytes > 0 ? { maxResponseBytes } : {}),
+  };
   const verify = options.verify !== false;
   const baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
   // The verification request carries the candidate key, so refuse a non-http(s)
@@ -138,7 +160,7 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
         Accept: "application/json, text/plain, text/markdown;q=0.9, */*;q=0.8",
         "User-Agent": userAgent,
       },
-      ...timeout,
+      ...limits,
     });
     if (response.status < 200 || response.status >= 300) {
       failures.push(`${sourceUrl} could not be read (HTTP ${response.status})`);
@@ -162,7 +184,7 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
           Authorization: `ApiKey ${key}`,
           "User-Agent": userAgent,
         },
-        ...timeout,
+        ...limits,
       });
       if (check.status >= 200 && check.status < 300) return { key, sourceUrl, verified: true };
       if (check.status === 401 || check.status === 403) {

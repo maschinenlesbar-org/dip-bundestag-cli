@@ -84,7 +84,9 @@ comes from DIP's own content service as plain JSON, so the key is read from ther
 `content.dip.bundestag.de/content-api/v1/content/help-api`. If that document is
 unreachable or its key is rejected, the upstream
 [bundesAPI/dip-bundestag-api](https://github.com/bundesAPI/dip-bundestag-api)
-README is tried as a fallback.
+README is tried as a fallback. Every request `obtain-key` makes has the same
+limits as the other commands — `--timeout` (default 30 s) and `--max-response-bytes`
+(default 100 MiB) — so a stalled host fails the command instead of hanging it.
 
 That verification is the point. DIP rotates its published key (the one in place in
 2026 is stated as valid until the end of May 2027), and a command that printed a

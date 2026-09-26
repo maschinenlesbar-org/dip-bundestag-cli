@@ -116,7 +116,11 @@ export interface EngineOptions {
   sleep?: (ms: number) => Promise<void>;
 }
 
-const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024 * 1024;
+/** Default time limit per request (30 s); `timeoutMs: 0` disables it. */
+export const DEFAULT_TIMEOUT_MS = 30_000;
+
+/** Default cap on a response body (100 MiB); `maxResponseBytes: 0` disables it. */
+export const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024 * 1024;
 
 /**
  * Longest `Retry-After` the engine waits out before retrying a 429/503. When the
@@ -209,7 +213,7 @@ export class RequestEngine {
     this.transport = options.transport ?? nodeHttpTransport;
     this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
     this.defaultHeaders = options.defaultHeaders ?? {};
-    this.timeoutMs = options.timeoutMs ?? 30_000;
+    this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.maxRetries = options.maxRetries ?? 2;
     this.retryDelayMs = options.retryDelayMs ?? 200;
     this.maxRedirects = options.maxRedirects ?? 5;

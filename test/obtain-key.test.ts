@@ -211,3 +211,29 @@ test("obtain-key rejects --base-url file:///etc/passwd before any request", asyn
   assert.equal(cli.mt.calls.length, 0);
   assert.match(cli.err.join(""), /--base-url/);
 });
+
+test("obtainKey applies the client's default timeout and size cap to every request", async () => {
+  const mt = makeMockTransport(responder([KEY]));
+  await obtainKey({ transport: mt.transport });
+  assert.equal(mt.calls.length, 2);
+  for (const call of mt.calls) {
+    assert.equal(call.timeoutMs, 30_000);
+    assert.equal(call.maxResponseBytes, 100 * 1024 * 1024);
+  }
+});
+
+test("obtainKey passes explicit limits on, and 0 disables them", async () => {
+  const mt = makeMockTransport(responder([KEY]));
+  await obtainKey({ transport: mt.transport, timeoutMs: 5000, maxResponseBytes: 4096 });
+  assert.ok(mt.calls.every((c) => c.timeoutMs === 5000 && c.maxResponseBytes === 4096));
+  const unlimited = makeMockTransport(responder([KEY]));
+  await obtainKey({ transport: unlimited.transport, timeoutMs: 0, maxResponseBytes: 0 });
+  assert.ok(unlimited.calls.every((c) => c.timeoutMs === undefined && c.maxResponseBytes === undefined));
+});
+
+test("obtain-key hands --timeout and --max-response-bytes to every request", async () => {
+  const cli = makeCli(responder([KEY]));
+  const code = await run(["--timeout", "1500", "--max-response-bytes", "2048", "obtain-key"], cli.deps);
+  assert.equal(code, 0);
+  assert.ok(cli.mt.calls.every((c) => c.timeoutMs === 1500 && c.maxResponseBytes === 2048));
+});

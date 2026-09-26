@@ -2,7 +2,14 @@
 
 export { DipClient } from "./client.js";
 export type { DipClientOptions } from "./client.js";
-export { RequestEngine, DEFAULT_BASE_URL, MAX_RETRY_AFTER_MS, parseRetryAfter } from "./engine.js";
+export {
+  RequestEngine,
+  DEFAULT_BASE_URL,
+  DEFAULT_MAX_RESPONSE_BYTES,
+  DEFAULT_TIMEOUT_MS,
+  MAX_RETRY_AFTER_MS,
+  parseRetryAfter,
+} from "./engine.js";
 export type { EngineOptions, RawResponse } from "./engine.js";
 export { MAX_TIMEOUT_MS, nodeHttpTransport } from "./http.js";
 export type { Transport, HttpRequest, HttpResponse } from "./http.js";
