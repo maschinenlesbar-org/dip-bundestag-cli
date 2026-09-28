@@ -18,8 +18,10 @@
     "outDir": "dist",
     "rootDir": ".",
     "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
+    /* No source maps: they would point at src/*.ts, which the package does not
+       ship, and tsc output is readable as it stands. */
+    "declarationMap": false,
+    "sourceMap": false,
     "removeComments": false,
 
     /* Interop */

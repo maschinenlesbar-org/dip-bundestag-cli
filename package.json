@@ -16,6 +16,7 @@
   },
   "files": [
     "dist/src",
+    "!dist/src/**/*.map",
     "LICENSING.md",
     "CONTRIBUTING.md"
   ],
