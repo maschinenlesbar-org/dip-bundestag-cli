@@ -5,10 +5,16 @@
 import { MAX_TIMEOUT_MS, nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
 import { DipApiError, DipError, DipNetworkError, DipParseError, redactUrl } from "./errors.js";
-import { assertValid, intInRangeProblem } from "./validate.js";
+import {
+  assertHeaderValue,
+  assertValid,
+  headerNameProblem,
+  intInRangeProblem,
+} from "./validate.js";
 
 export const DEFAULT_BASE_URL = "https://search.dip.bundestag.de";
-const DEFAULT_USER_AGENT = "dip-bundestag-cli";
+/** The User-Agent sent when none is given (by the client and by `obtainKey`). */
+export const DEFAULT_USER_AGENT = "dip-bundestag-cli";
 
 /**
  * Escape raw C0 control characters (U+0000–U+001F) that appear *inside* JSON
@@ -92,9 +98,13 @@ export interface EngineOptions {
   baseUrl?: string;
   /** Swappable transport. Defaults to the built-in node http/https transport. */
   transport?: Transport;
-  /** Value of the User-Agent header. */
+  /**
+   * Value of the User-Agent header (default `DEFAULT_USER_AGENT`). A blank value,
+   * a control character but tab, or a character above U+00FF is rejected with
+   * `DipValidationError`.
+   */
   userAgent?: string;
-  /** Extra headers sent on every request (e.g. an API key). */
+  /** Extra headers sent on every request (e.g. an API key); checked like `userAgent`. */
   defaultHeaders?: Record<string, string>;
   /**
    * Time limit per request in milliseconds, covering the whole response body, not
@@ -270,8 +280,17 @@ export class RequestEngine {
     // gating at all, and could be steered to a non-http(s) scheme.
     assertHttpScheme(this.baseUrl);
     this.transport = options.transport ?? nodeHttpTransport;
-    this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
+    // Only `undefined` selects the default; a blank or unsendable value is a
+    // DipValidationError, as in the CLI's --user-agent.
+    this.userAgent =
+      options.userAgent === undefined
+        ? DEFAULT_USER_AGENT
+        : assertHeaderValue("userAgent", options.userAgent);
     this.defaultHeaders = options.defaultHeaders ?? {};
+    for (const [name, value] of Object.entries(this.defaultHeaders)) {
+      assertValid("header name", name, headerNameProblem);
+      assertHeaderValue(`${name} header`, value);
+    }
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.maxRetries = options.maxRetries ?? 2;
     this.retryDelayMs = options.retryDelayMs ?? 200;

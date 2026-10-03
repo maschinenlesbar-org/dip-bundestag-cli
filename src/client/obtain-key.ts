@@ -23,10 +23,12 @@ import {
   DEFAULT_BASE_URL,
   DEFAULT_MAX_RESPONSE_BYTES,
   DEFAULT_TIMEOUT_MS,
+  DEFAULT_USER_AGENT,
   assertHttpScheme,
   validateLimits,
 } from "./engine.js";
 import { DipError } from "./errors.js";
+import { assertHeaderValue } from "./validate.js";
 
 /** The environment variable the client and CLI read the key from. */
 export const API_KEY_ENV_VAR = "DIP_API_KEY";
@@ -95,6 +97,7 @@ export interface ObtainKeyOptions {
    * (100 MiB), like the API client; 0 disables it.
    */
   maxResponseBytes?: number;
+  /** User-Agent header (default `DEFAULT_USER_AGENT`), checked like the client's. */
   userAgent?: string;
 }
 
@@ -137,8 +140,12 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
   validateLimits(options);
   const sources = options.sourceUrl !== undefined ? [options.sourceUrl] : [...KEY_SOURCE_URLS];
   const transport = options.transport ?? nodeHttpTransport;
-  // A blank User-Agent falls back to the default, as in the API client.
-  const userAgent = options.userAgent?.trim() ? options.userAgent : "dip-bundestag-cli";
+  // As in the API client: only `undefined` selects the default; a blank or
+  // unsendable value is a DipValidationError before any request.
+  const userAgent =
+    options.userAgent === undefined
+      ? DEFAULT_USER_AGENT
+      : assertHeaderValue("userAgent", options.userAgent);
   // Every request gets the client's limits: a source or API host that stalls, or
   // streams without end, must not hang the command.
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;

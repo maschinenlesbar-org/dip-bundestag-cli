@@ -16,7 +16,7 @@ import {
   extractKeyCandidates,
   obtainKey,
 } from "../src/client/obtain-key.js";
-import { DipError, DipNetworkError } from "../src/client/errors.js";
+import { DipError, DipNetworkError, DipValidationError } from "../src/client/errors.js";
 import { makeMockTransport, rawResponse, jsonResponse } from "./helpers.js";
 
 const KEY = "R2BZaee.DjdCyihKZMf8AOjtScubP2EVydegzjmBIQ";
@@ -314,10 +314,10 @@ test("obtain-key refuses -o instead of silently printing the key to the terminal
   assert.deepEqual(ok.out, [KEY]);
 });
 
-test("obtainKey falls back to the default User-Agent for a blank one", async () => {
+test("obtainKey rejects a blank User-Agent before any request, like the client", async () => {
   const mt = makeMockTransport(responder([KEY]));
-  await obtainKey({ transport: mt.transport, userAgent: " " });
-  assert.ok(mt.calls.every((c) => c.headers?.["User-Agent"] === "dip-bundestag-cli"));
+  await assert.rejects(obtainKey({ transport: mt.transport, userAgent: " " }), DipValidationError);
+  assert.equal(mt.calls.length, 0);
 });
 
 test("obtain-key rejects a blank --user-agent before any request", async () => {

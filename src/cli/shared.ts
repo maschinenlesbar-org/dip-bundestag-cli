@@ -7,7 +7,7 @@ import type { CliDeps } from "./io.js";
 import type { RawResponse } from "../client/engine.js";
 import type { DipClientOptions } from "../client/client.js";
 import { DipError } from "../client/errors.js";
-import { intInRangeProblem, nonEmptyProblem } from "../client/validate.js";
+import { headerValueProblem, intInRangeProblem, nonEmptyProblem } from "../client/validate.js";
 
 /**
  * commander value-parser: a non-negative integer in plain decimal notation.
@@ -41,23 +41,12 @@ export function parseNonEmpty(value: string): string {
 
 /**
  * commander value-parser for a value that ends up in an HTTP header (`--api-key`,
- * `--user-agent`). Node's HTTP layer throws an opaque "Invalid character in header
- * content" at request time for a CR/LF (or any other C0 control or DEL) and for any
- * character above U+00FF, which surfaced as "Unexpected error". Reject those here as
- * a usage error, along with a blank value. Tab is allowed, as in HTTP. Checked by
- * char code so the source stays free of control bytes.
+ * `--user-agent`): the library's `headerValueProblem` (blank, control characters,
+ * characters above U+00FF), reported as a usage error.
  */
 export function parseHeaderValue(value: string): string {
-  parseNonEmpty(value);
-  for (let i = 0; i < value.length; i++) {
-    const c = value.charCodeAt(i);
-    if ((c < 0x20 && c !== 0x09) || c === 0x7f) {
-      throw new InvalidArgumentError("Value contains control characters.");
-    }
-    if (c > 0xff) {
-      throw new InvalidArgumentError("Value contains characters outside Latin-1 (above U+00FF).");
-    }
-  }
+  const problem = headerValueProblem(value);
+  if (problem !== undefined) throw new InvalidArgumentError(problem);
   return value;
 }
 
@@ -149,11 +138,9 @@ export function toEngineOptions(global: GlobalOptions): DipClientOptions {
     options.apiKey = global.apiKey.trim();
   }
   if (global.timeout !== undefined) options.timeoutMs = global.timeout;
-  // A blank --user-agent is rejected at parse time (parseHeaderValue); the guard
-  // keeps an empty User-Agent header impossible.
-  if (global.userAgent !== undefined && global.userAgent.trim().length > 0) {
-    options.userAgent = global.userAgent;
-  }
+  // The library checks the value (a blank one included); --user-agent's parser
+  // runs the same check earlier.
+  if (global.userAgent !== undefined) options.userAgent = global.userAgent;
   if (global.maxRetries !== undefined) options.maxRetries = global.maxRetries;
   if (global.maxResponseBytes !== undefined) options.maxResponseBytes = global.maxResponseBytes;
   return options;

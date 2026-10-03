@@ -7,6 +7,7 @@ export {
   DEFAULT_BASE_URL,
   DEFAULT_MAX_RESPONSE_BYTES,
   DEFAULT_TIMEOUT_MS,
+  DEFAULT_USER_AGENT,
   MAX_REDIRECTS,
   MAX_RETRIES,
   MAX_RETRY_AFTER_MS,
@@ -32,8 +33,11 @@ export {
   redactUrl,
 } from "./errors.js";
 export {
+  assertHeaderValue,
   assertNonBlankParams,
   assertValid,
+  headerNameProblem,
+  headerValueProblem,
   idProblem,
   intInRangeProblem,
   isBlank,

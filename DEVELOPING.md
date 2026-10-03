@@ -207,6 +207,12 @@ What the library rejects:
   `NaN` or infinite value used to switch the timeout or the size cap off, or
   retry without end. The CLI's `parseBoundedInt` uses the same
   `intInRangeProblem` and the exported constants.
+- **Header values** (`assertHeaderValue`/`headerValueProblem`, in the
+  `RequestEngine` constructor and in `obtainKey`): a `userAgent` or
+  `defaultHeaders` value that is blank, holds a control character other than
+  tab, or a character above U+00FF; a `defaultHeaders` name that is not an HTTP
+  token. Only `undefined` selects `DEFAULT_USER_AGENT`, in the client and in
+  `obtainKey` alike. The CLI's `parseHeaderValue` wraps `headerValueProblem`.
 
 ### Library / technical terms
 
@@ -230,7 +236,9 @@ JSON/raw responses and maps errors. Sits between the client's resource methods
 and the transport.
 
 **Default headers.** The engine merges `defaultHeaders` into every request —
-the seam that injects `Authorization: ApiKey <key>`.
+the seam that injects `Authorization: ApiKey <key>`. Names and values are
+checked when the engine is built (see
+[Library input validation](#library-input-validation)).
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are
 retried automatically, up to `--max-retries` (0–10). Each retry waits the

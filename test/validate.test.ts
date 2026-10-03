@@ -6,6 +6,8 @@ import assert from "node:assert/strict";
 import {
   assertNonBlankParams,
   assertValid,
+  headerNameProblem,
+  headerValueProblem,
   idProblem,
   intInRangeProblem,
   isBlank,
@@ -122,4 +124,21 @@ test("intInRangeProblem without an upper bound says non-negative integer", () =>
   assert.equal(p(Number.MAX_SAFE_INTEGER), undefined);
   assert.equal(p(-1), "Expected a non-negative integer.");
   assert.equal(p(2 ** 53), "Expected a non-negative integer.");
+});
+
+// ---- Header values (PAT-5) --------------------------------------------------------
+
+test("headerValueProblem rejects blank, control and non-Latin-1 values", () => {
+  assert.equal(headerValueProblem(""), "Expected a non-empty value.");
+  assert.equal(headerValueProblem(" "), "Expected a non-empty value.");
+  for (const v of ["a\rb", "a\nb", "a\u0000", "\u007f"]) {
+    assert.equal(headerValueProblem(v), "Value contains control characters.", JSON.stringify(v));
+  }
+  assert.equal(headerValueProblem("\u0100"), "Value contains characters outside Latin-1 (above U+00FF).");
+  for (const v of ["ua/1", " ua ", "a\tb", "caf\u00e9"]) assert.equal(headerValueProblem(v), undefined);
+});
+
+test("headerNameProblem accepts HTTP tokens only", () => {
+  for (const v of ["User-Agent", "X-API-Key", "a!#$%&'*+.^_`|~1"]) assert.equal(headerNameProblem(v), undefined);
+  for (const v of ["", "a b", "a:b", "\u00e9"]) assert.equal(headerNameProblem(v), "Expected an HTTP header name (a token).");
 });

@@ -79,3 +79,33 @@ export function intInRangeProblem(min: number, max: number): Problem<number> {
       ? undefined
       : reason;
 }
+
+/**
+ * A value Node can send in an HTTP header: not blank, no C0 control character
+ * but tab, no DEL, nothing above U+00FF. Node's HTTP layer throws an opaque
+ * "Invalid character in header content" for the others, and a CR/LF handed to a
+ * custom transport could inject a header. Checked by char code so the source
+ * stays free of control bytes.
+ */
+export const headerValueProblem: Problem<string> = (value) => {
+  const blank = nonEmptyProblem(value);
+  if (blank !== undefined) return blank;
+  for (let i = 0; i < value.length; i++) {
+    const c = value.charCodeAt(i);
+    if ((c < 0x20 && c !== 0x09) || c === 0x7f) return "Value contains control characters.";
+    if (c > 0xff) return "Value contains characters outside Latin-1 (above U+00FF).";
+  }
+  return undefined;
+};
+
+/** An HTTP header name: a non-empty RFC 9110 token. */
+export const headerNameProblem: Problem<string> = (name) =>
+  /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name) ? undefined : "Expected an HTTP header name (a token).";
+
+/**
+ * Throw `DipValidationError` (`Invalid <name>: <reason>`) unless `value` can be
+ * sent as a header value (`headerValueProblem`); return it unchanged.
+ */
+export function assertHeaderValue(name: string, value: string): string {
+  return assertValid(name, value, headerValueProblem);
+}

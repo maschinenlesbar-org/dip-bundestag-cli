@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { DipClient } from "../src/client/client.js";
 import { DipValidationError } from "../src/client/errors.js";
 import { MAX_TIMEOUT_MS, type Transport } from "../src/client/http.js";
-import { MAX_REDIRECTS, MAX_RETRIES, RequestEngine } from "../src/client/engine.js";
+import { DEFAULT_USER_AGENT, MAX_REDIRECTS, MAX_RETRIES, RequestEngine } from "../src/client/engine.js";
 import { obtainKey } from "../src/client/obtain-key.js";
 import { jsonResponse, parity, requestKey, type ParityResult } from "./helpers.js";
 
@@ -163,4 +163,65 @@ test("the engine rejects out-of-range retryDelayMs and maxRedirects too", () => 
     assert.throws(() => new RequestEngine(options), DipValidationError, JSON.stringify(options));
   }
   new RequestEngine({ retryDelayMs: 0, maxRedirects: MAX_REDIRECTS });
+});
+
+// ---- Finding 5 (PAT-5, PAT-4): User-Agent values ---------------------------------
+
+const badUserAgents: Array<[string, RegExp]> = [
+  ["a\r\nX-Injected: 1", /^Invalid userAgent: Value contains control characters\.$/],
+  ["a\u0000b", /^Invalid userAgent: Value contains control characters\.$/],
+  ["a\u007fb", /^Invalid userAgent: Value contains control characters\.$/],
+  ["bot\u20ac", /^Invalid userAgent: Value contains characters outside Latin-1 \(above U\+00FF\)\.$/],
+  ["\u0100", /^Invalid userAgent: Value contains characters outside Latin-1/],
+  ["", /^Invalid userAgent: Expected a non-empty value\.$/],
+  ["   ", /^Invalid userAgent: Expected a non-empty value\.$/],
+];
+
+for (const [ua, message] of badUserAgents) {
+  test(`parity: --user-agent ${JSON.stringify(ua)} is rejected by DipClient before any request`, async () => {
+    const r = await parity({
+      argv: ["--user-agent", ua, "vorgang", "list"],
+      lib: (t) => new DipClient({ transport: t, userAgent: ua }).vorgaenge.list(),
+    });
+    assertBothReject(r, message);
+  });
+
+  test(`parity: --user-agent ${JSON.stringify(ua)} is rejected by obtainKey before any request`, async () => {
+    const r = await parity({
+      argv: ["--user-agent", ua, "obtain-key"],
+      lib: (t) => obtainKey({ transport: t, userAgent: ua }),
+    });
+    assertBothReject(r, message);
+  });
+}
+
+for (const ua of [" ua ", "a\tb", "caf\u00e9"]) {
+  test(`parity: --user-agent ${JSON.stringify(ua)} is sent unchanged by both`, async () => {
+    const r = await parity({
+      argv: ["--user-agent", ua, "vorgang", "list"],
+      lib: (t) => new DipClient({ transport: t, userAgent: ua }).vorgaenge.list(),
+    });
+    assertSameRequests(r);
+    assert.equal(r.lib.requests[0]?.headers?.["User-Agent"], ua);
+  });
+}
+
+test("DipClient and obtainKey send the same default User-Agent", async () => {
+  const r = await parity({
+    argv: ["vorgang", "list"],
+    lib: (t) => new DipClient({ transport: t }).vorgaenge.list(),
+  });
+  assert.equal(r.lib.requests[0]?.headers?.["User-Agent"], DEFAULT_USER_AGENT);
+  const calls: Array<string | undefined> = [];
+  await obtainKey({
+    transport: async (req) => (calls.push(req.headers?.["User-Agent"]), { status: 500, headers: {}, body: Buffer.from("") }),
+  }).catch(() => undefined);
+  assert.ok(calls.length > 0 && calls.every((ua) => ua === DEFAULT_USER_AGENT));
+});
+
+test("the engine checks defaultHeaders names and values too", () => {
+  for (const defaultHeaders of <Array<Record<string, string>>>[{ "X-A": "a\nb" }, { "X-A": "\u20ac" }, { "Bad Name": "x" }, { "": "x" }]) {
+    assert.throws(() => new RequestEngine({ defaultHeaders }), DipValidationError, JSON.stringify(defaultHeaders));
+  }
+  new RequestEngine({ defaultHeaders: { "X-A": "caf\u00e9\tx" } });
 });
