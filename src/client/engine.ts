@@ -2,9 +2,10 @@
 // requests via a Transport, applies retry/backoff for transient statuses
 // (429, 503), and decodes responses.
 
-import { nodeHttpTransport, type Transport } from "./http.js";
+import { MAX_TIMEOUT_MS, nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
 import { DipApiError, DipError, DipNetworkError, DipParseError, redactUrl } from "./errors.js";
+import { assertValid, intInRangeProblem } from "./validate.js";
 
 export const DEFAULT_BASE_URL = "https://search.dip.bundestag.de";
 const DEFAULT_USER_AGENT = "dip-bundestag-cli";
@@ -97,13 +98,14 @@ export interface EngineOptions {
   defaultHeaders?: Record<string, string>;
   /**
    * Time limit per request in milliseconds, covering the whole response body, not
-   * only idle gaps (0 disables; capped at `MAX_TIMEOUT_MS`, 2^31 - 1 ms).
+   * only idle gaps (0 disables; at most `MAX_TIMEOUT_MS`, 2^31 - 1 ms, else
+   * `DipValidationError`).
    */
   timeoutMs?: number;
   /**
    * Number of automatic retries for transient (429/503) responses. Each waits the
    * response's `Retry-After` (up to `MAX_RETRY_AFTER_MS`; a longer one is not
-   * retried), or else `retryDelayMs * attempt`.
+   * retried), or else `retryDelayMs * attempt`. An integer 0..`MAX_RETRIES` (10).
    */
   maxRetries?: number;
   /** Base backoff between retries in milliseconds (grows linearly); used without a Retry-After. */
@@ -111,12 +113,13 @@ export interface EngineOptions {
   /**
    * Number of HTTP redirects (301/302/303/307/308) to follow. Defaults to 5. Any
    * other 3xx, one with a missing or malformed Location, and one past this limit
-   * surface as a DipApiError naming the target.
+   * surface as a DipApiError naming the target. An integer 0..`MAX_REDIRECTS` (10).
    */
   maxRedirects?: number;
   /**
    * Hard cap on response body size in bytes (defends against memory exhaustion
    * from a hostile/buggy endpoint). Defaults to 100 MiB; set to 0 for no limit.
+   * A non-negative safe integer.
    */
   maxResponseBytes?: number;
   /** Injectable sleep, primarily for deterministic tests. */
@@ -135,6 +138,12 @@ export const DEFAULT_TIMEOUT_MS = 30_000;
 
 /** Default cap on a response body (100 MiB); `maxResponseBytes: 0` disables it. */
 export const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024 * 1024;
+
+/** Most retries `maxRetries` may ask for (the CLI's `--max-retries` bound). */
+export const MAX_RETRIES = 10;
+
+/** Most redirects `maxRedirects` may ask for. */
+export const MAX_REDIRECTS = 10;
 
 /**
  * Longest `Retry-After` the engine waits out before retrying a 429/503. When the
@@ -196,6 +205,35 @@ export function assertHttpScheme(baseUrl: string): void {
   }
 }
 
+/** The numeric limits an engine (or `obtainKey`) takes. */
+export type EngineLimits = Pick<
+  EngineOptions,
+  "timeoutMs" | "maxRetries" | "retryDelayMs" | "maxRedirects" | "maxResponseBytes"
+>;
+
+const LIMIT_RANGES: ReadonlyArray<[keyof EngineLimits, number]> = [
+  ["timeoutMs", MAX_TIMEOUT_MS],
+  ["maxRetries", MAX_RETRIES],
+  ["retryDelayMs", Number.MAX_SAFE_INTEGER],
+  ["maxRedirects", MAX_REDIRECTS],
+  ["maxResponseBytes", Number.MAX_SAFE_INTEGER],
+];
+
+/**
+ * Check every limit that is set: `timeoutMs` 0..`MAX_TIMEOUT_MS`, `maxRetries`
+ * 0..`MAX_RETRIES`, `maxRedirects` 0..`MAX_REDIRECTS`, `retryDelayMs` and
+ * `maxResponseBytes` any non-negative safe integer. `undefined` keeps the
+ * default and 0 keeps its documented meaning. A negative, fractional, `NaN` or
+ * infinite value would otherwise silently disable the timeout or the size cap,
+ * or retry without end. Throws `DipValidationError` (`Invalid maxRetries: ...`).
+ */
+export function validateLimits(limits: EngineLimits): void {
+  for (const [name, max] of LIMIT_RANGES) {
+    const value = limits[name];
+    if (value !== undefined) assertValid(name, value, intInRangeProblem(0, max));
+  }
+}
+
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -225,6 +263,7 @@ export class RequestEngine {
   private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(options: EngineOptions = {}) {
+    validateLimits(options);
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     // Re-check the base-URL scheme here, not only in the default transport: a
     // library consumer that injects a custom transport would otherwise get no

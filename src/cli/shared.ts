@@ -7,7 +7,7 @@ import type { CliDeps } from "./io.js";
 import type { RawResponse } from "../client/engine.js";
 import type { DipClientOptions } from "../client/client.js";
 import { DipError } from "../client/errors.js";
-import { nonEmptyProblem } from "../client/validate.js";
+import { intInRangeProblem, nonEmptyProblem } from "../client/validate.js";
 
 /**
  * commander value-parser: a non-negative integer in plain decimal notation.
@@ -71,13 +71,17 @@ export function parseOutputPath(value: string): string {
   return parseNonEmpty(value);
 }
 
-/** Build a commander value-parser for a plain decimal integer constrained to [min, max]. */
+/**
+ * Build a commander value-parser for a plain decimal integer constrained to
+ * [min, max], checked by the library's `intInRangeProblem` (the bounds come from
+ * the library's constants, e.g. `MAX_RETRIES`).
+ */
 export function parseBoundedInt(min: number, max: number): (value: string) => number {
+  const problem = intInRangeProblem(min, max);
   return (value: string) => {
     const n = parseIntArg(value);
-    if (n < min || n > max) {
-      throw new InvalidArgumentError(`Expected an integer between ${min} and ${max}.`);
-    }
+    const reason = problem(n);
+    if (reason !== undefined) throw new InvalidArgumentError(reason);
     return n;
   };
 }

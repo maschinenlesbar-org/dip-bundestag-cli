@@ -170,7 +170,10 @@ Pfadpräfix eines Spiegels) ohne diesen Teil, und die CLI lehnt eine URL ab, die
 **Rate-Limiting.** Das DIP begrenzt die Anfragerate; bei Überschreitung antwortet die
 API mit **429**. Der Client wiederholt **429** und **503** automatisch
 (`--max-retries`, 0–10, Standard 2) und wartet dabei das `Retry-After` der Antwort ab
-(bis 30 s; ein längeres wird nicht wiederholt), sonst mit linearem Backoff.
+(bis 30 s; ein längeres wird nicht wiederholt), sonst mit linearem Backoff. Die
+Bibliothek hat dieselbe Grenze (`MAX_RETRIES`, `maxRetries`) und lehnt einen Wert
+außerhalb mit `DipValidationError` ab, ebenso ein negatives oder gebrochenes Timeout oder
+Größenlimit.
 
 **Entfernen von Zugangsdaten bei Weiterleitungen.** Der Header `Authorization` (sowie
 `X-API-Key` / `Cookie`) wird bei jeder Weiterleitung auf einen anderen Origin entfernt,

@@ -167,7 +167,9 @@ error messages.
 **Rate limiting.** DIP limits the request rate; the API returns **429** when it is
 exceeded. The client retries **429** and **503** automatically (`--max-retries`,
 0–10, default 2), waiting the response's `Retry-After` (up to 30 s; a longer one
-is not retried) or else backing off linearly.
+is not retried) or else backing off linearly. The library holds the same bound
+(`MAX_RETRIES`, `maxRetries`) and rejects a value outside it with
+`DipValidationError`, as it does a negative or fractional timeout or size cap.
 
 **Credential stripping on redirect.** The `Authorization` header (and
 `X-API-Key` / `Cookie`) is removed on any redirect that crosses origins, so the

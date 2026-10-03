@@ -6,7 +6,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DipClient } from "../src/client/client.js";
 import { DipValidationError } from "../src/client/errors.js";
-import type { Transport } from "../src/client/http.js";
+import { MAX_TIMEOUT_MS, type Transport } from "../src/client/http.js";
+import { MAX_REDIRECTS, MAX_RETRIES, RequestEngine } from "../src/client/engine.js";
+import { obtainKey } from "../src/client/obtain-key.js";
 import { jsonResponse, parity, requestKey, type ParityResult } from "./helpers.js";
 
 const client = (transport: Transport): DipClient => new DipClient({ apiKey: "k", transport });
@@ -112,4 +114,53 @@ test("parity: a non-blank get id sends the same request on both sides", async ()
     responder: () => jsonResponse({ id: "7240" }),
   });
   assertSameRequests(r);
+});
+
+// ---- Finding 6 (PAT-8): timeout, retry and size-cap bounds ----------------------
+
+const limitCases: Array<{ flag: string; value: string; option: string; bad: number }> = [
+  { flag: "--max-response-bytes", value: "-1", option: "maxResponseBytes", bad: -1 },
+  { flag: "--timeout", value: "-1", option: "timeoutMs", bad: -1 },
+  { flag: "--timeout", value: String(MAX_TIMEOUT_MS + 1), option: "timeoutMs", bad: MAX_TIMEOUT_MS + 1 },
+  { flag: "--max-retries", value: "11", option: "maxRetries", bad: 11 },
+  { flag: "--max-retries", value: "Infinity", option: "maxRetries", bad: Infinity },
+  { flag: "--timeout", value: "NaN", option: "timeoutMs", bad: NaN },
+  { flag: "--max-retries", value: "1.5", option: "maxRetries", bad: 1.5 },
+];
+
+for (const c of limitCases) {
+  test(`parity: ${c.flag} ${c.value} / ${c.option}: ${c.bad} is rejected by both before any request`, async () => {
+    const r = await parity({
+      argv: [c.flag, c.value, "vorgang", "list"],
+      lib: (t) => new DipClient({ transport: t, [c.option]: c.bad }).vorgaenge.list(),
+    });
+    assertBothReject(r, new RegExp(`^Invalid ${c.option}: Expected `));
+  });
+
+  test(`parity: ${c.flag} ${c.value} / obtainKey ${c.option}: ${c.bad} is rejected by both before any request`, async () => {
+    const r = await parity({
+      argv: [c.flag, c.value, "obtain-key"],
+      lib: (t) => obtainKey({ transport: t, [c.option]: c.bad }),
+    });
+    assertBothReject(r, new RegExp(`^Invalid ${c.option}: Expected `));
+  });
+}
+
+test("parity: the bounds themselves (0 and the maximum) are accepted by both", async () => {
+  const r = await parity({
+    argv: ["--timeout", "0", "--max-retries", String(MAX_RETRIES), "--max-response-bytes", "0", "vorgang", "list"],
+    lib: (t) => new DipClient({ transport: t, timeoutMs: 0, maxRetries: MAX_RETRIES, maxResponseBytes: 0 }).vorgaenge.list(),
+  });
+  assertSameRequests(r);
+  assert.deepEqual(
+    r.cli.requests.map((q) => [q.timeoutMs, q.maxResponseBytes]),
+    r.lib.requests.map((q) => [q.timeoutMs, q.maxResponseBytes]),
+  );
+});
+
+test("the engine rejects out-of-range retryDelayMs and maxRedirects too", () => {
+  for (const options of [{ retryDelayMs: -1 }, { retryDelayMs: NaN }, { maxRedirects: -1 }, { maxRedirects: MAX_REDIRECTS + 1 }]) {
+    assert.throws(() => new RequestEngine(options), DipValidationError, JSON.stringify(options));
+  }
+  new RequestEngine({ retryDelayMs: 0, maxRedirects: MAX_REDIRECTS });
 });

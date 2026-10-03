@@ -200,6 +200,13 @@ What the library rejects:
   envelope typed as a `Document`. The message names the resource
   (`Invalid drucksache id: An id is required, e.g. 123456.`); the CLI's
   `get <id>` prints it as is.
+- **Engine limits** (`validateLimits`, in the `RequestEngine` constructor and at
+  the top of `obtainKey`): `timeoutMs` 0..`MAX_TIMEOUT_MS`, `maxRetries`
+  0..`MAX_RETRIES` (10), `maxRedirects` 0..`MAX_REDIRECTS` (10), `retryDelayMs`
+  and `maxResponseBytes` any non-negative safe integer. A negative, fractional,
+  `NaN` or infinite value used to switch the timeout or the size cap off, or
+  retry without end. The CLI's `parseBoundedInt` uses the same
+  `intInRangeProblem` and the exported constants.
 
 ### Library / technical terms
 

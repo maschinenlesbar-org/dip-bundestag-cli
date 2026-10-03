@@ -7,6 +7,7 @@ import {
   assertNonBlankParams,
   assertValid,
   idProblem,
+  intInRangeProblem,
   isBlank,
   nonEmptyProblem,
   type Problem,
@@ -105,4 +106,20 @@ test("idProblem rejects a blank or missing id and accepts any other", () => {
     assert.equal(idProblem(id), "An id is required, e.g. 123456.");
   }
   for (const id of ["1", "123456", " 1 "]) assert.equal(idProblem(id), undefined);
+});
+
+// ---- Integer ranges (PAT-8) -------------------------------------------------------
+
+test("intInRangeProblem accepts safe integers inside the range only", () => {
+  const p = intInRangeProblem(0, 10);
+  for (const v of [0, 5, 10]) assert.equal(p(v), undefined);
+  for (const v of [-1, 11, 1.5, NaN, Infinity]) assert.equal(p(v), "Expected an integer between 0 and 10.");
+  assert.equal(p("3" as unknown as number), "Expected an integer between 0 and 10.");
+});
+
+test("intInRangeProblem without an upper bound says non-negative integer", () => {
+  const p = intInRangeProblem(0, Number.MAX_SAFE_INTEGER);
+  assert.equal(p(Number.MAX_SAFE_INTEGER), undefined);
+  assert.equal(p(-1), "Expected a non-negative integer.");
+  assert.equal(p(2 ** 53), "Expected a non-negative integer.");
 });

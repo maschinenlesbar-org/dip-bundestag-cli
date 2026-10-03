@@ -24,6 +24,7 @@ import {
   DEFAULT_MAX_RESPONSE_BYTES,
   DEFAULT_TIMEOUT_MS,
   assertHttpScheme,
+  validateLimits,
 } from "./engine.js";
 import { DipError } from "./errors.js";
 
@@ -132,6 +133,8 @@ export function extractKeyCandidates(document: string): string[] {
  * authenticate.
  */
 export async function obtainKey(options: ObtainKeyOptions = {}): Promise<ObtainedKey> {
+  // The same bounds as the API client, before any request.
+  validateLimits(options);
   const sources = options.sourceUrl !== undefined ? [options.sourceUrl] : [...KEY_SOURCE_URLS];
   const transport = options.transport ?? nodeHttpTransport;
   // A blank User-Agent falls back to the default, as in the API client.

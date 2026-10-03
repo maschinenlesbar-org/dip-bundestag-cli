@@ -7,10 +7,13 @@ export {
   DEFAULT_BASE_URL,
   DEFAULT_MAX_RESPONSE_BYTES,
   DEFAULT_TIMEOUT_MS,
+  MAX_REDIRECTS,
+  MAX_RETRIES,
   MAX_RETRY_AFTER_MS,
   parseRetryAfter,
+  validateLimits,
 } from "./engine.js";
-export type { EngineOptions, RawResponse } from "./engine.js";
+export type { EngineLimits, EngineOptions, RawResponse } from "./engine.js";
 export { MAX_TIMEOUT_MS, nodeHttpTransport } from "./http.js";
 export type { Transport, HttpRequest, HttpResponse } from "./http.js";
 export { obtainKey, API_KEY_ENV_VAR, KEY_SOURCE_URL } from "./obtain-key.js";
@@ -32,6 +35,7 @@ export {
   assertNonBlankParams,
   assertValid,
   idProblem,
+  intInRangeProblem,
   isBlank,
   nonEmptyProblem,
 } from "./validate.js";

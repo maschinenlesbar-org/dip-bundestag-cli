@@ -63,3 +63,19 @@ export function assertNonBlankParams(params: QueryParams): void {
  */
 export const idProblem: Problem<string> = (id) =>
   id === undefined || id === null || isBlank(String(id)) ? "An id is required, e.g. 123456." : undefined;
+
+/**
+ * A safe integer in `[min, max]`. Without an upper bound (`max` is
+ * `Number.MAX_SAFE_INTEGER`) the reason reads "Expected a non-negative integer.",
+ * matching the CLI's integer parser.
+ */
+export function intInRangeProblem(min: number, max: number): Problem<number> {
+  const reason =
+    min === 0 && max === Number.MAX_SAFE_INTEGER
+      ? "Expected a non-negative integer."
+      : `Expected an integer between ${min} and ${max}.`;
+  return (value) =>
+    typeof value === "number" && Number.isSafeInteger(value) && value >= min && value <= max
+      ? undefined
+      : reason;
+}
