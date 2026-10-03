@@ -37,7 +37,9 @@ materials from both bodies.
 **API key.** DIP requires an API key, sent as the HTTP header
 `Authorization: ApiKey <key>`. The key is **not bundled** — supply it via
 `--api-key` or the `DIP_API_KEY` environment variable, else the header is omitted
-and the API returns `401`. The Bundestag publishes a public key on its
+and the API returns `401`. Flag, variable and library (`apiKey`) trim the key the
+same way (`normaliseApiKey`) and reject one an HTTP header cannot carry (exit 2,
+`DipValidationError`). The Bundestag publishes a public key on its
 [DIP API help page](https://dip.bundestag.de/über-dip/hilfe/api) (stated there in
 2026 as valid until the end of May 2027); a personal key can be requested from
 `parlamentsdokumentation@bundestag.de`. The CLI's `obtain-key` command reads that

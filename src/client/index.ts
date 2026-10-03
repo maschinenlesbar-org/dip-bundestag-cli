@@ -1,6 +1,6 @@
 // Public entry point for the API client library.
 
-export { DipClient } from "./client.js";
+export { DipClient, apiKeyProblem, normaliseApiKey } from "./client.js";
 export type { DipClientOptions } from "./client.js";
 export {
   RequestEngine,

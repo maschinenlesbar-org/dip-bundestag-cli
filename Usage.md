@@ -216,7 +216,7 @@ and `dip vorgang list --compact` are the same):
 | --- | --- |
 | `-V, --version` | Print the CLI version |
 | `--base-url <url>` | API base URL: the host, **without** `/api/v1`, which the CLI adds (default `https://search.dip.bundestag.de`). `http:`/`https:` only; a query (`?`), fragment (`#`), whitespace (surrounding or inside) or a trailing `/api/v1` is a usage error (exit `2`). A `user:password@` part is sent but shown as `***@` in error messages |
-| `--api-key <key>` | DIP API key (env `DIP_API_KEY`). A blank value, control characters or characters above U+00FF are a usage error (exit `2`) |
+| `--api-key <key>` | DIP API key (env `DIP_API_KEY`). Surrounding whitespace is trimmed, as for `DIP_API_KEY`. A blank value, control characters or characters above U+00FF are a usage error (exit `2`), from the flag or the env var |
 | `--timeout <ms>` | Time limit per request in milliseconds, reading the whole response included (at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value. A blank value, control characters or characters above U+00FF are a usage error (exit `2`) |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses (`0`–`10`, default `2`); each waits the server's `Retry-After` (up to 30 s; a longer one is not retried) or else backs off linearly |

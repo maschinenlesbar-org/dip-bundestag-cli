@@ -10,7 +10,14 @@ import { defaultIO } from "./io.js";
 import { DipClient } from "../client/client.js";
 import { MAX_TIMEOUT_MS } from "../client/http.js";
 import { MAX_RETRIES } from "../client/engine.js";
-import { parseBaseUrl, parseBoundedInt, parseHeaderValue, parseIntArg, parseOutputPath } from "./shared.js";
+import {
+  parseApiKey,
+  parseBaseUrl,
+  parseBoundedInt,
+  parseHeaderValue,
+  parseIntArg,
+  parseOutputPath,
+} from "./shared.js";
 import { registerResourceCommands } from "./commands/resources.js";
 import { registerObtainKeyCommands } from "./commands/obtain-key.js";
 import { nodeHttpTransport } from "../client/http.js";
@@ -75,9 +82,9 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
       "--api-key <key>",
       "DIP API key (prefer the DIP_API_KEY env var; a flag is visible in ps/history)",
       // A blank flag would replace the DIP_API_KEY value seeded below and send no
-      // key at all, so it is a usage error rather than "unset"; so is a value an
-      // HTTP header cannot carry.
-      parseHeaderValue,
+      // key at all, so it is a usage error rather than "unset"; the key is
+      // trimmed and checked like the library's apiKey.
+      parseApiKey,
     )
     .option(
       "--timeout <ms>",

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DipClient } from "../src/client/client.js";
-import { DipApiError, DipError } from "../src/client/errors.js";
+import { DipApiError, DipError, DipValidationError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, constantJson } from "./helpers.js";
 
 function clientWith(mt: ReturnType<typeof makeMockTransport>, apiKey?: string): DipClient {
@@ -82,11 +82,13 @@ test("the apiKey is sent trimmed", async () => {
   assert.equal(mt.last().headers?.["Authorization"], "ApiKey abc");
 });
 
-test("an apiKey an HTTP header cannot carry is a DipError at construction", () => {
+test("an apiKey an HTTP header cannot carry is a DipValidationError at construction", () => {
   for (const apiKey of ["a\nb", "k\r\nX-Evil: 1", "a\u0000b", "schl\u00fcssel\u20ac"]) {
     assert.throws(
       () => new DipClient({ apiKey }),
-      (err: unknown) => err instanceof DipError && /^Invalid apiKey: it contains control characters/.test(err.message),
+      (err: unknown) =>
+        err instanceof DipValidationError &&
+        /^Invalid apiKey: Value contains (control characters|characters outside Latin-1)/.test(err.message),
       JSON.stringify(apiKey),
     );
   }

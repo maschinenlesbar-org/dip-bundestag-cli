@@ -13,10 +13,16 @@
 //   client.drucksachen.get("123456")
 
 import { API_PATH, RequestEngine, type EngineOptions } from "./engine.js";
-import { DipError } from "./errors.js";
 import type { QueryParams } from "./query.js";
 import type { ListResult, Document } from "./types.js";
-import { assertNonBlankParams, assertValid, idProblem } from "./validate.js";
+import {
+  assertNonBlankParams,
+  assertValid,
+  headerValueProblem,
+  idProblem,
+  isBlank,
+  type Problem,
+} from "./validate.js";
 
 const API = API_PATH;
 // Percent-encodes one path segment. It leaves "." and ".." unchanged; the engine
@@ -65,13 +71,24 @@ class ResourceGroup {
   }
 }
 
-/** True if Node can send `value` in a header: no C0 control but tab, no DEL, Latin-1 only. */
-function isHeaderSafe(value: string): boolean {
-  for (let i = 0; i < value.length; i++) {
-    const c = value.charCodeAt(i);
-    if ((c < 0x20 && c !== 0x09) || c === 0x7f || c > 0xff) return false;
-  }
-  return true;
+/**
+ * Why an API key cannot be sent, or `undefined`: after trimming, a key with a
+ * control character (other than tab) or a character above U+00FF cannot be an
+ * HTTP header. A blank key is not a problem; it means "no key".
+ */
+export const apiKeyProblem: Problem<string> = (value) =>
+  isBlank(value) ? undefined : headerValueProblem(value.trim());
+
+/**
+ * The key the client sends: trimmed, a blank one counts as none (`undefined`).
+ * Throws `DipValidationError` (`Invalid apiKey: ...`, never echoing the key) for
+ * a key `apiKeyProblem` rejects. The CLI's `--api-key` and `DIP_API_KEY` paths
+ * go through the same function, so all three send the same header.
+ */
+export function normaliseApiKey(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  assertValid("apiKey", value, apiKeyProblem);
+  return value.trim() || undefined;
 }
 
 export class DipClient {
@@ -89,14 +106,7 @@ export class DipClient {
   constructor(options: DipClientOptions = {}) {
     const { apiKey, ...engineOptions } = options;
     // Only send Authorization when a non-blank key was supplied; never default one.
-    // Surrounding whitespace is dropped, as the CLI does for its sources.
-    const key = apiKey?.trim() || undefined;
-    if (key !== undefined && !isHeaderSafe(key)) {
-      throw new DipError(
-        "Invalid apiKey: it contains control characters or characters outside Latin-1 " +
-          "(above U+00FF), which an HTTP header cannot carry.",
-      );
-    }
+    const key = normaliseApiKey(apiKey);
     this.engine = new RequestEngine({
       ...engineOptions,
       defaultHeaders: {

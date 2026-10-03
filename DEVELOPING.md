@@ -220,6 +220,12 @@ What the library rejects:
   appends paths to the raw string), and a path ending in `/api/v1` (the client
   adds it; the message suggests the value without it). Only `undefined`
   selects `DEFAULT_BASE_URL`. The CLI's `parseBaseUrl` uses `baseUrlProblem`.
+- **API key** (`normaliseApiKey`/`apiKeyProblem`, in the `DipClient`
+  constructor): the key is trimmed and a blank one means no key; a key with a
+  control character (other than tab) or a character above U+00FF is rejected.
+  The CLI's `--api-key` parser (after its own blank-flag check) and the
+  `DIP_API_KEY` path end up in the same function, so all three send the same
+  header or fail the same way (exit 2).
 
 ### Library / technical terms
 

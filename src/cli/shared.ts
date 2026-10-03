@@ -5,7 +5,7 @@ import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import type { RawResponse } from "../client/engine.js";
-import type { DipClientOptions } from "../client/client.js";
+import { apiKeyProblem, normaliseApiKey, type DipClientOptions } from "../client/client.js";
 import { DipError } from "../client/errors.js";
 import { baseUrlProblem } from "../client/engine.js";
 import { headerValueProblem, intInRangeProblem, nonEmptyProblem } from "../client/validate.js";
@@ -41,14 +41,27 @@ export function parseNonEmpty(value: string): string {
 }
 
 /**
- * commander value-parser for a value that ends up in an HTTP header (`--api-key`,
- * `--user-agent`): the library's `headerValueProblem` (blank, control characters,
+ * commander value-parser for a value that ends up in an HTTP header
+ * (`--user-agent`): the library's `headerValueProblem` (blank, control characters,
  * characters above U+00FF), reported as a usage error.
  */
 export function parseHeaderValue(value: string): string {
   const problem = headerValueProblem(value);
   if (problem !== undefined) throw new InvalidArgumentError(problem);
   return value;
+}
+
+/**
+ * commander value-parser for `--api-key`. A blank flag is a usage error (it would
+ * otherwise silently replace DIP_API_KEY and send no key: a CLI-only rule); the
+ * rest is the library's: the key is trimmed, and one an HTTP header cannot carry
+ * is rejected (`apiKeyProblem`/`normaliseApiKey`), as for DIP_API_KEY.
+ */
+export function parseApiKey(value: string): string {
+  parseNonEmpty(value);
+  const problem = apiKeyProblem(value);
+  if (problem !== undefined) throw new InvalidArgumentError(problem);
+  return normaliseApiKey(value) as string;
 }
 
 /**
@@ -120,13 +133,11 @@ export interface GlobalOptions {
 export function toEngineOptions(global: GlobalOptions): DipClientOptions {
   const options: DipClientOptions = {};
   if (global.baseUrl !== undefined) options.baseUrl = global.baseUrl;
-  // A blank --api-key is rejected at parse time and a blank DIP_API_KEY is
-  // treated as unset (readEnvApiKey), so this guard only keeps a malformed
-  // `Authorization: ApiKey ` header impossible. No key is bundled: when none is
-  // supplied the header is omitted entirely and the API answers 401.
-  if (global.apiKey !== undefined && global.apiKey.trim().length > 0) {
-    options.apiKey = global.apiKey.trim();
-  }
+  // The client trims the key and treats a blank one as none (normaliseApiKey);
+  // a blank --api-key is rejected at parse time and a blank DIP_API_KEY is unset
+  // (readEnvApiKey). No key is bundled: with none the header is omitted and the
+  // API answers 401.
+  if (global.apiKey !== undefined) options.apiKey = global.apiKey;
   if (global.timeout !== undefined) options.timeoutMs = global.timeout;
   // The library checks the value (a blank one included); --user-agent's parser
   // runs the same check earlier.

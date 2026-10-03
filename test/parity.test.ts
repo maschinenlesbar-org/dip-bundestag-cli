@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DipClient } from "../src/client/client.js";
+import { DipClient, apiKeyProblem, normaliseApiKey } from "../src/client/client.js";
 import { DipValidationError } from "../src/client/errors.js";
 import { MAX_TIMEOUT_MS, type Transport } from "../src/client/http.js";
 import { DEFAULT_USER_AGENT, MAX_REDIRECTS, MAX_RETRIES, RequestEngine } from "../src/client/engine.js";
@@ -269,4 +269,52 @@ test("parity: a base URL with a trailing slash or a mirror path is used by both"
     });
     assertSameRequests(r);
   }
+});
+
+// ---- Finding 10 (PAT-6): API key trimming and characters ----------------------
+
+for (const key of ["k\n", "\rk", "\tk\r\n", " k "]) {
+  test(`parity: --api-key ${JSON.stringify(key)}, DIP_API_KEY and the library all send "ApiKey k"`, async () => {
+    const flag = await parity({
+      argv: ["--api-key", key, "vorgang", "list"],
+      lib: (t) => new DipClient({ apiKey: key, transport: t }).vorgaenge.list(),
+    });
+    assertSameRequests(flag);
+    assert.equal(flag.cli.requests[0]?.headers?.["Authorization"], "ApiKey k");
+    const env = await parity({
+      argv: ["vorgang", "list"],
+      env: { DIP_API_KEY: key },
+      lib: (t) => new DipClient({ apiKey: key, transport: t }).vorgaenge.list(),
+    });
+    assertSameRequests(env);
+  });
+}
+
+for (const [key, message] of [
+  ["a\nb", /^Invalid apiKey: Value contains control characters\.$/],
+  ["k€", /^Invalid apiKey: Value contains characters outside Latin-1 \(above U\+00FF\)\.$/],
+] as const) {
+  test(`parity: an API key ${JSON.stringify(key)} is rejected on every path before any request`, async () => {
+    const flag = await parity({
+      argv: ["--api-key", key, "vorgang", "list"],
+      lib: (t) => new DipClient({ apiKey: key, transport: t }).vorgaenge.list(),
+    });
+    assertBothReject(flag, message);
+    const env = await parity({
+      argv: ["vorgang", "list"],
+      env: { DIP_API_KEY: key },
+      lib: (t) => new DipClient({ apiKey: key, transport: t }).vorgaenge.list(),
+    });
+    assertBothReject(env, message);
+    assert.match(env.cli.err, /^Error: Invalid apiKey: /);
+  });
+}
+
+test("normaliseApiKey trims, maps blank to undefined and rejects unsendable keys", () => {
+  assert.equal(normaliseApiKey(undefined), undefined);
+  assert.equal(normaliseApiKey("  "), undefined);
+  assert.equal(normaliseApiKey("\tk\r\n"), "k");
+  assert.throws(() => normaliseApiKey("a\nb"), DipValidationError);
+  assert.equal(apiKeyProblem("a\u0000b"), "Value contains control characters.");
+  assert.equal(apiKeyProblem(" k\n"), undefined);
 });

@@ -370,12 +370,12 @@ test("control or non-Latin-1 characters in --api-key / --user-agent are usage er
   assert.equal(cli.mt.last().headers?.["User-Agent"], "m\u00fcnchen\tbot");
 });
 
-test("a DIP_API_KEY with control characters is a clear error, not an unexpected one", async () => {
+test("a DIP_API_KEY with control characters is a usage error, not an unexpected one", async () => {
   const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }), { DIP_API_KEY: "a\nb" });
   const code = await run(["vorgang", "list"], cli.deps);
-  assert.equal(code, 1);
+  assert.equal(code, 2);
   assert.equal(cli.mt.calls.length, 0);
-  assert.match(cli.err.join("\n"), /^Error: Invalid apiKey: it contains control characters/);
+  assert.match(cli.err.join("\n"), /^Error: Invalid apiKey: Value contains control characters\./);
 });
 
 test("an empty list response exits 1 instead of printing null", async () => {

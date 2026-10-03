@@ -38,7 +38,9 @@ Materialien beider Organe.
 **API-Schlüssel.** Das DIP verlangt einen API-Schlüssel, der als HTTP-Header
 `Authorization: ApiKey <key>` gesendet wird. Der Schlüssel ist **nicht mitgeliefert** –
 geben Sie ihn über `--api-key` oder die Umgebungsvariable `DIP_API_KEY` an; andernfalls
-entfällt der Header und die API antwortet mit `401`. Der Bundestag veröffentlicht einen
+entfällt der Header und die API antwortet mit `401`. Flag, Variable und Bibliothek
+(`apiKey`) kürzen den Schlüssel gleich (`normaliseApiKey`) und lehnen einen ab, den ein
+HTTP-Header nicht tragen kann (Exit 2, `DipValidationError`). Der Bundestag veröffentlicht einen
 öffentlichen Schlüssel auf seiner
 [Hilfeseite zur DIP-API](https://dip.bundestag.de/über-dip/hilfe/api) (dort 2026 als
 gültig bis Ende Mai 2027 angegeben); einen persönlichen Schlüssel erhalten Sie auf
