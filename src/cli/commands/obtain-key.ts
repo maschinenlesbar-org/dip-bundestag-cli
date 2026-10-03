@@ -7,7 +7,7 @@ import {
   obtainKey,
   shellQuoteSingle,
 } from "../../client/obtain-key.js";
-import type { GlobalOptions } from "../shared.js";
+import { toEngineOptions, type GlobalOptions } from "../shared.js";
 import { DEFAULT_BASE_URL } from "../../client/engine.js";
 import { DipUsageError, redactUrl } from "../../client/errors.js";
 
@@ -40,12 +40,13 @@ export function registerObtainKeyCommands(program: Command, deps: CliDeps): void
         );
       }
       const baseUrl = (global.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
+      // Every global request option the client gets (base URL, timeout, size cap,
+      // User-Agent, retries) goes to obtainKey too; only the key, which this
+      // command looks for, is left out.
+      const { apiKey: _apiKey, ...requestOptions } = toEngineOptions(global);
       const { key, sourceUrl, verified } = await obtainKey({
+        ...requestOptions,
         ...(deps.transport !== undefined ? { transport: deps.transport } : {}),
-        ...(global.baseUrl !== undefined ? { baseUrl: global.baseUrl } : {}),
-        ...(global.timeout !== undefined ? { timeoutMs: global.timeout } : {}),
-        ...(global.maxResponseBytes !== undefined ? { maxResponseBytes: global.maxResponseBytes } : {}),
-        ...(global.userAgent !== undefined ? { userAgent: global.userAgent } : {}),
         verify: opts["verify"] !== false,
       });
       deps.io.err(

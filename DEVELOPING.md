@@ -200,21 +200,21 @@ What the library rejects:
   envelope typed as a `Document`. The message names the resource
   (`Invalid drucksache id: An id is required, e.g. 123456.`); the CLI's
   `get <id>` prints it as is.
-- **Engine limits** (`validateLimits`, in the `RequestEngine` constructor and at
-  the top of `obtainKey`): `timeoutMs` 0..`MAX_TIMEOUT_MS`, `maxRetries`
+- **Engine limits** (`validateLimits`, in the `RequestEngine` constructor, which
+  `obtainKey` builds too): `timeoutMs` 0..`MAX_TIMEOUT_MS`, `maxRetries`
   0..`MAX_RETRIES` (10), `maxRedirects` 0..`MAX_REDIRECTS` (10), `retryDelayMs`
   and `maxResponseBytes` any non-negative safe integer. A negative, fractional,
   `NaN` or infinite value used to switch the timeout or the size cap off, or
   retry without end. The CLI's `parseBoundedInt` uses the same
   `intInRangeProblem` and the exported constants.
 - **Header values** (`assertHeaderValue`/`headerValueProblem`, in the
-  `RequestEngine` constructor and in `obtainKey`): a `userAgent` or
+  `RequestEngine` constructor, so in `obtainKey` too): a `userAgent` or
   `defaultHeaders` value that is blank, holds a control character other than
   tab, or a character above U+00FF; a `defaultHeaders` name that is not an HTTP
   token. Only `undefined` selects `DEFAULT_USER_AGENT`, in the client and in
   `obtainKey` alike. The CLI's `parseHeaderValue` wraps `headerValueProblem`.
 - **Base URL shape** (`validateBaseUrl`/`baseUrlProblem`, in the `RequestEngine`
-  constructor and in `obtainKey` whenever `baseUrl` is given, on the raw value
+  constructor, so in `obtainKey` too whenever `baseUrl` is given, on the raw value
   before the trailing-slash strip): surrounding whitespace, whitespace or a
   control character inside (`new URL()` would hide both while the engine
   appends paths to the raw string), and a path ending in `/api/v1` (the client
@@ -246,7 +246,10 @@ CLI. Each resource is a generic **ResourceGroup** with `.list(params)` and
 **Request engine.** [`RequestEngine`](src/client/engine.ts) — builds URLs,
 serialises queries, applies retry/backoff, follows redirects, decodes
 JSON/raw responses and maps errors. Sits between the client's resource methods
-and the transport.
+and the transport. `obtainKey` uses one too: `getAbsolute(url)` reads the key
+sources and `request()` with a per-request `Authorization` header verifies a
+candidate, so both get the same timeout, size cap, retries and redirect policy
+as every other request (`ObtainKeyOptions` takes the matching `EngineOptions`).
 
 **Default headers.** The engine merges `defaultHeaders` into every request —
 the seam that injects `Authorization: ApiKey <key>`. Names and values are

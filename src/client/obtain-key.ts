@@ -17,19 +17,8 @@
 // moves on to the next candidate, then the next source, when one is rejected.
 // It never returns a key it knows to be dead.
 
-import type { HttpResponse, Transport } from "./http.js";
-import { nodeHttpTransport } from "./http.js";
-import {
-  DEFAULT_BASE_URL,
-  DEFAULT_MAX_RESPONSE_BYTES,
-  DEFAULT_TIMEOUT_MS,
-  DEFAULT_USER_AGENT,
-  API_PATH,
-  validateBaseUrl,
-  validateLimits,
-} from "./engine.js";
-import { DipError } from "./errors.js";
-import { assertHeaderValue } from "./validate.js";
+import { API_PATH, DEFAULT_BASE_URL, RequestEngine, type EngineOptions } from "./engine.js";
+import { DipApiError, DipError, redactUrl } from "./errors.js";
 
 /** The environment variable the client and CLI read the key from. */
 export const API_KEY_ENV_VAR = "DIP_API_KEY";
@@ -78,28 +67,31 @@ const WHERE_TO_GET_ONE =
   `The current public key is published at ${HELP_PAGE_URL}; ` +
   `a personal key can be requested from ${KEY_CONTACT}.`;
 
-export interface ObtainKeyOptions {
-  /** Injectable transport; defaults to the built-in node:http/https one. */
-  transport?: Transport;
+/**
+ * Options for `obtainKey`. The request options are the API client's
+ * (`EngineOptions`), with the same defaults and the same checks: `timeoutMs`
+ * (default 30 s, 0 disables), `maxResponseBytes` (default 100 MiB, 0 disables),
+ * `maxRetries` (429/503 retries, default 2), `retryDelayMs`, `maxRedirects`
+ * (default 5) and `userAgent` (default `DEFAULT_USER_AGENT`).
+ */
+export interface ObtainKeyOptions
+  extends Pick<
+    EngineOptions,
+    | "transport"
+    | "timeoutMs"
+    | "maxResponseBytes"
+    | "userAgent"
+    | "maxRetries"
+    | "retryDelayMs"
+    | "maxRedirects"
+    | "sleep"
+  > {
   /** Pin a single source document (tests, mirrors) instead of trying each in turn. */
   sourceUrl?: string;
   /** API base URL used for the verification request; checked like the client's. */
   baseUrl?: string;
   /** Check the candidate against the live API before returning it (default true). */
   verify?: boolean;
-  /**
-   * Time limit per request in milliseconds, whole response included. Defaults to
-   * `DEFAULT_TIMEOUT_MS` (30 s), like the API client, so a stalled source cannot hang
-   * `eval "$(dip obtain-key --export)"`; 0 disables it.
-   */
-  timeoutMs?: number;
-  /**
-   * Cap on each response body in bytes. Defaults to `DEFAULT_MAX_RESPONSE_BYTES`
-   * (100 MiB), like the API client; 0 disables it.
-   */
-  maxResponseBytes?: number;
-  /** User-Agent header (default `DEFAULT_USER_AGENT`), checked like the client's. */
-  userAgent?: string;
 }
 
 export interface ObtainedKey {
@@ -137,57 +129,46 @@ export function extractKeyCandidates(document: string): string[] {
  * authenticate.
  */
 export async function obtainKey(options: ObtainKeyOptions = {}): Promise<ObtainedKey> {
-  // The same bounds as the API client, before any request.
-  validateLimits(options);
   const sources = options.sourceUrl !== undefined ? [options.sourceUrl] : [...KEY_SOURCE_URLS];
-  const transport = options.transport ?? nodeHttpTransport;
-  // As in the API client: only `undefined` selects the default; a blank or
-  // unsendable value is a DipValidationError before any request.
-  const userAgent =
-    options.userAgent === undefined
-      ? DEFAULT_USER_AGENT
-      : assertHeaderValue("userAgent", options.userAgent);
-  // Every request gets the client's limits: a source or API host that stalls, or
-  // streams without end, must not hang the command.
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
-  const limits = {
-    ...(timeoutMs > 0 ? { timeoutMs } : {}),
-    ...(maxResponseBytes > 0 ? { maxResponseBytes } : {}),
-  };
+  // Every request goes through the API client's engine: the same timeout and
+  // size cap (a source or API host that stalls, or streams without end, must not
+  // hang the command), 429/503 retry with Retry-After, redirect following with
+  // cross-origin credential stripping, and the same checks on the options (base
+  // URL, User-Agent, limits) before any request. No key is set on the engine;
+  // each verification request carries its candidate.
+  const engine = new RequestEngine({
+    ...(options.transport !== undefined ? { transport: options.transport } : {}),
+    ...(options.baseUrl !== undefined ? { baseUrl: options.baseUrl } : {}),
+    ...(options.userAgent !== undefined ? { userAgent: options.userAgent } : {}),
+    ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+    ...(options.maxResponseBytes !== undefined ? { maxResponseBytes: options.maxResponseBytes } : {}),
+    ...(options.maxRetries !== undefined ? { maxRetries: options.maxRetries } : {}),
+    ...(options.retryDelayMs !== undefined ? { retryDelayMs: options.retryDelayMs } : {}),
+    ...(options.maxRedirects !== undefined ? { maxRedirects: options.maxRedirects } : {}),
+    ...(options.sleep !== undefined ? { sleep: options.sleep } : {}),
+  });
   const verify = options.verify !== false;
-  // The verification request carries the candidate key, so check a given base
-  // URL up front, as the engine does, whatever transport was injected (also
-  // with verify off, so the same value is rejected on every path).
-  const baseUrl = options.baseUrl === undefined ? DEFAULT_BASE_URL : validateBaseUrl(options.baseUrl);
+  const baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
 
   // Why each source failed, in order, so the final error can say what was tried.
   const failures: string[] = [];
 
   for (const sourceUrl of sources) {
-    let response: HttpResponse;
+    let document: string;
     try {
-      response = await transport({
-        method: "GET",
-        url: sourceUrl,
-        headers: {
-          Accept: "application/json, text/plain, text/markdown;q=0.9, */*;q=0.8",
-          "User-Agent": userAgent,
-        },
-        ...limits,
+      const response = await engine.getAbsolute(sourceUrl, {
+        accept: "application/json, text/plain, text/markdown;q=0.9, */*;q=0.8",
       });
+      document = response.data.toString("utf8");
     } catch (err) {
-      // Unreachable (DNS, reset, timeout, size cap) is a reason to try the next
-      // source, just like a non-2xx status.
-      failures.push(`${sourceUrl} could not be read (${describeError(err)})`);
-      continue;
-    }
-    if (response.status < 200 || response.status >= 300) {
-      failures.push(`${sourceUrl} could not be read (HTTP ${response.status})`);
+      // A non-2xx status (after retries and redirects), or unreachable (DNS,
+      // reset, timeout, size cap): either way, try the next source.
+      const reason = err instanceof DipApiError ? `HTTP ${err.status}` : describeError(err);
+      failures.push(`${sourceUrl} could not be read (${reason})`);
       continue;
     }
 
-    const candidates = extractKeyCandidates(response.body.toString("utf8"));
+    const candidates = extractKeyCandidates(document);
     if (candidates.length === 0) {
       failures.push(`${sourceUrl} states no key`);
       continue;
@@ -196,38 +177,27 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
 
     let rejected = 0;
     for (const key of candidates) {
-      let check: HttpResponse;
       try {
-        check = await transport({
-          method: "GET",
-          url: `${baseUrl}${API_PATH}/vorgang`,
-          headers: {
-            Accept: "application/json",
-            Authorization: `ApiKey ${key}`,
-            "User-Agent": userAgent,
-          },
-          ...limits,
+        await engine.request("GET", `${API_PATH}/vorgang`, {
+          accept: "application/json",
+          headers: { Authorization: `ApiKey ${key}` },
         });
+        return { key, sourceUrl, verified: true };
       } catch (err) {
-        // The API host is unreachable: no verdict on the key, and every other
-        // candidate would be checked against the same host, so stop here.
+        if (err instanceof DipApiError && (err.status === 401 || err.status === 403)) {
+          rejected += 1;
+          continue;
+        }
+        // Not an authentication verdict: the API host is unreachable or unwell,
+        // so stop rather than blame the key or walk the remaining candidates
+        // against a broken host.
+        const reason = err instanceof DipApiError ? `HTTP ${err.status}` : describeError(err);
         throw new DipError(
-          `Could not verify the key against ${baseUrl} (${describeError(err)}). ` +
+          `Could not verify the key against ${redactUrl(baseUrl)} (${reason}). ` +
             `Re-run with --no-verify to print it unchecked, or see ${HELP_PAGE_URL}.`,
-          { cause: err },
+          err instanceof DipApiError ? {} : { cause: err },
         );
       }
-      if (check.status >= 200 && check.status < 300) return { key, sourceUrl, verified: true };
-      if (check.status === 401 || check.status === 403) {
-        rejected += 1;
-        continue;
-      }
-      // Not an authentication verdict — the API is unwell, so stop rather than
-      // blame the key or walk the remaining candidates against a broken host.
-      throw new DipError(
-        `Could not verify the key against ${baseUrl} (HTTP ${check.status}). ` +
-          `Re-run with --no-verify to print it unchecked, or see ${HELP_PAGE_URL}.`,
-      );
     }
     failures.push(
       `the key${rejected > 1 ? "s" : ""} published at ${sourceUrl} ` +

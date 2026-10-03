@@ -228,7 +228,9 @@ test("obtainKey passes explicit limits on, and 0 disables them", async () => {
   assert.ok(mt.calls.every((c) => c.timeoutMs === 5000 && c.maxResponseBytes === 4096));
   const unlimited = makeMockTransport(responder([KEY]));
   await obtainKey({ transport: unlimited.transport, timeoutMs: 0, maxResponseBytes: 0 });
-  assert.ok(unlimited.calls.every((c) => c.timeoutMs === undefined && c.maxResponseBytes === undefined));
+  // As in the API client: a 0 timeout is passed on (the transport arms no timer
+  // for it) and a 0 cap is left out.
+  assert.ok(unlimited.calls.every((c) => !c.timeoutMs && c.maxResponseBytes === undefined));
 });
 
 test("obtain-key hands --timeout and --max-response-bytes to every request", async () => {

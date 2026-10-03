@@ -6,10 +6,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DipClient, apiKeyProblem, normaliseApiKey } from "../src/client/client.js";
 import { DipValidationError } from "../src/client/errors.js";
-import { MAX_TIMEOUT_MS, type Transport } from "../src/client/http.js";
+import { MAX_TIMEOUT_MS, type HttpRequest, type HttpResponse, type Transport } from "../src/client/http.js";
 import { DEFAULT_USER_AGENT, MAX_REDIRECTS, MAX_RETRIES, RequestEngine } from "../src/client/engine.js";
-import { obtainKey } from "../src/client/obtain-key.js";
-import { jsonResponse, parity, requestKey, type ParityResult } from "./helpers.js";
+import { KEY_SOURCE_URL, obtainKey } from "../src/client/obtain-key.js";
+import { jsonResponse, parity, rawResponse, requestKey, type ParityResult } from "./helpers.js";
 
 const client = (transport: Transport): DipClient => new DipClient({ apiKey: "k", transport });
 
@@ -317,4 +317,77 @@ test("normaliseApiKey trims, maps blank to undefined and rejects unsendable keys
   assert.throws(() => normaliseApiKey("a\nb"), DipValidationError);
   assert.equal(apiKeyProblem("a\u0000b"), "Value contains control characters.");
   assert.equal(apiKeyProblem(" k\n"), undefined);
+});
+
+// ---- Finding 7 (PAT-22): obtainKey goes through the engine's retry/redirect policy
+
+const OK_KEY = "R2BZaee.DjdCyihKZMf8AOjtScubP2EVydegzjmBIQ";
+const HELP = `{"data":{"content":["<p>Der API-Key lautet:<br />${OK_KEY}</p>"]}}`;
+
+/**
+ * Every URL answers a 503 (Retry-After: 0) to every odd-numbered request and its
+ * real answer to the next one, so the CLI run and the library run that follows it
+ * on the same responder both see one 503 per URL before the answer.
+ */
+function flakyKeyServer() {
+  const count = new Map<string, number>();
+  return (req: HttpRequest): HttpResponse => {
+    const n = (count.get(req.url) ?? 0) + 1;
+    count.set(req.url, n);
+    if (n % 2 === 1) {
+      return { status: 503, headers: { "retry-after": "0" }, body: Buffer.from("busy") };
+    }
+    if (req.url === KEY_SOURCE_URL) return rawResponse(HELP, "application/json");
+    return req.headers?.["Authorization"] === `ApiKey ${OK_KEY}`
+      ? jsonResponse({ numFound: 0, documents: [] })
+      : rawResponse("denied", "text/plain", 401);
+  };
+}
+
+test("parity: --max-retries 3 obtain-key retries a 503 like obtainKey({ maxRetries: 3 })", async () => {
+  const r = await parity({
+    argv: ["--max-retries", "3", "obtain-key"],
+    lib: (t) => obtainKey({ transport: t, maxRetries: 3 }),
+    responder: flakyKeyServer(),
+  });
+  assertSameRequests(r);
+  assert.equal(r.cli.out, OK_KEY);
+  assert.deepEqual(r.lib.ok && r.lib.value, { key: OK_KEY, sourceUrl: KEY_SOURCE_URL, verified: true });
+  // One 503 and one retry on the source, then on the verification.
+  assert.equal(r.lib.requests.length, 4);
+});
+
+test("parity: --max-retries 0 obtain-key does not retry, like obtainKey({ maxRetries: 0 })", async () => {
+  const r = await parity({
+    argv: ["--max-retries", "0", "obtain-key"],
+    lib: (t) => obtainKey({ transport: t, maxRetries: 0 }),
+    responder: () => ({ status: 503, headers: { "retry-after": "0" }, body: Buffer.from("busy") }),
+  });
+  assert.equal(r.cli.code, 1);
+  // One request per source, no retry.
+  assert.equal(r.cli.requests.length, 2);
+  assert.equal(r.lib.ok, false);
+  assert.deepEqual(r.cli.requests.map(requestKey), r.lib.requests.map(requestKey));
+  assert.match(r.cli.err, /could not be read \(HTTP 503\)/);
+});
+
+test("obtainKey retries a 503 on the help document by default and yields the current key", async () => {
+  const r = await parity({ argv: ["obtain-key", "--no-verify"], lib: (t) => obtainKey({ transport: t, verify: false }), responder: flakyKeyServer() });
+  assert.equal(r.cli.out, OK_KEY);
+  assert.deepEqual(r.lib.ok && r.lib.value, { key: OK_KEY, sourceUrl: KEY_SOURCE_URL, verified: false });
+});
+
+test("obtainKey follows a same-origin redirect on the verification request, like vorgang list", async () => {
+  const responder = (req: HttpRequest): HttpResponse => {
+    if (req.url === KEY_SOURCE_URL) return rawResponse(HELP, "application/json");
+    if (req.url === "https://search.dip.bundestag.de/api/v1/vorgang") {
+      return { status: 301, headers: { location: "/api/v1/vorgang/" }, body: Buffer.alloc(0) };
+    }
+    return req.headers?.["Authorization"] === `ApiKey ${OK_KEY}`
+      ? jsonResponse({ numFound: 0, documents: [] })
+      : rawResponse("denied", "text/plain", 401);
+  };
+  const r = await parity({ argv: ["obtain-key"], lib: (t) => obtainKey({ transport: t }), responder });
+  assertSameRequests(r);
+  assert.deepEqual(r.lib.ok && r.lib.value, { key: OK_KEY, sourceUrl: KEY_SOURCE_URL, verified: true });
 });

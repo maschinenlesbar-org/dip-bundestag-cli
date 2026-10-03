@@ -371,17 +371,48 @@ export class RequestEngine {
     return `${this.baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;
   }
 
-  /** Perform a request with Accept negotiation and transient-error retries. */
+  /**
+   * Perform a request with Accept negotiation, transient-error retries and
+   * redirect following. `headers` are added to this request only (after the
+   * default headers); credential headers among them are stripped on a
+   * cross-origin redirect like the default ones.
+   */
   async request(
     method: string,
     path: string,
-    options: { query?: QueryParams; accept: string } = { accept: "application/json" },
+    options: { query?: QueryParams; accept: string; headers?: Record<string, string> } = {
+      accept: "application/json",
+    },
   ): Promise<RawResponse> {
-    let url = this.buildUrl(path, options.query);
+    return this.send(method, this.buildUrl(path, options.query), options.accept, options.headers);
+  }
+
+  /**
+   * GET an absolute URL (not under the base URL) with the same policy as every
+   * other request: timeout, size cap, 429/503 retry with Retry-After, redirect
+   * following with cross-origin credential stripping. A non-2xx answer throws
+   * `DipApiError` (its `status` says which). `obtainKey` reads its key sources
+   * with this.
+   */
+  async getAbsolute(
+    url: string,
+    options: { accept: string; headers?: Record<string, string> },
+  ): Promise<RawResponse> {
+    return this.send("GET", url, options.accept, options.headers);
+  }
+
+  private async send(
+    method: string,
+    startUrl: string,
+    accept: string,
+    extraHeaders: Record<string, string> = {},
+  ): Promise<RawResponse> {
+    let url = startUrl;
     let headers: Record<string, string> = {
-      Accept: options.accept,
+      Accept: accept,
       "User-Agent": this.userAgent,
       ...this.defaultHeaders,
+      ...extraHeaders,
     };
 
     let attempt = 0;

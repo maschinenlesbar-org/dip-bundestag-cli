@@ -86,9 +86,11 @@ comes from DIP's own content service as plain JSON, so the key is read from ther
 `content.dip.bundestag.de/content-api/v1/content/help-api`. If that document is
 unreachable or its key is rejected, the upstream
 [bundesAPI/dip-bundestag-api](https://github.com/bundesAPI/dip-bundestag-api)
-README is tried as a fallback. Every request `obtain-key` makes has the same
-limits as the other commands — `--timeout` (default 30 s) and `--max-response-bytes`
-(default 100 MiB) — so a stalled host fails the command instead of hanging it.
+README is tried as a fallback. Every request `obtain-key` makes goes through the
+same request engine as the other commands — `--timeout` (default 30 s),
+`--max-response-bytes` (default 100 MiB), `--max-retries` for a 429/503, and
+redirect following — so a stalled host fails the command instead of hanging it, and
+a passing 503 does not.
 The key only ever goes to stdout: `-o` is refused (redirect stdout instead), and with
 `--base-url` the check runs against that host, which the stderr note then names
 instead of "the live API".
