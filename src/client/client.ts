@@ -15,6 +15,7 @@
 import { API_PATH, RequestEngine, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
 import type { ListResult, Document } from "./types.js";
+import { filterKeyProblem, type ListResource } from "./filters.js";
 import {
   assertNonBlankParams,
   assertValid,
@@ -40,11 +41,21 @@ export interface DipClientOptions extends EngineOptions {
   apiKey?: string;
 }
 
+/** Options for `list()`. */
+export interface ListOptions {
+  /**
+   * Send filter keys that are not in `LIST_FILTERS` for this resource, for a filter
+   * DIP added after the table was read. Default `false`: an unknown key is
+   * rejected, because DIP ignores it and returns the whole unfiltered list.
+   */
+  allowUnknownFilters?: boolean;
+}
+
 /** A DIP resource: cursor-paginated `list` plus `get` by id. */
 class ResourceGroup {
   constructor(
     private readonly e: RequestEngine,
-    private readonly path: string,
+    private readonly path: ListResource,
   ) {}
 
   /**
@@ -53,10 +64,18 @@ class ResourceGroup {
    * Rejects with `DipValidationError`, before any request, for a blank parameter
    * name, a blank value, an empty array or a blank array element: DIP treats an
    * empty parameter as no filter and would answer with the whole unfiltered list.
-   * `undefined`/`null` values are omitted.
+   * `undefined`/`null` values are omitted. It also rejects a key that is not one
+   * of the resource's filters (`LIST_FILTERS`) or `cursor`, which DIP would ignore
+   * in the same way, unless `options.allowUnknownFilters` is set.
    */
-  async list(params: QueryParams = {}): Promise<ListResult> {
+  async list(params: QueryParams = {}, options: ListOptions = {}): Promise<ListResult> {
     assertNonBlankParams(params);
+    if (options.allowUnknownFilters !== true) {
+      const problem = filterKeyProblem(this.path);
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined && value !== null) assertValid("filter", key, problem);
+      }
+    }
     return this.e.getJson(`${API}/${this.path}`, params);
   }
 

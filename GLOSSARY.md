@@ -106,8 +106,10 @@ e.g. `f.titel` (title), `f.id`, `f.wahlperiode`, `f.datum.start` /
 `f.aktualisiert.start` (last-updated range). Each list endpoint has its own set
 (`LIST_FILTERS`, from DIP's OpenAPI description): `f.vorgang` exists only on
 `vorgangsposition`, `f.person` only on `person` and `aktivitaet`. DIP **ignores an
-unknown filter** and returns the whole unfiltered list, so the CLI rejects a key
-that is not in the resource's set (exit 2). It passes the rest verbatim via
+unknown filter** and returns the whole unfiltered list, so the library's `list()`
+and the CLI reject a key that is not in the resource's set (the CLI with exit 2);
+`list(params, { allowUnknownFilters: true })` sends one anyway, for a filter DIP
+added later. It passes the rest verbatim via
 `--filter key=value` (repeatable); only the first `=` splits key from value, so a
 value may itself contain `=`. Repeating the same key sends repeated query keys
 (`?f.id=1&f.id=2`), which DIP treats as an OR set. A blank filter value, `--id`

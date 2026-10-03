@@ -7,7 +7,7 @@ import type { CliDeps } from "../io.js";
 import { action, parseNonEmpty, renderJson } from "../shared.js";
 import type { DipClient } from "../../client/client.js";
 import type { QueryParams } from "../../client/query.js";
-import { LIST_FILTERS, type ListResource } from "../../client/filters.js";
+import { filterKeyProblem, type ListResource } from "../../client/filters.js";
 import { isBlank } from "../../client/validate.js";
 
 type ResourceKey =
@@ -64,20 +64,18 @@ type FilterMap = Record<string, string[]>;
  * clobber the earlier ones — mirroring how `--id`/`f.id` are merged below.
  */
 function filterCollector(resource: ListResource): (value: string, previous?: FilterMap) => FilterMap {
-  const known = LIST_FILTERS[resource];
+  const problem = filterKeyProblem(resource);
   return (value, previous = {}) => {
     const [key, val] = splitFilter(value);
+    // The library takes `cursor` in list(); on the command line it has its own option.
     if (key === "cursor") {
       throw new InvalidArgumentError(
         `"cursor" is a paging or sorting parameter, not a filter. Use --cursor on list instead.`,
       );
     }
-    if (!known.includes(key)) {
-      throw new InvalidArgumentError(
-        `Unknown filter "${key}" for ${resource}. DIP ignores unknown filters and would ` +
-          `return the whole unfiltered list. Filters for ${resource}: ${known.join(", ")}.`,
-      );
-    }
+    // The same check list() applies, checked here first for the usage error.
+    const reason = problem(key);
+    if (reason !== undefined) throw new InvalidArgumentError(reason);
     return { ...previous, [key]: (previous[key] ?? []).concat([val]) };
   };
 }

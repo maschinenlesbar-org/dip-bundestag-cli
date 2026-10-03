@@ -442,3 +442,49 @@ for (const [baseUrl, message] of malformedBaseUrls) {
     }
   });
 }
+
+// ---- Finding 1 (PAT-13): unknown filter keys -----------------------------------
+
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const unknownFilterCases: Array<{ argv: string[]; lib: (t: Transport) => Promise<unknown>; key: string; resource: string }> = [
+  { argv: ["vorgang", "list", "--filter", "f.titl=Klima"], lib: (t) => client(t).vorgaenge.list({ "f.titl": "Klima" }), key: "f.titl", resource: "vorgang" },
+  { argv: ["vorgang", "list", "--filter", "F.TITEL=Klima"], lib: (t) => client(t).vorgaenge.list({ "F.TITEL": "Klima" }), key: "F.TITEL", resource: "vorgang" },
+  { argv: ["vorgang", "list", "--filter", "f.person=Merz"], lib: (t) => client(t).vorgaenge.list({ "f.person": "Merz" }), key: "f.person", resource: "vorgang" },
+  { argv: ["drucksache", "list", "--filter", " f.titel=Klima"], lib: (t) => client(t).drucksachen.list({ " f.titel": "Klima" }), key: " f.titel", resource: "drucksache" },
+  { argv: ["aktivitaet", "list", "--filter", "f.vorgang=1"], lib: (t) => client(t).aktivitaeten.list({ "f.vorgang": "1" }), key: "f.vorgang", resource: "aktivitaet" },
+];
+
+for (const c of unknownFilterCases) {
+  test(`parity: unknown filter ${JSON.stringify(c.key)} on ${c.resource} is rejected by both before any request`, async () => {
+    const r = await parity({ argv: ["--api-key", "k", ...c.argv], lib: c.lib });
+    const reason = `Unknown filter "${escapeRe(c.key)}" for ${c.resource}\\. DIP ignores unknown filters and would return the whole unfiltered list\\. Filters for ${c.resource}: `;
+    assertBothReject(r, new RegExp(`^Invalid filter: ${reason}`));
+    assert.match(r.cli.err, new RegExp(reason));
+  });
+}
+
+test("list(params, { allowUnknownFilters: true }) sends a filter that is not in LIST_FILTERS", async () => {
+  const calls: HttpRequest[] = [];
+  const t: Transport = async (req) => {
+    calls.push(req);
+    return jsonResponse({ numFound: 0, documents: [], cursor: "AoE" });
+  };
+  await client(t).vorgaenge.list({ "f.neuer_filter": "x", "f.titel": "Klima" }, { allowUnknownFilters: true });
+  assert.equal(calls.length, 1);
+  assert.match(calls[0]!.url, /\/vorgang\?f\.neuer_filter=x&f\.titel=Klima$/);
+  // The blank checks still apply with the opt-out.
+  await assert.rejects(client(t).vorgaenge.list({ "f.neuer_filter": " " }, { allowUnknownFilters: true }), DipValidationError);
+  assert.equal(calls.length, 1);
+});
+
+test("list() still accepts the resource's own filters and the cursor", async () => {
+  const calls: HttpRequest[] = [];
+  const t: Transport = async (req) => {
+    calls.push(req);
+    return jsonResponse({ numFound: 0, documents: [], cursor: "AoE" });
+  };
+  await client(t).personen.list({ "f.person": "Merz", cursor: "AoE" });
+  await client(t).aktivitaeten.list({ "f.person": "Merz", "f.id": ["1", "2"] });
+  assert.equal(calls.length, 2);
+});

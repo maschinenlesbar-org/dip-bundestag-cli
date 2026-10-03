@@ -164,11 +164,13 @@ src/
   (or `DIP_API_KEY`).
 - The eight resources share one generic `ResourceGroup`, so adding a resource is
   a one-line change (plus its filter set in `filters.ts`).
-- DIP ignores unknown query keys and then returns the unfiltered list, so the CLI
-  checks every `--filter` key against `LIST_FILTERS` (taken from the official
-  OpenAPI description, `https://search.dip.bundestag.de/api/v1/openapi.yaml`).
-  When DIP adds a filter, add it there. The library's `list(params)` passes any
-  key on unchecked.
+- DIP ignores unknown query keys and then returns the unfiltered list, so the
+  library's `list(params)` rejects every key that is not in `LIST_FILTERS` (taken
+  from the official OpenAPI description,
+  `https://search.dip.bundestag.de/api/v1/openapi.yaml`) or `cursor`, with
+  `DipValidationError` before the request (`filterKeyProblem`). The CLI's
+  `--filter` uses the same check. When DIP adds a filter, add it there; until
+  then `list(params, { allowUnknownFilters: true })` sends it anyway.
 - The HTTP layer is a single `Transport` function; the default uses
   `node:http`/`node:https` and tests inject a mock.
 - The CLI is built around injectable `CliDeps`, so the whole program can be

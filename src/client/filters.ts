@@ -4,9 +4,10 @@
 //
 // DIP ignores a query parameter it does not know: `vorgang list` with a mistyped
 // `f.titl=Klima`, or with `f.person` (which only `person`/`aktivitaet` have),
-// answers with the whole unfiltered list and HTTP 200. Callers that take filter
-// names from users (the CLI's `--filter`) check them against this table, because
-// nothing downstream will. The library's `list(params)` itself passes any key on.
+// answers with the whole unfiltered list and HTTP 200. So the library's
+// `list(params)` rejects any other key before the request (`filterKeyProblem`),
+// and the CLI's `--filter` uses the same check. A filter DIP adds after this
+// table was read can still be sent with `list(params, { allowUnknownFilters: true })`.
 
 /** The list endpoints, by their path segment under `/api/v1`. */
 export type ListResource =
@@ -120,3 +121,21 @@ export const LIST_FILTERS: Readonly<Record<ListResource, readonly string[]>> = {
   ],
   person: [...DATES, "f.id", "f.person", "f.wahlperiode"],
 };
+
+/** The paging parameter `list()` takes besides the resource's `f.*` filters. */
+export const LIST_PAGING_PARAMS: readonly string[] = ["cursor"];
+
+/**
+ * Why `key` cannot be sent to `resource`'s list endpoint, or `undefined` when it is
+ * one of the resource's filters (`LIST_FILTERS`) or the `cursor`. DIP ignores an
+ * unknown key and answers with the whole unfiltered list, so a typo or another
+ * resource's filter must not reach it.
+ */
+export function filterKeyProblem(resource: ListResource): (key: string) => string | undefined {
+  const known = LIST_FILTERS[resource];
+  return (key) =>
+    known.includes(key) || LIST_PAGING_PARAMS.includes(key)
+      ? undefined
+      : `Unknown filter "${key}" for ${resource}. DIP ignores unknown filters and would ` +
+        `return the whole unfiltered list. Filters for ${resource}: ${known.join(", ")}.`;
+}
