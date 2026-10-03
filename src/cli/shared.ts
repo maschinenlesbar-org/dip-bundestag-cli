@@ -90,28 +90,12 @@ export function parseBoundedInt(min: number, max: number): (value: string) => nu
 }
 
 /**
- * commander value-parser: an absolute http(s) URL. A `file:`/`ftp:` or malformed
- * --base-url is a usage error here rather than reaching the request engine.
+ * commander value-parser for `--base-url`: the library's `baseUrlProblem` (an
+ * absolute http(s) URL without query, fragment, whitespace or a trailing
+ * `/api/v1`), reported as a usage error. A `file:`/`ftp:` or malformed value
+ * never reaches the request engine.
  */
 export function parseBaseUrl(value: string): string {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new InvalidArgumentError("Expected an absolute http(s) URL.");
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new InvalidArgumentError(
-      `Unsupported scheme "${url.protocol}". Expected an http(s) URL.`,
-    );
-  }
-  // Paths are appended to the base URL as a string, so a query or fragment would
-  // swallow every request path ("http://h/#f" requests "/" for every command).
-  if (/[?#]/.test(value)) {
-    throw new InvalidArgumentError("A base URL cannot have a query (?) or fragment (#).");
-  }
-  // Surrounding whitespace, whitespace inside and a trailing /api/v1: the
-  // library's rules (validateBaseUrl), reported as a usage error.
   const problem = baseUrlProblem(value);
   if (problem !== undefined) throw new InvalidArgumentError(problem);
   return value;

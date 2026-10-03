@@ -163,8 +163,9 @@ for `f.datum.*` (HTTP 400 `Invalid date`). Library users pass `f.datum.*` as a
 `--base-url` (CLI) or `baseUrl` (library). All resource paths are under
 `/api/v1`, which the client adds: the base URL is the host (plus any mirror path
 prefix) without it. The CLI and the library (`validateBaseUrl`) reject one that
-ends in `/api/v1`, has surrounding whitespace or whitespace inside, or has a query
-or fragment, before any request. Userinfo in it (`user:password@`) is sent, but redacted to `***@` in
+does not parse, is not `http:`/`https:`, ends in `/api/v1`, has surrounding
+whitespace or whitespace inside, or has a query or fragment, before any request,
+with the same reason (library: `DipValidationError`, not `DipNetworkError`). Userinfo in it (`user:password@`) is sent, but redacted to `***@` in
 error messages.
 
 **Rate limiting.** DIP limits the request rate; the API returns **429** when it is
@@ -181,7 +182,7 @@ redirects keep it.
 
 **Error types.** [`errors.ts`](src/client/errors.ts): `DipApiError` (non-2xx,
 carries `status`/`detail`/`url`/`method`/`body`, with `isRetryable` for 429/503),
-`DipNetworkError` (transport failure/timeout), `DipParseError` (bad JSON),
+`DipNetworkError` (transport failure/timeout, never a bad base URL), `DipParseError` (bad JSON),
 `DipUsageError` (a usage error, no request made) and its subclass
 `DipValidationError` (the library rejected an input before any request:
 `Invalid <name>: <reason>`), all extending `DipError`. Exit codes: `0` success, `2` usage errors, `4` on a `404`, `1` for

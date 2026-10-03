@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DipClient, apiKeyProblem, normaliseApiKey } from "../src/client/client.js";
-import { DipValidationError } from "../src/client/errors.js";
+import { DipNetworkError, DipValidationError } from "../src/client/errors.js";
 import { MAX_TIMEOUT_MS, type HttpRequest, type HttpResponse, type Transport } from "../src/client/http.js";
 import { DEFAULT_USER_AGENT, MAX_REDIRECTS, MAX_RETRIES, RequestEngine } from "../src/client/engine.js";
 import { KEY_SOURCE_URL, obtainKey } from "../src/client/obtain-key.js";
@@ -391,3 +391,37 @@ test("obtainKey follows a same-origin redirect on the verification request, like
   assertSameRequests(r);
   assert.deepEqual(r.lib.ok && r.lib.value, { key: OK_KEY, sourceUrl: KEY_SOURCE_URL, verified: true });
 });
+
+// ---- Finding 9 (PAT-2): an invalid base URL is a DipValidationError -----------
+
+const malformedBaseUrls: Array<[string, RegExp]> = [
+  ["ftp://h.example", /Unsupported scheme "ftp:"\. Expected an http\(s\) URL\./],
+  ["file:///etc/passwd", /Unsupported scheme "file:"\. Expected an http\(s\) URL\./],
+  ["https://h.example/?q=1", /A base URL cannot have a query \(\?\) or fragment \(#\)\./],
+  ["https://h.example/#f", /A base URL cannot have a query \(\?\) or fragment \(#\)\./],
+  ["", /Expected an absolute http\(s\) URL\./],
+  ["not a url", /Expected an absolute http\(s\) URL\./],
+];
+
+for (const [baseUrl, message] of malformedBaseUrls) {
+  test(`parity: --base-url ${JSON.stringify(baseUrl)} is a DipValidationError in DipClient, not a network error`, async () => {
+    const r = await parity({
+      argv: ["--base-url", baseUrl, "vorgang", "list"],
+      lib: (t) => new DipClient({ apiKey: "k", baseUrl, transport: t }).vorgaenge.list(),
+    });
+    assertBothReject(r, new RegExp(`^Invalid baseUrl: ${message.source}$`));
+    assert.ok(!(r.lib.ok === false && r.lib.error instanceof DipNetworkError));
+    assert.match(r.cli.err, message);
+  });
+
+  test(`parity: --base-url ${JSON.stringify(baseUrl)} is a DipValidationError in obtainKey`, async () => {
+    for (const verify of [true, false]) {
+      const r = await parity({
+        argv: ["--base-url", baseUrl, "obtain-key", ...(verify ? [] : ["--no-verify"])],
+        lib: (t) => obtainKey({ baseUrl, transport: t, verify }),
+      });
+      assertBothReject(r, new RegExp(`^Invalid baseUrl: ${message.source}$`));
+      assert.match(r.cli.err, message);
+    }
+  });
+}

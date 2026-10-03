@@ -3,10 +3,18 @@ import assert from "node:assert/strict";
 import {
   MAX_RETRY_AFTER_MS,
   RequestEngine,
+  baseUrlProblem,
   escapeRawControlCharsInStrings,
   parseRetryAfter,
+  validateBaseUrl,
 } from "../src/client/engine.js";
-import { DipApiError, DipNetworkError, DipParseError, redactUrl } from "../src/client/errors.js";
+import {
+  DipApiError,
+  DipNetworkError,
+  DipParseError,
+  DipValidationError,
+  redactUrl,
+} from "../src/client/errors.js";
 import type { HttpResponse } from "../src/client/http.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 
@@ -203,14 +211,50 @@ test("the error detail is stripped of terminal control characters", async () => 
 });
 
 // The default transport rejects a non-http(s) URL per hop, but a library consumer
-// may inject its own transport, so the engine gates the base URL itself.
+// may inject its own transport, so the engine gates the base URL itself. A bad
+// base URL is a configuration error (DipValidationError), not a transport failure.
 for (const baseUrl of ["file:///etc/passwd", "ftp://example.org", "notaurl"]) {
   test(`the engine rejects the base URL ${baseUrl} before any request`, () => {
     const mt = makeMockTransport(() => jsonResponse({ ok: true }));
-    assert.throws(() => new RequestEngine({ baseUrl, transport: mt.transport }), DipNetworkError);
+    assert.throws(
+      () => new RequestEngine({ baseUrl, transport: mt.transport }),
+      (e: unknown) => e instanceof DipValidationError && !(e instanceof DipNetworkError),
+    );
     assert.equal(mt.calls.length, 0);
   });
 }
+
+test("baseUrlProblem: parse, scheme, query/fragment, whitespace and /api/v1, in that order", () => {
+  const cases: Array<[string, string | undefined]> = [
+    ["https://search.dip.bundestag.de", undefined],
+    ["http://localhost:8080/", undefined],
+    ["https://user:pw@h.example/mirror", undefined],
+    ["", "Expected an absolute http(s) URL."],
+    ["notaurl", "Expected an absolute http(s) URL."],
+    ["not a url", "Expected an absolute http(s) URL."],
+    ["ftp://h.example", 'Unsupported scheme "ftp:". Expected an http(s) URL.'],
+    ["file:///etc/passwd", 'Unsupported scheme "file:". Expected an http(s) URL.'],
+    ["ftp://h.example ", 'Unsupported scheme "ftp:". Expected an http(s) URL.'],
+    ["https://h.example/?q=1", "A base URL cannot have a query (?) or fragment (#)."],
+    ["https://h.example/#f", "A base URL cannot have a query (?) or fragment (#)."],
+    ["https://h.example/? ", "A base URL cannot have a query (?) or fragment (#)."],
+    [" https://h.example", "A base URL cannot have surrounding whitespace."],
+    ["https://h.example/a b", "A base URL cannot contain whitespace or control characters."],
+  ];
+  for (const [value, reason] of cases) assert.equal(baseUrlProblem(value), reason, JSON.stringify(value));
+  // The reason never echoes the value (a base URL may carry a password).
+  assert.ok(!baseUrlProblem("ftp://user:secret@h.example")?.includes("secret"));
+});
+
+test("validateBaseUrl throws DipValidationError and strips trailing slashes", () => {
+  assert.equal(validateBaseUrl("https://h.example/mirror//"), "https://h.example/mirror");
+  assert.throws(
+    () => validateBaseUrl("ftp://h.example"),
+    (e: unknown) =>
+      e instanceof DipValidationError &&
+      e.message === 'Invalid baseUrl: Unsupported scheme "ftp:". Expected an http(s) URL.',
+  );
+});
 
 // ---- Retry-After ----
 
@@ -271,13 +315,13 @@ test("parseRetryAfter reads delay-seconds and IMF-fixdate HTTP-dates", () => {
   assert.equal(MAX_RETRY_AFTER_MS, 30_000);
 });
 
-test("the engine rejects a base URL with a query or fragment, redacting userinfo", () => {
+test("the engine rejects a base URL with a query or fragment without echoing userinfo", () => {
   for (const baseUrl of ["https://api.test/?x=1", "https://u:secret@api.test/#f"]) {
     assert.throws(
       () => new RequestEngine({ baseUrl }),
       (err: unknown) =>
-        err instanceof DipNetworkError &&
-        /^Base URL must not contain a query or fragment: /.test(err.message) &&
+        err instanceof DipValidationError &&
+        err.message === "Invalid baseUrl: A base URL cannot have a query (?) or fragment (#)." &&
         !err.message.includes("secret"),
     );
   }

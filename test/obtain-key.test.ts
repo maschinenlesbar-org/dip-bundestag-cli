@@ -199,7 +199,7 @@ test("obtainKey rejects a non-http(s) base URL before any request", async () => 
   const mt = makeMockTransport(responder([KEY]));
   await assert.rejects(
     () => obtainKey({ transport: mt.transport, baseUrl: "file:///etc/passwd" }),
-    DipNetworkError,
+    DipValidationError,
   );
   assert.equal(mt.calls.length, 0);
 });

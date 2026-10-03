@@ -4,7 +4,7 @@
 
 import { MAX_TIMEOUT_MS, nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
-import { DipApiError, DipError, DipNetworkError, DipParseError, redactUrl } from "./errors.js";
+import { DipApiError, DipError, DipParseError, redactUrl } from "./errors.js";
 import {
   assertHeaderValue,
   assertValid,
@@ -98,8 +98,10 @@ export interface EngineOptions {
   /**
    * Base URL of the API: the host (plus any mirror path prefix), **without**
    * `/api/v1`, which the client adds. Defaults to https://search.dip.bundestag.de.
-   * Checked by `validateBaseUrl`: surrounding whitespace, whitespace or control
-   * characters inside, and a trailing `/api/v1` are a `DipValidationError`.
+   * Checked by `validateBaseUrl` (`baseUrlProblem`): a value that does not parse,
+   * a scheme other than http(s), a query or fragment, surrounding whitespace,
+   * whitespace or control characters inside, and a trailing `/api/v1` are a
+   * `DipValidationError`.
    */
   baseUrl?: string;
   /** Swappable transport. Defaults to the built-in node http/https transport. */
@@ -195,32 +197,6 @@ export function parseRetryAfter(
   return Number.isNaN(when) ? undefined : Math.max(0, when - now);
 }
 
-/**
- * Reject a base URL whose scheme is not http(s), or that has a query or fragment.
- * The default transport already gates the scheme per hop, but the engine is
- * exported as a library and may be handed a custom transport that does no such
- * check, so gate the configured base URL here too (a `file:`/`ftp:` base URL fails
- * fast with a typed error). Request paths are appended to the base URL as a string,
- * so a `?` or `#` in it would swallow every path: `http://h/?x=1` requests
- * `/?x=1/api/v1/...` and `http://h/#f` requests `/`.
- */
-export function assertHttpScheme(baseUrl: string): void {
-  let url: URL;
-  try {
-    url = new URL(baseUrl);
-  } catch {
-    throw new DipNetworkError(`Invalid base URL: ${redactUrl(baseUrl)}`);
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new DipNetworkError(
-      `Unsupported protocol "${url.protocol}" in base URL: ${redactUrl(baseUrl)}`,
-    );
-  }
-  if (/[?#]/.test(baseUrl)) {
-    throw new DipNetworkError(`Base URL must not contain a query or fragment: ${redactUrl(baseUrl)}`);
-  }
-}
-
 /** The numeric limits an engine (or `obtainKey`) takes. */
 export type EngineLimits = Pick<
   EngineOptions,
@@ -251,23 +227,39 @@ export function validateLimits(limits: EngineLimits): void {
 }
 
 /**
- * The shape rules for a base URL that `new URL()` would hide: it trims
- * surrounding whitespace and C0 controls and drops tab/CR/LF inside, but the
- * engine appends paths to the raw string, so `"https://h "` would request
- * `https://h /api/v1/...`. A path ending in `/api/v1` would request
- * `/api/v1/api/v1/...` and get a 404. (Parsing, scheme and `?`/`#` are
- * `assertHttpScheme`'s checks; a value that does not parse passes here.)
+ * Why a configured base URL cannot be used, or `undefined`. Checked in this
+ * order (the first problem is reported):
+ *
+ * - it must parse as an absolute URL;
+ * - the scheme must be http(s). The default transport also gates the scheme per
+ *   hop, but the engine is exported as a library and may be handed a custom
+ *   transport that does no such check;
+ * - no query or fragment: request paths are appended to the base URL as a
+ *   string, so `http://h/?x=1` would request `/?x=1/api/v1/...` and `http://h/#f`
+ *   would request `/`;
+ * - no surrounding whitespace and no whitespace or control character inside.
+ *   `new URL()` trims the first and drops tab/CR/LF inside, but the engine
+ *   appends paths to the raw string, so `"https://h "` would request
+ *   `https://h /api/v1/...`;
+ * - the path must not end in `/api/v1`, which the client appends itself
+ *   (`/api/v1/api/v1/...` is a 404).
+ *
+ * The reason never echoes the value: a base URL may carry a password.
  */
 export const baseUrlProblem: Problem<string> = (value) => {
-  if (value !== value.trim()) return "A base URL cannot have surrounding whitespace.";
-  if (/[\u0000-\u0020\u007f]/.test(value)) {
-    return "A base URL cannot contain whitespace or control characters.";
-  }
   let url: URL;
   try {
     url = new URL(value);
   } catch {
-    return undefined;
+    return "Expected an absolute http(s) URL.";
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    return `Unsupported scheme "${url.protocol}". Expected an http(s) URL.`;
+  }
+  if (/[?#]/.test(value)) return "A base URL cannot have a query (?) or fragment (#).";
+  if (value !== value.trim()) return "A base URL cannot have surrounding whitespace.";
+  if (/[\u0000-\u0020\u007f]/.test(value)) {
+    return "A base URL cannot contain whitespace or control characters.";
   }
   const path = url.pathname.replace(/\/+$/, "");
   if (path.endsWith(API_PATH)) {
@@ -282,14 +274,15 @@ export const baseUrlProblem: Problem<string> = (value) => {
 };
 
 /**
- * Check a configured base URL and return it without trailing slashes. Throws
- * `DipValidationError` (`Invalid baseUrl: ...`) for the `baseUrlProblem` rules,
- * then runs `assertHttpScheme`. Called by the `RequestEngine` constructor and by
- * `obtainKey` on the raw value, before any request.
+ * Check a configured base URL (`baseUrlProblem`) and return it without trailing
+ * slashes. Throws `DipValidationError` (`Invalid baseUrl: ...`): a bad base URL
+ * is a configuration error, not a transport failure (`DipNetworkError` is kept
+ * for the default transport's per-hop checks). Called by the `RequestEngine`
+ * constructor (so `DipClient` and `obtainKey` too) on the raw value, before any
+ * request.
  */
 export function validateBaseUrl(raw: string): string {
   assertValid("baseUrl", raw, baseUrlProblem);
-  assertHttpScheme(raw);
   return raw.replace(/\/+$/, "");
 }
 

@@ -166,8 +166,10 @@ ist `2023-12-31T23:00:00.000Z`, also der Vortag.
 `--base-url` (CLI) oder `baseUrl` (Bibliothek). Alle Ressourcenpfade liegen unter
 `/api/v1`, das der Client selbst anhängt: Die Basis-URL ist der Host (plus ein etwaiges
 Pfadpräfix eines Spiegels) ohne diesen Teil. CLI und Bibliothek (`validateBaseUrl`)
-lehnen vor jeder Anfrage eine URL ab, die auf `/api/v1` endet, Leerraum am Rand oder im
-Inneren enthält oder eine Query bzw. ein Fragment hat. Zugangsdaten darin
+lehnen vor jeder Anfrage mit derselben Begründung eine URL ab, die sich nicht parsen
+lässt, nicht `http:`/`https:` ist, auf `/api/v1` endet, Leerraum am Rand oder im
+Inneren enthält oder eine Query bzw. ein Fragment hat (Bibliothek: `DipValidationError`,
+nicht `DipNetworkError`). Zugangsdaten darin
 (`user:password@`) werden gesendet, in Fehlermeldungen aber zu `***@` geschwärzt.
 
 **Rate-Limiting.** Das DIP begrenzt die Anfragerate; bei Überschreitung antwortet die
@@ -185,7 +187,7 @@ Weiterleitungen innerhalb desselben Origins behalten ihn.
 
 **Fehlertypen.** [`errors.ts`](src/client/errors.ts): `DipApiError` (Nicht-2xx-Antwort,
 enthält `status`/`detail`/`url`/`method`/`body` sowie `isRetryable` für 429/503),
-`DipNetworkError` (Transportfehler/Timeout), `DipParseError` (ungültiges JSON),
+`DipNetworkError` (Transportfehler/Timeout, nie eine ungültige Basis-URL), `DipParseError` (ungültiges JSON),
 `DipUsageError` (ein Bedienfehler, keine Anfrage gesendet) und dessen Unterklasse
 `DipValidationError` (die Bibliothek hat eine Eingabe vor jeder Anfrage abgelehnt:
 `Invalid <name>: <reason>`), alle abgeleitet von `DipError`. Exit-Codes: `0` bei Erfolg, `2` bei Bedienfehlern, `4` bei `404`, `1` bei

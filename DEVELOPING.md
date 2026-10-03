@@ -213,13 +213,17 @@ What the library rejects:
   tab, or a character above U+00FF; a `defaultHeaders` name that is not an HTTP
   token. Only `undefined` selects `DEFAULT_USER_AGENT`, in the client and in
   `obtainKey` alike. The CLI's `parseHeaderValue` wraps `headerValueProblem`.
-- **Base URL shape** (`validateBaseUrl`/`baseUrlProblem`, in the `RequestEngine`
+- **Base URL** (`validateBaseUrl`/`baseUrlProblem`, in the `RequestEngine`
   constructor, so in `obtainKey` too whenever `baseUrl` is given, on the raw value
-  before the trailing-slash strip): surrounding whitespace, whitespace or a
-  control character inside (`new URL()` would hide both while the engine
-  appends paths to the raw string), and a path ending in `/api/v1` (the client
-  adds it; the message suggests the value without it). Only `undefined`
-  selects `DEFAULT_BASE_URL`. The CLI's `parseBaseUrl` uses `baseUrlProblem`.
+  before the trailing-slash strip): a value that does not parse as an absolute
+  URL, a scheme other than `http:`/`https:`, a query or fragment (paths are
+  appended to the raw string), surrounding whitespace, whitespace or a control
+  character inside (`new URL()` would hide both), and a path ending in `/api/v1`
+  (the client adds it; the message suggests the value without it). All of these
+  are a `DipValidationError` (a configuration error), not a `DipNetworkError`;
+  that class stays for the default transport's per-hop checks. Only `undefined`
+  selects `DEFAULT_BASE_URL`. The CLI's `parseBaseUrl` only wraps
+  `baseUrlProblem`, so `--base-url` and `baseUrl` give the same reason.
 - **API key** (`normaliseApiKey`/`apiKeyProblem`, in the `DipClient`
   constructor): the key is trimmed and a blank one means no key; a key with a
   control character (other than tab) or a character above U+00FF is rejected.
@@ -288,7 +292,8 @@ mocked client and captured output — no subprocess.
 
 **Error types.** [`errors.ts`](src/client/errors.ts): `DipApiError` (non-2xx,
 carries `status`/`detail`/`url`/`method`/`body`, with `isRetryable` for
-`429`/`503`), `DipNetworkError` (transport failure/timeout), `DipParseError`
+`429`/`503`), `DipNetworkError` (transport failure/timeout; never an invalid
+base URL, which is a `DipValidationError`), `DipParseError`
 (bad JSON), `DipUsageError` (a usage error — no request made) and its subclass
 `DipValidationError` (the library rejected an input before any request, see
 [Library input validation](#library-input-validation)), all extending `DipError`.
