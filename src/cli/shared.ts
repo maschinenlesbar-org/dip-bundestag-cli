@@ -7,6 +7,7 @@ import type { CliDeps } from "./io.js";
 import type { RawResponse } from "../client/engine.js";
 import type { DipClientOptions } from "../client/client.js";
 import { DipError } from "../client/errors.js";
+import { baseUrlProblem } from "../client/engine.js";
 import { headerValueProblem, intInRangeProblem, nonEmptyProblem } from "../client/validate.js";
 
 /**
@@ -96,21 +97,10 @@ export function parseBaseUrl(value: string): string {
   if (/[?#]/.test(value)) {
     throw new InvalidArgumentError("A base URL cannot have a query (?) or fragment (#).");
   }
-  // new URL() trims surrounding whitespace silently; the raw value is what the
-  // engine uses, so reject it rather than guess.
-  if (value !== value.trim()) {
-    throw new InvalidArgumentError("A base URL cannot have surrounding whitespace.");
-  }
-  // The client adds /api/v1 itself; the API's documented address ends in it, so
-  // passing that would request /api/v1/api/v1/... and fail with a 404.
-  const path = url.pathname.replace(/\/+$/, "");
-  if (path.endsWith("/api/v1")) {
-    // (url.origin carries no userinfo, so nothing secret is echoed.)
-    const suggestion = `${url.origin}${path.slice(0, -"/api/v1".length)}`;
-    throw new InvalidArgumentError(
-      `Leave out /api/v1: the base URL is the host, and the CLI adds /api/v1 itself (try ${suggestion}).`,
-    );
-  }
+  // Surrounding whitespace, whitespace inside and a trailing /api/v1: the
+  // library's rules (validateBaseUrl), reported as a usage error.
+  const problem = baseUrlProblem(value);
+  if (problem !== undefined) throw new InvalidArgumentError(problem);
   return value;
 }
 

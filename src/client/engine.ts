@@ -10,9 +10,13 @@ import {
   assertValid,
   headerNameProblem,
   intInRangeProblem,
+  type Problem,
 } from "./validate.js";
 
 export const DEFAULT_BASE_URL = "https://search.dip.bundestag.de";
+
+/** The API path the client appends to the base URL. */
+export const API_PATH = "/api/v1";
 /** The User-Agent sent when none is given (by the client and by `obtainKey`). */
 export const DEFAULT_USER_AGENT = "dip-bundestag-cli";
 
@@ -93,7 +97,9 @@ export interface RawResponse {
 export interface EngineOptions {
   /**
    * Base URL of the API: the host (plus any mirror path prefix), **without**
-   * `/api/v1`, which the client adds. Defaults to https://search.dip.bundestag.de
+   * `/api/v1`, which the client adds. Defaults to https://search.dip.bundestag.de.
+   * Checked by `validateBaseUrl`: surrounding whitespace, whitespace or control
+   * characters inside, and a trailing `/api/v1` are a `DipValidationError`.
    */
   baseUrl?: string;
   /** Swappable transport. Defaults to the built-in node http/https transport. */
@@ -244,6 +250,49 @@ export function validateLimits(limits: EngineLimits): void {
   }
 }
 
+/**
+ * The shape rules for a base URL that `new URL()` would hide: it trims
+ * surrounding whitespace and C0 controls and drops tab/CR/LF inside, but the
+ * engine appends paths to the raw string, so `"https://h "` would request
+ * `https://h /api/v1/...`. A path ending in `/api/v1` would request
+ * `/api/v1/api/v1/...` and get a 404. (Parsing, scheme and `?`/`#` are
+ * `assertHttpScheme`'s checks; a value that does not parse passes here.)
+ */
+export const baseUrlProblem: Problem<string> = (value) => {
+  if (value !== value.trim()) return "A base URL cannot have surrounding whitespace.";
+  if (/[\u0000-\u0020\u007f]/.test(value)) {
+    return "A base URL cannot contain whitespace or control characters.";
+  }
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return undefined;
+  }
+  const path = url.pathname.replace(/\/+$/, "");
+  if (path.endsWith(API_PATH)) {
+    // (url.origin carries no userinfo, so nothing secret is echoed.)
+    const suggestion = `${url.origin}${path.slice(0, -API_PATH.length)}`;
+    return (
+      `Leave out ${API_PATH}: the base URL is the host, and the client adds ` +
+      `${API_PATH} itself (try ${suggestion}).`
+    );
+  }
+  return undefined;
+};
+
+/**
+ * Check a configured base URL and return it without trailing slashes. Throws
+ * `DipValidationError` (`Invalid baseUrl: ...`) for the `baseUrlProblem` rules,
+ * then runs `assertHttpScheme`. Called by the `RequestEngine` constructor and by
+ * `obtainKey` on the raw value, before any request.
+ */
+export function validateBaseUrl(raw: string): string {
+  assertValid("baseUrl", raw, baseUrlProblem);
+  assertHttpScheme(raw);
+  return raw.replace(/\/+$/, "");
+}
+
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -274,11 +323,12 @@ export class RequestEngine {
 
   constructor(options: EngineOptions = {}) {
     validateLimits(options);
-    this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
-    // Re-check the base-URL scheme here, not only in the default transport: a
-    // library consumer that injects a custom transport would otherwise get no
-    // gating at all, and could be steered to a non-http(s) scheme.
-    assertHttpScheme(this.baseUrl);
+    // Check the raw base URL here, not only in the default transport: a library
+    // consumer that injects a custom transport would otherwise get no gating at
+    // all, and could be steered to a non-http(s) scheme. Only `undefined`
+    // selects the default.
+    this.baseUrl =
+      options.baseUrl === undefined ? DEFAULT_BASE_URL : validateBaseUrl(options.baseUrl);
     this.transport = options.transport ?? nodeHttpTransport;
     // Only `undefined` selects the default; a blank or unsendable value is a
     // DipValidationError, as in the CLI's --user-agent.

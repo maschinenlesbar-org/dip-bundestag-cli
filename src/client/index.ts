@@ -4,6 +4,8 @@ export { DipClient } from "./client.js";
 export type { DipClientOptions } from "./client.js";
 export {
   RequestEngine,
+  API_PATH,
+  baseUrlProblem,
   DEFAULT_BASE_URL,
   DEFAULT_MAX_RESPONSE_BYTES,
   DEFAULT_TIMEOUT_MS,
@@ -12,6 +14,7 @@ export {
   MAX_RETRIES,
   MAX_RETRY_AFTER_MS,
   parseRetryAfter,
+  validateBaseUrl,
   validateLimits,
 } from "./engine.js";
 export type { EngineLimits, EngineOptions, RawResponse } from "./engine.js";

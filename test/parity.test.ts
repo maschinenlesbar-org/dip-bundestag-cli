@@ -225,3 +225,48 @@ test("the engine checks defaultHeaders names and values too", () => {
   }
   new RequestEngine({ defaultHeaders: { "X-A": "caf\u00e9\tx" } });
 });
+
+// ---- Finding 4 (PAT-1, PAT-3): base URL whitespace and a trailing /api/v1 --------
+
+const badBaseUrls: Array<[string, RegExp]> = [
+  ["https://search.dip.bundestag.de/api/v1", /Leave out \/api\/v1: the base URL is the host, and the client adds \/api\/v1 itself \(try https:\/\/search\.dip\.bundestag\.de\)\./],
+  ["https://search.dip.bundestag.de/api/v1/", /Leave out \/api\/v1/],
+  ["https://h.example/mirror/api/v1", /\(try https:\/\/h\.example\/mirror\)\./],
+  ["https://search.dip.bundestag.de ", /A base URL cannot have surrounding whitespace\./],
+  [" https://search.dip.bundestag.de", /A base URL cannot have surrounding whitespace\./],
+  ["https://h.example\n", /A base URL cannot have surrounding whitespace\./],
+  ["\thttps://h.example", /A base URL cannot have surrounding whitespace\./],
+  ["https://h.example/a\tb", /A base URL cannot contain whitespace or control characters\./],
+  ["https://h.example/a b", /A base URL cannot contain whitespace or control characters\./],
+];
+
+for (const [baseUrl, message] of badBaseUrls) {
+  test(`parity: --base-url ${JSON.stringify(baseUrl)} is rejected by DipClient before any request`, async () => {
+    const r = await parity({
+      argv: ["--base-url", baseUrl, "vorgang", "list"],
+      lib: (t) => new DipClient({ apiKey: "k", baseUrl, transport: t }).vorgaenge.list(),
+    });
+    assertBothReject(r, new RegExp(`^Invalid baseUrl: .*${message.source}`));
+    assert.match(r.cli.err, message);
+  });
+
+  test(`parity: --base-url ${JSON.stringify(baseUrl)} is rejected by obtainKey before any request`, async () => {
+    for (const verify of [true, false]) {
+      const r = await parity({
+        argv: ["--base-url", baseUrl, "obtain-key", ...(verify ? [] : ["--no-verify"])],
+        lib: (t) => obtainKey({ baseUrl, transport: t, verify }),
+      });
+      assertBothReject(r, /^Invalid baseUrl: /);
+    }
+  });
+}
+
+test("parity: a base URL with a trailing slash or a mirror path is used by both", async () => {
+  for (const baseUrl of ["https://h.example/", "https://h.example/mirror"]) {
+    const r = await parity({
+      argv: ["--base-url", baseUrl, "vorgang", "list"],
+      lib: (t) => new DipClient({ baseUrl, transport: t }).vorgaenge.list(),
+    });
+    assertSameRequests(r);
+  }
+});

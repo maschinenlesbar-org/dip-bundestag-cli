@@ -300,7 +300,7 @@ test("--base-url with a query, fragment, surrounding whitespace or /api/v1 is a 
     [" https://search.dip.bundestag.de", /A base URL cannot have surrounding whitespace\./],
     [
       "https://search.dip.bundestag.de/api/v1",
-      /Leave out \/api\/v1: the base URL is the host, and the CLI adds \/api\/v1 itself \(try https:\/\/search\.dip\.bundestag\.de\)\./,
+      /Leave out \/api\/v1: the base URL is the host, and the client adds \/api\/v1 itself \(try https:\/\/search\.dip\.bundestag\.de\)\./,
     ],
     ["https://mirror.test/dip/api/v1/", /\(try https:\/\/mirror\.test\/dip\)/],
   ] as const) {

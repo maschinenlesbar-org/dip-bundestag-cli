@@ -160,8 +160,9 @@ for `f.datum.*` (HTTP 400 `Invalid date`). Library users pass `f.datum.*` as a
 **Base URL.** Defaults to `https://search.dip.bundestag.de`; override with
 `--base-url` (CLI) or `baseUrl` (library). All resource paths are under
 `/api/v1`, which the client adds: the base URL is the host (plus any mirror path
-prefix) without it, and the CLI rejects one that ends in `/api/v1`, or has a query
-or fragment. Userinfo in it (`user:password@`) is sent, but redacted to `***@` in
+prefix) without it. The CLI and the library (`validateBaseUrl`) reject one that
+ends in `/api/v1`, has surrounding whitespace or whitespace inside, or has a query
+or fragment, before any request. Userinfo in it (`user:password@`) is sent, but redacted to `***@` in
 error messages.
 
 **Rate limiting.** DIP limits the request rate; the API returns **429** when it is

@@ -163,8 +163,9 @@ ist `2023-12-31T23:00:00.000Z`, also der Vortag.
 **Basis-URL.** Standardmäßig `https://search.dip.bundestag.de`; überschreibbar mit
 `--base-url` (CLI) oder `baseUrl` (Bibliothek). Alle Ressourcenpfade liegen unter
 `/api/v1`, das der Client selbst anhängt: Die Basis-URL ist der Host (plus ein etwaiges
-Pfadpräfix eines Spiegels) ohne diesen Teil, und die CLI lehnt eine URL ab, die auf
-`/api/v1` endet oder eine Query bzw. ein Fragment hat. Zugangsdaten darin
+Pfadpräfix eines Spiegels) ohne diesen Teil. CLI und Bibliothek (`validateBaseUrl`)
+lehnen vor jeder Anfrage eine URL ab, die auf `/api/v1` endet, Leerraum am Rand oder im
+Inneren enthält oder eine Query bzw. ein Fragment hat. Zugangsdaten darin
 (`user:password@`) werden gesendet, in Fehlermeldungen aber zu `***@` geschwärzt.
 
 **Rate-Limiting.** Das DIP begrenzt die Anfragerate; bei Überschreitung antwortet die

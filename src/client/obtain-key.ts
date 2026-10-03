@@ -24,7 +24,8 @@ import {
   DEFAULT_MAX_RESPONSE_BYTES,
   DEFAULT_TIMEOUT_MS,
   DEFAULT_USER_AGENT,
-  assertHttpScheme,
+  API_PATH,
+  validateBaseUrl,
   validateLimits,
 } from "./engine.js";
 import { DipError } from "./errors.js";
@@ -82,7 +83,7 @@ export interface ObtainKeyOptions {
   transport?: Transport;
   /** Pin a single source document (tests, mirrors) instead of trying each in turn. */
   sourceUrl?: string;
-  /** API base URL used for the verification request. */
+  /** API base URL used for the verification request; checked like the client's. */
   baseUrl?: string;
   /** Check the candidate against the live API before returning it (default true). */
   verify?: boolean;
@@ -155,10 +156,10 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
     ...(maxResponseBytes > 0 ? { maxResponseBytes } : {}),
   };
   const verify = options.verify !== false;
-  const baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
-  // The verification request carries the candidate key, so refuse a non-http(s)
-  // base URL up front, as the engine does, whatever transport was injected.
-  if (verify) assertHttpScheme(baseUrl);
+  // The verification request carries the candidate key, so check a given base
+  // URL up front, as the engine does, whatever transport was injected (also
+  // with verify off, so the same value is rejected on every path).
+  const baseUrl = options.baseUrl === undefined ? DEFAULT_BASE_URL : validateBaseUrl(options.baseUrl);
 
   // Why each source failed, in order, so the final error can say what was tried.
   const failures: string[] = [];
@@ -199,7 +200,7 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
       try {
         check = await transport({
           method: "GET",
-          url: `${baseUrl}/api/v1/vorgang`,
+          url: `${baseUrl}${API_PATH}/vorgang`,
           headers: {
             Accept: "application/json",
             Authorization: `ApiKey ${key}`,

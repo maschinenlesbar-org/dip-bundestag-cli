@@ -213,6 +213,13 @@ What the library rejects:
   tab, or a character above U+00FF; a `defaultHeaders` name that is not an HTTP
   token. Only `undefined` selects `DEFAULT_USER_AGENT`, in the client and in
   `obtainKey` alike. The CLI's `parseHeaderValue` wraps `headerValueProblem`.
+- **Base URL shape** (`validateBaseUrl`/`baseUrlProblem`, in the `RequestEngine`
+  constructor and in `obtainKey` whenever `baseUrl` is given, on the raw value
+  before the trailing-slash strip): surrounding whitespace, whitespace or a
+  control character inside (`new URL()` would hide both while the engine
+  appends paths to the raw string), and a path ending in `/api/v1` (the client
+  adds it; the message suggests the value without it). Only `undefined`
+  selects `DEFAULT_BASE_URL`. The CLI's `parseBaseUrl` uses `baseUrlProblem`.
 
 ### Library / technical terms
 

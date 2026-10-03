@@ -12,13 +12,13 @@
 //   client.vorgaenge.list({ "f.titel": "Klimaschutz" })
 //   client.drucksachen.get("123456")
 
-import { RequestEngine, type EngineOptions } from "./engine.js";
+import { API_PATH, RequestEngine, type EngineOptions } from "./engine.js";
 import { DipError } from "./errors.js";
 import type { QueryParams } from "./query.js";
 import type { ListResult, Document } from "./types.js";
 import { assertNonBlankParams, assertValid, idProblem } from "./validate.js";
 
-const API = "/api/v1";
+const API = API_PATH;
 // Percent-encodes one path segment. It leaves "." and ".." unchanged; the engine
 // rejects those (see RequestEngine.buildUrl), so they cannot re-target a request.
 const enc = encodeURIComponent;
