@@ -5,7 +5,7 @@
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import type { CliDeps } from "./io.js";
-import { DipApiError, DipError, DipUsageError } from "../client/errors.js";
+import { DipApiError, DipError, DipUsageError, DipValidationError } from "../client/errors.js";
 
 /**
  * Apply exitOverride + output redirection to every command in the tree.
@@ -53,9 +53,10 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       if (err.status === 404) return 4;
       return 1;
     }
-    if (err instanceof DipUsageError) {
-      // A usage error detected in an action (e.g. empty `get <id>`): exit 2,
-      // matching commander's own usage/parse errors.
+    if (err instanceof DipValidationError || err instanceof DipUsageError) {
+      // A usage error detected in an action, or the library rejecting an input
+      // before any request (DipValidationError extends DipUsageError; named here
+      // for clarity): exit 2, matching commander's own usage/parse errors.
       deps.io.err(`Error: ${err.message}`);
       return 2;
     }

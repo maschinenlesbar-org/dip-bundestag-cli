@@ -143,9 +143,10 @@ src/
     types.ts     # ListResult (cursor envelope); documents as JsonObject
     query.ts     # dependency-free query-string builder
     filters.ts   # LIST_FILTERS: the f.* filters each list endpoint accepts (OpenAPI 1.5)
+    validate.ts  # input rules (…Problem functions) + assertValid
     http.ts      # the Transport interface + default node:http/https transport
     engine.ts    # URL building, retry/backoff, redirects, default headers (auth), decoding, errors
-    errors.ts    # DipError / DipApiError / DipNetworkError / DipParseError / DipUsageError
+    errors.ts    # DipError / DipApiError / DipNetworkError / DipParseError / DipUsageError / DipValidationError
     client.ts    # DipClient — one generic ResourceGroup per resource (injects Authorization)
   cli/
     io.ts        # injectable I/O seam (stdout/stderr/file)
@@ -172,6 +173,23 @@ src/
   `node:http`/`node:https` and tests inject a mock.
 - The CLI is built around injectable `CliDeps`, so the whole program can be
   driven in-process by tests.
+
+### Library input validation
+
+The library owns every rule about what a request may contain; the CLI only turns
+argv strings into typed values and calls the same rules. The rules are pure,
+exported `…Problem(value)` functions (they return the reason a value is invalid,
+or `undefined`). The client enforces them before any request through
+`assertValid(name, value, problem)` (`src/client/validate.ts`), which throws
+**`DipValidationError`** (`Invalid <name>: <reason>`); a client method rejects
+its promise, a constructor throws. `DipValidationError` extends `DipUsageError`,
+so `run.ts` maps it to exit 2 and prints `Error: <message>`. The CLI's commander
+parsers call the same functions and turn a reason into commander's
+`InvalidArgumentError` (exit 2 too).
+
+What the library rejects:
+
+- (filled in per rule as the rules move into the library)
 
 ### Library / technical terms
 
@@ -230,8 +248,9 @@ mocked client and captured output — no subprocess.
 **Error types.** [`errors.ts`](src/client/errors.ts): `DipApiError` (non-2xx,
 carries `status`/`detail`/`url`/`method`/`body`, with `isRetryable` for
 `429`/`503`), `DipNetworkError` (transport failure/timeout), `DipParseError`
-(bad JSON), and `DipUsageError` (a CLI usage error such as an empty `get` id —
-no request made), all extending `DipError`.
+(bad JSON), `DipUsageError` (a usage error — no request made) and its subclass
+`DipValidationError` (the library rejected an input before any request, see
+[Library input validation](#library-input-validation)), all extending `DipError`.
 
 ## Testing
 
@@ -249,6 +268,11 @@ npm test          # builds, then runs `node --test` over dist/test
   and filter params — mocked transport.
 - **`cli.test.ts`** — command parsing, `--api-key`/`--filter`/`--id`, and exit
   codes — mocked client.
+- **`validate.test.ts`** — `assertValid`, `DipValidationError` and its exit code.
+- **Parity tests** use `parity()` from `test/helpers.ts`: one input goes through
+  `run()` and through a library call on one recording mock transport, and the
+  test asserts the same outcome (both reject with no request, or both send the
+  identical request).
 
 ## Continuous integration
 

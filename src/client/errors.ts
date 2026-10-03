@@ -88,11 +88,19 @@ export class DipApiError extends DipError {
 export class DipNetworkError extends DipError {}
 
 /**
- * A CLI usage error (bad/missing argument detected after commander parsing, e.g.
- * an empty `get <id>`). Mapped to the conventional usage exit code 2 so scripts
- * can distinguish it from a runtime error (1).
+ * A usage error: a bad or missing argument detected before any request (e.g.
+ * `obtain-key --output`). Mapped to the conventional usage exit code 2 so
+ * scripts can distinguish it from a runtime error (1).
  */
 export class DipUsageError extends DipError {}
+
+/**
+ * The library rejected an input before sending any request (message
+ * `Invalid <name>: <reason>`, see `validate.ts`). It extends `DipUsageError`, so
+ * existing `instanceof DipUsageError` checks keep catching it, and the CLI maps
+ * it to the usage exit code 2.
+ */
+export class DipValidationError extends DipUsageError {}
 
 /** The response body could not be parsed as the expected JSON shape. */
 export class DipParseError extends DipError {}

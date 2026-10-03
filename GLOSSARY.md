@@ -170,9 +170,10 @@ redirects keep it.
 
 **Error types.** [`errors.ts`](src/client/errors.ts): `DipApiError` (non-2xx,
 carries `status`/`detail`/`url`/`method`/`body`, with `isRetryable` for 429/503),
-`DipNetworkError` (transport failure/timeout), `DipParseError` (bad JSON), and
-`DipUsageError` (a CLI usage error such as an empty `get` id), all extending
-`DipError`. Exit codes: `0` success, `2` usage errors, `4` on a `404`, `1` for
+`DipNetworkError` (transport failure/timeout), `DipParseError` (bad JSON),
+`DipUsageError` (a usage error, no request made) and its subclass
+`DipValidationError` (the library rejected an input before any request:
+`Invalid <name>: <reason>`), all extending `DipError`. Exit codes: `0` success, `2` usage errors, `4` on a `404`, `1` for
 any other runtime error (including `401` when the key is missing/expired).
 
 ---

@@ -173,9 +173,10 @@ Weiterleitungen innerhalb desselben Origins behalten ihn.
 
 **Fehlertypen.** [`errors.ts`](src/client/errors.ts): `DipApiError` (Nicht-2xx-Antwort,
 enthält `status`/`detail`/`url`/`method`/`body` sowie `isRetryable` für 429/503),
-`DipNetworkError` (Transportfehler/Timeout), `DipParseError` (ungültiges JSON) und
-`DipUsageError` (ein CLI-Bedienfehler wie eine leere `get`-ID), alle abgeleitet von
-`DipError`. Exit-Codes: `0` bei Erfolg, `2` bei Bedienfehlern, `4` bei `404`, `1` bei
+`DipNetworkError` (Transportfehler/Timeout), `DipParseError` (ungültiges JSON),
+`DipUsageError` (ein Bedienfehler, keine Anfrage gesendet) und dessen Unterklasse
+`DipValidationError` (die Bibliothek hat eine Eingabe vor jeder Anfrage abgelehnt:
+`Invalid <name>: <reason>`), alle abgeleitet von `DipError`. Exit-Codes: `0` bei Erfolg, `2` bei Bedienfehlern, `4` bei `404`, `1` bei
 jedem anderen Laufzeitfehler (auch bei `401`, wenn der Schlüssel fehlt oder abgelaufen
 ist).
 
