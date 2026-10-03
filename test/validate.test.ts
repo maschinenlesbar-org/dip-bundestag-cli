@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import {
   assertNonBlankParams,
   assertValid,
+  idProblem,
   isBlank,
   nonEmptyProblem,
   type Problem,
@@ -95,4 +96,13 @@ test("assertNonBlankParams rejects blank keys, values and array elements, and em
 
 test("assertNonBlankParams accepts omitted values, numbers, dates and padded text", () => {
   assertNonBlankParams({ a: undefined, b: null, c: 0, d: new Date(0), e: " x ", f: ["1", 2], g: false });
+});
+
+// ---- Document ids (PAT-10) --------------------------------------------------------
+
+test("idProblem rejects a blank or missing id and accepts any other", () => {
+  for (const id of ["", "  ", undefined as unknown as string]) {
+    assert.equal(idProblem(id), "An id is required, e.g. 123456.");
+  }
+  for (const id of ["1", "123456", " 1 "]) assert.equal(idProblem(id), undefined);
 });

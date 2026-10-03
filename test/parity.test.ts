@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { DipClient } from "../src/client/client.js";
 import { DipValidationError } from "../src/client/errors.js";
 import type { Transport } from "../src/client/http.js";
-import { parity, requestKey, type ParityResult } from "./helpers.js";
+import { jsonResponse, parity, requestKey, type ParityResult } from "./helpers.js";
 
 const client = (transport: Transport): DipClient => new DipClient({ apiKey: "k", transport });
 
@@ -72,6 +72,44 @@ test("library list() still omits undefined and null parameters", async () => {
   const r = await parity({
     argv: ["--api-key", "k", "vorgang", "list"],
     lib: (t) => client(t).vorgaenge.list({ cursor: undefined, "f.titel": null }),
+  });
+  assertSameRequests(r);
+});
+
+// ---- Finding 3 (PAT-10): a blank get id ----------------------------------------
+
+const getResources: Array<[string, keyof DipClient]> = [
+  ["vorgang", "vorgaenge"],
+  ["vorgangsposition", "vorgangspositionen"],
+  ["drucksache", "drucksachen"],
+  ["drucksache-text", "drucksacheText"],
+  ["plenarprotokoll", "plenarprotokolle"],
+  ["plenarprotokoll-text", "plenarprotokollText"],
+  ["aktivitaet", "aktivitaeten"],
+  ["person", "personen"],
+];
+
+for (const [command, key] of getResources) {
+  for (const id of ["", "   "]) {
+    test(`parity: ${command} get ${JSON.stringify(id)} is rejected by both before any request`, async () => {
+      const r = await parity({
+        argv: ["--api-key", "k", "--compact", command, "get", id],
+        lib: (t) => (client(t)[key] as DipClient["vorgaenge"]).get(id),
+        responder: () => jsonResponse({ numFound: 2, documents: [] }),
+      });
+      assertBothReject(r, new RegExp(`^Invalid ${command} id: An id is required`));
+      // The CLI prints the library's message, which names the right resource.
+      assert.equal(r.cli.err, `Error: ${(r.lib as { error: Error }).error.message}`);
+      assert.equal(r.cli.out, "");
+    });
+  }
+}
+
+test("parity: a non-blank get id sends the same request on both sides", async () => {
+  const r = await parity({
+    argv: ["--api-key", "k", "person", "get", "7240"],
+    lib: (t) => client(t).personen.get("7240"),
+    responder: () => jsonResponse({ id: "7240" }),
   });
   assertSameRequests(r);
 });

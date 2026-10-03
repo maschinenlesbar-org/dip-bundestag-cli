@@ -195,6 +195,11 @@ What the library rejects:
   filter and answers with the whole unfiltered list. `undefined`/`null` still
   mean "omitted". The CLI's `parseNonEmpty` and `--filter` checks use the same
   `nonEmptyProblem`/`isBlank`, as early parse-time copies.
+- **Blank `get` id** (`idProblem`, in every `get(id)`): an empty last path
+  segment would request the collection endpoint and resolve with the list
+  envelope typed as a `Document`. The message names the resource
+  (`Invalid drucksache id: An id is required, e.g. 123456.`); the CLI's
+  `get <id>` prints it as is.
 
 ### Library / technical terms
 

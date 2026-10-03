@@ -16,7 +16,7 @@ import { RequestEngine, type EngineOptions } from "./engine.js";
 import { DipError } from "./errors.js";
 import type { QueryParams } from "./query.js";
 import type { ListResult, Document } from "./types.js";
-import { assertNonBlankParams } from "./validate.js";
+import { assertNonBlankParams, assertValid, idProblem } from "./validate.js";
 
 const API = "/api/v1";
 // Percent-encodes one path segment. It leaves "." and ".." unchanged; the engine
@@ -54,8 +54,13 @@ class ResourceGroup {
     return this.e.getJson(`${API}/${this.path}`, params);
   }
 
-  /** A single document by id. */
-  get(id: string): Promise<Document> {
+  /**
+   * A single document by id. Rejects with `DipValidationError`, before any
+   * request, for a blank id (`Invalid vorgang id: ...`): it would request the
+   * collection endpoint and resolve with the list envelope.
+   */
+  async get(id: string): Promise<Document> {
+    assertValid(`${this.path} id`, id, idProblem);
     return this.e.getJson(`${API}/${this.path}/${enc(id)}`);
   }
 }

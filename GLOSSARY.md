@@ -93,7 +93,9 @@ parliament (Abgeordnete:r), but also other actors. CLI: `person`. Client:
 
 **id.** Every resource document has a numeric `id`, used by the `get` endpoint
 (`drucksache get 123456`) and by the `f.id` filter. The CLI's `--id` flag is
-shorthand for `f.id` and is repeatable.
+shorthand for `f.id` and is repeatable. A blank id is rejected (CLI exit 2, library
+`DipValidationError`) before any request: `get("")` would otherwise request the
+collection endpoint and return the list.
 
 **`f.*` filters (Filter).** DIP filters are query parameters prefixed with `f.`,
 e.g. `f.titel` (title), `f.id`, `f.wahlperiode`, `f.datum.start` /

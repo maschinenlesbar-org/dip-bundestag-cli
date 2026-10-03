@@ -143,12 +143,9 @@ export function registerResourceCommands(program: Command, deps: CliDeps): void 
       .command("get <id>")
       .description(`Get one ${spec.command} by id`)
       .action(
-        action(deps, async ({ client, global }, [id]) => {
-          // An empty/whitespace-only id would hit the collection endpoint
-          // (.../vorgang/) and silently target the wrong resource shape; reject it.
-          if (id === undefined || id.trim().length === 0) {
-            throw new DipUsageError("An id is required, e.g. `vorgang get 123456`.");
-          }
+        action(deps, async ({ client, global }, [id = ""]) => {
+          // A blank id is rejected by the library's get() (DipValidationError,
+          // exit 2), before any request.
           // "." and ".." survive encodeURIComponent and URL parsing resolves them,
           // so `get .` would fetch the whole list and `get ..` the API root.
           if (id === "." || id === "..") {
