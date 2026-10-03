@@ -107,6 +107,23 @@ for (const [command, key] of getResources) {
   }
 }
 
+// ---- Finding 8 (PAT-23, PAT-10): "." and ".." ids ---------------------------------
+
+for (const [command, key] of getResources) {
+  for (const id of [".", ".."]) {
+    test(`parity: ${command} get ${id} is one DipValidationError on both sides`, async () => {
+      const r = await parity({
+        argv: ["--api-key", "k", "--compact", command, "get", id],
+        lib: (t) => (client(t)[key] as DipClient["vorgaenge"]).get(id),
+        responder: () => jsonResponse({ numFound: 2, documents: [] }),
+      });
+      assertBothReject(r, new RegExp(`^Invalid ${command} id: "\\." and "\\.\\." cannot be used as an id\\.$`));
+      assert.equal(r.cli.err, `Error: ${(r.lib as { error: Error }).error.message}`);
+      assert.equal(r.cli.out, "");
+    });
+  }
+}
+
 test("parity: a non-blank get id sends the same request on both sides", async () => {
   const r = await parity({
     argv: ["--api-key", "k", "person", "get", "7240"],

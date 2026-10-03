@@ -4,7 +4,7 @@
 
 import { MAX_TIMEOUT_MS, nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
-import { DipApiError, DipError, DipParseError, redactUrl } from "./errors.js";
+import { DipApiError, DipParseError, DipValidationError, redactUrl } from "./errors.js";
 import {
   assertHeaderValue,
   assertValid,
@@ -345,18 +345,18 @@ export class RequestEngine {
   /**
    * Build a fully-qualified URL from a path and optional query parameters.
    *
-   * Throws a DipError for a path with a "." or ".." segment. The resource methods
-   * put ids into the path with `encodeURIComponent`, which leaves those two
-   * unchanged, and URL parsing then resolves them: `vorgang get .` would request
-   * `/api/v1/vorgang/` (the list) and print it with exit 0. Neither can name a
-   * document. (Percent-encoded forms such as "%2e%2e" are safe:
-   * encodeURIComponent turns their "%" into "%25".)
+   * Throws a `DipValidationError` for a path with a "." or ".." segment: URL
+   * parsing would resolve it, so `/api/v1/vorgang/.` would request the list.
+   * The resource methods already reject such an id (`idProblem`, message
+   * `Invalid vorgang id: ...`); this is the backstop for callers of the engine.
+   * (Percent-encoded forms such as "%2e%2e" are safe: encodeURIComponent turns
+   * their "%" into "%25".)
    */
   buildUrl(path: string, query?: QueryParams): string {
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     const dotSegment = normalizedPath.split("/").find((s) => s === "." || s === "..");
     if (dotSegment !== undefined) {
-      throw new DipError(
+      throw new DipValidationError(
         `Invalid path segment "${dotSegment}" in ${normalizedPath}: "." and ".." cannot be used as an id.`,
       );
     }

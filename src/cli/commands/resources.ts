@@ -5,7 +5,6 @@ import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "../io.js";
 import { action, parseNonEmpty, renderJson } from "../shared.js";
-import { DipUsageError } from "../../client/errors.js";
 import type { DipClient } from "../../client/client.js";
 import type { QueryParams } from "../../client/query.js";
 import { LIST_FILTERS, type ListResource } from "../../client/filters.js";
@@ -144,13 +143,8 @@ export function registerResourceCommands(program: Command, deps: CliDeps): void 
       .description(`Get one ${spec.command} by id`)
       .action(
         action(deps, async ({ client, global }, [id = ""]) => {
-          // A blank id is rejected by the library's get() (DipValidationError,
-          // exit 2), before any request.
-          // "." and ".." survive encodeURIComponent and URL parsing resolves them,
-          // so `get .` would fetch the whole list and `get ..` the API root.
-          if (id === "." || id === "..") {
-            throw new DipUsageError(`Invalid id "${id}": "." and ".." cannot be used as an id.`);
-          }
+          // A blank, "." or ".." id is rejected by the library's get()
+          // (idProblem: DipValidationError, exit 2), before any request.
           const resource = client[spec.resource] as DipClient[ResourceKey];
           renderJson(deps, global, await resource.get(id));
         }),

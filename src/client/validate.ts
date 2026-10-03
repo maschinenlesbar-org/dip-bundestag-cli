@@ -59,10 +59,16 @@ export function assertNonBlankParams(params: QueryParams): void {
 /**
  * A document id for `get(id)` must not be blank: an empty last path segment
  * turns `/api/v1/vorgang/<id>` into the collection endpoint, which answers with
- * the list envelope instead of one document.
+ * the list envelope instead of one document. Nor may it be "." or "..":
+ * `encodeURIComponent` leaves both unchanged and URL parsing resolves them, so
+ * they would request the list or the API root. (Longer dot runs and
+ * percent-encoded forms such as "%2e%2e" are ordinary ids.)
  */
-export const idProblem: Problem<string> = (id) =>
-  id === undefined || id === null || isBlank(String(id)) ? "An id is required, e.g. 123456." : undefined;
+export const idProblem: Problem<string> = (id) => {
+  if (id === undefined || id === null || isBlank(String(id))) return "An id is required, e.g. 123456.";
+  if (id === "." || id === "..") return '"." and ".." cannot be used as an id.';
+  return undefined;
+};
 
 /**
  * A safe integer in `[min, max]`. Without an upper bound (`max` is

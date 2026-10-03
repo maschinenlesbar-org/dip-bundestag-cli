@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DipClient } from "../src/client/client.js";
-import { DipApiError, DipError, DipValidationError } from "../src/client/errors.js";
+import { DipApiError, DipValidationError } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, constantJson } from "./helpers.js";
 
 function clientWith(mt: ReturnType<typeof makeMockTransport>, apiKey?: string): DipClient {
@@ -61,8 +61,8 @@ test("an id of . or .. is rejected before any request instead of re-targeting th
     await assert.rejects(
       () => clientWith(mt).vorgaenge.get(id),
       (err: unknown) =>
-        err instanceof DipError &&
-        err.message === `Invalid path segment "${id}" in ${API}/vorgang/${id}: "." and ".." cannot be used as an id.`,
+        err instanceof DipValidationError &&
+        err.message === `Invalid vorgang id: "." and ".." cannot be used as an id.`,
     );
     assert.equal(mt.calls.length, 0);
   }

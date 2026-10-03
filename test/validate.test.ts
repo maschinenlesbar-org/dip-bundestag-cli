@@ -107,7 +107,13 @@ test("idProblem rejects a blank or missing id and accepts any other", () => {
   for (const id of ["", "  ", undefined as unknown as string]) {
     assert.equal(idProblem(id), "An id is required, e.g. 123456.");
   }
-  for (const id of ["1", "123456", " 1 "]) assert.equal(idProblem(id), undefined);
+  for (const id of ["1", "123456", " 1 ", "...", "%2e%2e", ".1"]) assert.equal(idProblem(id), undefined);
+});
+
+test('idProblem rejects "." and "..", which URL parsing resolves away', () => {
+  for (const id of [".", ".."]) {
+    assert.equal(idProblem(id), '"." and ".." cannot be used as an id.');
+  }
 });
 
 // ---- Integer ranges (PAT-8) -------------------------------------------------------

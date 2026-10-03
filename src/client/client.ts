@@ -25,8 +25,8 @@ import {
 } from "./validate.js";
 
 const API = API_PATH;
-// Percent-encodes one path segment. It leaves "." and ".." unchanged; the engine
-// rejects those (see RequestEngine.buildUrl), so they cannot re-target a request.
+// Percent-encodes one path segment. It leaves "." and ".." unchanged; get()
+// rejects those ids first (idProblem), and RequestEngine.buildUrl is a backstop.
 const enc = encodeURIComponent;
 
 /** Options for the DIP client (engine options plus the API key). */
@@ -62,8 +62,9 @@ class ResourceGroup {
 
   /**
    * A single document by id. Rejects with `DipValidationError`, before any
-   * request, for a blank id (`Invalid vorgang id: ...`): it would request the
-   * collection endpoint and resolve with the list envelope.
+   * request, for a blank id (`Invalid vorgang id: ...`), which would request the
+   * collection endpoint and resolve with the list envelope, and for "." or "..",
+   * which URL parsing resolves to the list or the API root.
    */
   async get(id: string): Promise<Document> {
     assertValid(`${this.path} id`, id, idProblem);

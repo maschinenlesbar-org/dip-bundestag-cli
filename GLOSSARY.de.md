@@ -95,9 +95,10 @@ Abgeordnete:r, aber auch andere Akteure. CLI: `person`. Client: `client.personen
 
 **id.** Jedes Ressourcendokument hat eine numerische `id`, die der `get`-Endpoint
 (`drucksache get 123456`) und der Filter `f.id` verwenden. Das CLI-Flag `--id` ist eine
-Kurzform für `f.id` und kann mehrfach angegeben werden. Eine leere ID wird vor jeder
-Anfrage abgelehnt (CLI Exit 2, Bibliothek `DipValidationError`): `get("")` würde sonst
-den Sammel-Endpoint abfragen und die Liste liefern.
+Kurzform für `f.id` und kann mehrfach angegeben werden. Eine leere ID, `.` oder `..`
+wird vor jeder Anfrage abgelehnt (CLI Exit 2, Bibliothek `DipValidationError`, dieselbe
+Meldung): `get("")` oder `get(".")` würde sonst den Sammel-Endpoint abfragen und die
+Liste liefern, `get("..")` die API-Wurzel.
 
 **`f.*`-Filter.** DIP-Filter sind Query-Parameter mit dem Präfix `f.`, z. B. `f.titel`
 (Titel), `f.id`, `f.wahlperiode`, `f.datum.start` / `f.datum.end` (Datumsbereich),

@@ -195,11 +195,14 @@ What the library rejects:
   filter and answers with the whole unfiltered list. `undefined`/`null` still
   mean "omitted". The CLI's `parseNonEmpty` and `--filter` checks use the same
   `nonEmptyProblem`/`isBlank`, as early parse-time copies.
-- **Blank `get` id** (`idProblem`, in every `get(id)`): an empty last path
-  segment would request the collection endpoint and resolve with the list
-  envelope typed as a `Document`. The message names the resource
-  (`Invalid drucksache id: An id is required, e.g. 123456.`); the CLI's
-  `get <id>` prints it as is.
+- **`get` id** (`idProblem`, in every `get(id)`): a blank id (an empty last
+  path segment would request the collection endpoint and resolve with the list
+  envelope typed as a `Document`), and `.` or `..` (`encodeURIComponent` leaves
+  them and URL parsing resolves them to the list or the API root). The message
+  names the resource (`Invalid drucksache id: An id is required, e.g. 123456.`);
+  the CLI's `get <id>` has no check of its own and prints it as is.
+  `RequestEngine.buildUrl` also rejects a dot segment with `DipValidationError`,
+  as a backstop for callers of the engine.
 - **Engine limits** (`validateLimits`, in the `RequestEngine` constructor, which
   `obtainKey` builds too): `timeoutMs` 0..`MAX_TIMEOUT_MS`, `maxRetries`
   0..`MAX_RETRIES` (10), `maxRedirects` 0..`MAX_REDIRECTS` (10), `retryDelayMs`

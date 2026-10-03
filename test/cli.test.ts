@@ -233,7 +233,7 @@ test("get . / get .. is a usage error without a request instead of fetching the 
     assert.equal(code, 2);
     assert.equal(cli.mt.calls.length, 0);
     assert.deepEqual(cli.out, []);
-    assert.match(cli.err.join("\n"), /^Error: Invalid id "\.\.?": "\." and "\.\." cannot be used as an id\./);
+    assert.equal(cli.err.join("\n"), 'Error: Invalid vorgang id: "." and ".." cannot be used as an id.');
   }
 });
 

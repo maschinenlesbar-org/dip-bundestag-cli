@@ -27,6 +27,13 @@ test("buildUrl normalises the path and appends the query", () => {
   );
 });
 
+test("buildUrl rejects a dot segment with DipValidationError, as a backstop for direct engine callers", () => {
+  const e = new RequestEngine({ baseUrl: "https://example.test/" });
+  for (const path of ["/api/v1/vorgang/.", "/api/v1/vorgang/..", "/a/./b"]) {
+    assert.throws(() => e.buildUrl(path), DipValidationError, path);
+  }
+});
+
 test("getJson parses a JSON body", async () => {
   const mt = makeMockTransport(() => jsonResponse({ ok: true }));
   const e = new RequestEngine({ transport: mt.transport });
