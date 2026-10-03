@@ -7,6 +7,7 @@ import type { CliDeps } from "./io.js";
 import type { RawResponse } from "../client/engine.js";
 import type { DipClientOptions } from "../client/client.js";
 import { DipError } from "../client/errors.js";
+import { nonEmptyProblem } from "../client/validate.js";
 
 /**
  * commander value-parser: a non-negative integer in plain decimal notation.
@@ -27,13 +28,14 @@ export function parseIntArg(value: string): number {
 }
 
 /**
- * commander value-parser: a value that is not blank. A blank filter would
- * otherwise be dropped and the command would silently run unfiltered.
+ * commander value-parser: a value that is not blank (the library's
+ * `nonEmptyProblem`). A blank filter would otherwise be dropped and the command
+ * would silently run unfiltered. The library rejects the same values; this is
+ * the early, parse-time copy of the check, so commander shows the help.
  */
 export function parseNonEmpty(value: string): string {
-  if (value.trim() === "") {
-    throw new InvalidArgumentError("Expected a non-empty value.");
-  }
+  const problem = nonEmptyProblem(value);
+  if (problem !== undefined) throw new InvalidArgumentError(problem);
   return value;
 }
 

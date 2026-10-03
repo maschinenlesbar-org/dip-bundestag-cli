@@ -189,7 +189,12 @@ parsers call the same functions and turn a reason into commander's
 
 What the library rejects:
 
-- (filled in per rule as the rules move into the library)
+- **Blank list parameters** (`assertNonBlankParams`, called first in every
+  `list()`): a blank parameter name, a blank string value, an empty array or a
+  blank array element, `cursor` included. DIP treats an empty parameter as no
+  filter and answers with the whole unfiltered list. `undefined`/`null` still
+  mean "omitted". The CLI's `parseNonEmpty` and `--filter` checks use the same
+  `nonEmptyProblem`/`isBlank`, as early parse-time copies.
 
 ### Library / technical terms
 

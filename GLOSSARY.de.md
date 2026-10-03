@@ -106,6 +106,10 @@ zur Menge der Ressource gehört (Exit 2). Die übrigen reicht sie über `--filte
 (mehrfach angebbar) unverändert weiter; nur das erste `=` trennt Schlüssel und Wert, ein Wert darf also
 selbst `=` enthalten. Wird derselbe Schlüssel wiederholt, werden wiederholte
 Query-Schlüssel gesendet (`?f.id=1&f.id=2`), die das DIP als ODER-Menge behandelt.
+Ein leerer Filterwert, eine leere `--id` oder ein leerer `--cursor` wird ebenfalls
+abgelehnt (Exit 2), und `list()` der Bibliothek lehnt einen leeren Parameternamen oder
+-wert, ein leeres Array und ein leeres Array-Element vor jeder Anfrage mit
+`DipValidationError` ab: Das DIP behandelt einen leeren Parameter als keinen Filter.
 
 **cursor.** Die Listen-Endpoints des DIP sind **cursorbasiert paginiert**. Eine
 Listenantwort enthält einen `cursor`; geben Sie ihn über `--cursor` (CLI) oder

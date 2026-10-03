@@ -105,7 +105,11 @@ unknown filter** and returns the whole unfiltered list, so the CLI rejects a key
 that is not in the resource's set (exit 2). It passes the rest verbatim via
 `--filter key=value` (repeatable); only the first `=` splits key from value, so a
 value may itself contain `=`. Repeating the same key sends repeated query keys
-(`?f.id=1&f.id=2`), which DIP treats as an OR set.
+(`?f.id=1&f.id=2`), which DIP treats as an OR set. A blank filter value, `--id`
+or `--cursor` is rejected too (exit 2), and the library's `list()` rejects a blank
+parameter name or value, an empty array and a blank array element with
+`DipValidationError` before any request: DIP treats an empty parameter as no
+filter.
 
 **cursor.** DIP list endpoints are **cursor-paginated**. A list response carries
 a `cursor`; pass it back via `--cursor` (CLI) or `{ cursor }` (library) to fetch

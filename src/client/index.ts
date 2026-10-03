@@ -28,7 +28,7 @@ export {
   DipValidationError,
   redactUrl,
 } from "./errors.js";
-export { assertValid } from "./validate.js";
+export { assertNonBlankParams, assertValid, isBlank, nonEmptyProblem } from "./validate.js";
 export type { Problem } from "./validate.js";
 
 export * from "./types.js";

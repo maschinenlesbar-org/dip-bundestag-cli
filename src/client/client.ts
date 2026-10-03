@@ -16,6 +16,7 @@ import { RequestEngine, type EngineOptions } from "./engine.js";
 import { DipError } from "./errors.js";
 import type { QueryParams } from "./query.js";
 import type { ListResult, Document } from "./types.js";
+import { assertNonBlankParams } from "./validate.js";
 
 const API = "/api/v1";
 // Percent-encodes one path segment. It leaves "." and ".." unchanged; the engine
@@ -40,8 +41,16 @@ class ResourceGroup {
     private readonly path: string,
   ) {}
 
-  /** List/filter documents. Pass DIP `f.*` filters and/or a `cursor`. */
-  list(params: QueryParams = {}): Promise<ListResult> {
+  /**
+   * List/filter documents. Pass DIP `f.*` filters and/or a `cursor`.
+   *
+   * Rejects with `DipValidationError`, before any request, for a blank parameter
+   * name, a blank value, an empty array or a blank array element: DIP treats an
+   * empty parameter as no filter and would answer with the whole unfiltered list.
+   * `undefined`/`null` values are omitted.
+   */
+  async list(params: QueryParams = {}): Promise<ListResult> {
+    assertNonBlankParams(params);
     return this.e.getJson(`${API}/${this.path}`, params);
   }
 

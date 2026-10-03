@@ -9,6 +9,7 @@ import { DipUsageError } from "../../client/errors.js";
 import type { DipClient } from "../../client/client.js";
 import type { QueryParams } from "../../client/query.js";
 import { LIST_FILTERS, type ListResource } from "../../client/filters.js";
+import { isBlank } from "../../client/validate.js";
 
 type ResourceKey =
   | "vorgaenge"
@@ -92,8 +93,10 @@ function splitFilter(value: string): [string, string] {
   const key = value.slice(0, eq);
   const val = value.slice(eq + 1);
   // A blank key or value would be dropped (f.id) or sent as an empty parameter,
-  // so the list would silently run without that filter.
-  if (key.trim() === "" || val.trim() === "") {
+  // so the list would silently run without that filter. The library's list()
+  // rejects the same (assertNonBlankParams); this early check keeps the
+  // --filter wording and commander's help.
+  if (isBlank(key) || isBlank(val)) {
     throw new InvalidArgumentError(
       `Invalid --filter "${value}". Both key and value must be non-empty.`,
     );
