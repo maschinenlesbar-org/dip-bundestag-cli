@@ -66,22 +66,24 @@ const ORDER = [
 ];
 
 const groups = new Map(ORDER.map((h) => [h, []]));
-// The commit `npm version` creates ("0.2.1") is the release itself, not a change.
+// The commit `npm version` creates ("0.2.1") is the release itself, not a change: it is
+// left out of the type groups. Its body may still carry `BREAKING CHANGE:` footers that
+// summarise the release's behaviour changes (for changes not marked when committed).
 const isVersionBump = (subject) => /^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(subject);
+// A footer runs to a blank line, the next footer or `Token: ` trailer line, or the body's end.
+const FOOTER =
+  /(?:^|\n)BREAKING[ -]CHANGE:\s*([\s\S]*?)(?=\n\n|\nBREAKING[ -]CHANGE:|\n[A-Za-z-]+: |\s*$(?![\s\S]))/g;
 for (const { subject, hash, body } of commits) {
-  if (isVersionBump(subject)) continue;
-  // `type(scope)!: text` marks a breaking change, as does a `BREAKING CHANGE:` footer.
+  const bump = isVersionBump(subject);
+  // `type(scope)!: text` marks a breaking change, as do `BREAKING CHANGE:` footers.
   const m = /^([a-z]+)(\([^)]*\))?(!)?:\s*(.*)$/.exec(subject);
   const heading = m ? (HEADINGS[m[1]] ?? "Other") : "Other";
   const text = m ? m[4] : subject;
-  groups.get(heading).push(`- ${text} (${hash})`);
+  if (!bump) groups.get(heading).push(`- ${text} (${hash})`);
   // List what a script or library caller has to adapt to once more, up front.
-  // The footer runs to a blank line, the next `Token: ` trailer line, or the body's end.
-  const footer = /(?:^|\n)BREAKING[ -]CHANGE:\s*([\s\S]*?)(?=\n\n|\n[A-Za-z-]+: |\s*$(?![\s\S]))/.exec(body);
-  if (m?.[3] === "!" || footer) {
-    const note = footer ? footer[1].replace(/\s+/g, " ").trim() : text;
-    groups.get("Behaviour changes").push(`- ${note} (${hash})`);
-  }
+  const notes = [...body.matchAll(FOOTER)].map((f) => f[1].replace(/\s+/g, " ").trim()).filter(Boolean);
+  if (notes.length === 0 && !bump && m?.[3] === "!") notes.push(text);
+  for (const note of notes) groups.get("Behaviour changes").push(`- ${note} (${hash})`);
 }
 
 const lines = [];
