@@ -83,7 +83,9 @@ for (const { subject, hash, body } of commits) {
   // List what a script or library caller has to adapt to once more, up front.
   const notes = [...body.matchAll(FOOTER)].map((f) => f[1].replace(/\s+/g, " ").trim()).filter(Boolean);
   if (notes.length === 0 && !bump && m?.[3] === "!") notes.push(text);
-  for (const note of notes) groups.get("Behaviour changes").push(`- ${note} (${hash})`);
+  // A release-commit footer names the commits it summarises itself; its own hash would
+  // only point back at the release.
+  for (const note of notes) groups.get("Behaviour changes").push(bump ? `- ${note}` : `- ${note} (${hash})`);
 }
 
 const lines = [];
