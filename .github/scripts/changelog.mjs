@@ -26,13 +26,16 @@ const currentIdx = tags.indexOf(currentTag);
 const previousTag = currentIdx === -1 ? tags.find((t) => t !== currentTag) : tags[currentIdx + 1];
 
 const range = previousTag ? `${previousTag}..${currentTag}` : currentTag;
-const log = git(["log", "--pretty=format:%s%x09%h", range]);
+// Subject, hash and body per commit, separated by ASCII unit/record separators (a body
+// spans lines, so newlines can't delimit records).
+const log = git(["log", "--pretty=format:%s%x1f%h%x1f%b%x1e", range]);
 const commits = log
-  .split("\n")
+  .split("\x1e")
+  .map((record) => record.replace(/^\n/, ""))
   .filter(Boolean)
-  .map((line) => {
-    const [subject, hash] = line.split("\t");
-    return { subject: subject ?? "", hash: hash ?? "" };
+  .map((record) => {
+    const [subject, hash, body] = record.split("\x1f");
+    return { subject: subject ?? "", hash: hash ?? "", body: body ?? "" };
   });
 
 const HEADINGS = {
@@ -49,6 +52,7 @@ const HEADINGS = {
   revert: "Reverts",
 };
 const ORDER = [
+  "Behaviour changes",
   "Features",
   "Fixes",
   "Documentation",
@@ -62,11 +66,22 @@ const ORDER = [
 ];
 
 const groups = new Map(ORDER.map((h) => [h, []]));
-for (const { subject, hash } of commits) {
-  const m = /^([a-z]+)(\([^)]*\))?:\s*(.*)$/.exec(subject);
+// The commit `npm version` creates ("0.2.1") is the release itself, not a change.
+const isVersionBump = (subject) => /^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(subject);
+for (const { subject, hash, body } of commits) {
+  if (isVersionBump(subject)) continue;
+  // `type(scope)!: text` marks a breaking change, as does a `BREAKING CHANGE:` footer.
+  const m = /^([a-z]+)(\([^)]*\))?(!)?:\s*(.*)$/.exec(subject);
   const heading = m ? (HEADINGS[m[1]] ?? "Other") : "Other";
-  const text = m ? m[3] : subject;
+  const text = m ? m[4] : subject;
   groups.get(heading).push(`- ${text} (${hash})`);
+  // List what a script or library caller has to adapt to once more, up front.
+  // The footer runs to a blank line, the next `Token: ` trailer line, or the body's end.
+  const footer = /(?:^|\n)BREAKING[ -]CHANGE:\s*([\s\S]*?)(?=\n\n|\n[A-Za-z-]+: |\s*$(?![\s\S]))/.exec(body);
+  if (m?.[3] === "!" || footer) {
+    const note = footer ? footer[1].replace(/\s+/g, " ").trim() : text;
+    groups.get("Behaviour changes").push(`- ${note} (${hash})`);
+  }
 }
 
 const lines = [];
