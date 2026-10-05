@@ -31,7 +31,7 @@ protocols, activities and people — as clean JSON you can pipe straight into
 npm i -g @maschinenlesbar.org/dip-bundestag-cli
 ```
 
-This installs the **`dip`** command. Requires **Node.js 20+**.
+This installs the **`dip`** command. Requires **Node.js 22.12+**.
 
 Check it works:
 
@@ -281,7 +281,8 @@ deliberately. A directory is refused either way, and `-o -` prints to stdout.
 ## Troubleshooting
 
 - **`command not found: dip`** — the global npm bin directory isn't on your
-  `PATH`. Run `npm bin -g` to find it and add it, or run via
+  `PATH`. Run `npm prefix -g` and add its `bin/` subdirectory (on Windows, the
+  directory itself), or run via
   `npx @maschinenlesbar.org/dip-bundestag-cli …`.
 - **Exit `1` / HTTP 401 "… use an https base URL"** — `--base-url` starts with
   `http://`; DIP redirects to `https://`, and the key is not sent across that change

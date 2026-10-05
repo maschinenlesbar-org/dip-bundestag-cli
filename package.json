@@ -21,7 +21,7 @@
     "CONTRIBUTING.md"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12"
   },
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
@@ -65,7 +65,7 @@
     "commander": "15.0.0"
   },
   "devDependencies": {
-    "@types/node": "^26.5.1",
+    "@types/node": "^22.20.5",
     "typescript": "7.0.2"
   }
 }
