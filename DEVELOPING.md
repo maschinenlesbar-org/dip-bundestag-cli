@@ -316,10 +316,14 @@ checked when the engine is built (see
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses, and
 reset connections (`isTransientNetworkError`), are retried automatically for a
-GET, up to `--max-retries` (0–10). Each retry waits the
-response's `Retry-After` (`parseRetryAfter`: delay-seconds or an IMF-fixdate)
-up to `MAX_RETRY_AFTER_MS` (30 s) — a longer one is not retried, the error
-surfaces at once — or else backs off linearly (`retryDelayMs * attempt`). `DipApiError`
+GET, up to `--max-retries` (0–10). Each retry backs off linearly
+(`retryDelayMs * attempt`; `retryDelayMs` 0..`MAX_RETRY_AFTER_MS`, default 200).
+A `Retry-After` (`parseRetryAfter`: delay-seconds or an IMF-fixdate) can make a
+wait longer, never shorter: `Retry-After: 0` or a past date still waits the
+backoff, so retries never burst. One above `MAX_RETRY_AFTER_MS` (30 s) is not
+retried — retrying sooner would only land inside the window — and the
+`DipApiError` names the requested wait.
+`test/conformance-p6-retry-policy.test.ts` is the shared check (`OVER_CAP: "fail"`). `DipApiError`
 exposes `isRetryable` (true for `429`/`503`).
 
 **Cross-origin credential stripping.** The engine attaches the credentials per

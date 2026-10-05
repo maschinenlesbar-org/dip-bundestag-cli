@@ -181,8 +181,10 @@ Bibliothek aber zu `***@` geschwärzt.
 **Rate-Limiting.** Das DIP begrenzt die Anfragerate; bei Überschreitung antwortet die
 API mit **429**. Der Client wiederholt **429** und **503** sowie eine mitten in der
 Anfrage abgebrochene Verbindung automatisch
-(`--max-retries`, 0–10, Standard 2) und wartet dabei das `Retry-After` der Antwort ab
-(bis 30 s; ein längeres wird nicht wiederholt), sonst mit linearem Backoff. Die
+(`--max-retries`, 0–10, Standard 2) mit linearem Backoff, oder wartet das `Retry-After`
+der Antwort ab, wenn es länger ist (nie kürzer, sodass `Retry-After: 0` keine Salve
+auslöst). Ein `Retry-After` über 30 s wird nicht wiederholt, und die Fehlermeldung
+nennt die verlangte Wartezeit. Die
 Bibliothek hat dieselbe Grenze (`MAX_RETRIES`, `maxRetries`) und lehnt einen Wert
 außerhalb mit `DipValidationError` ab, ebenso ein negatives oder gebrochenes Timeout oder
 Größenlimit.

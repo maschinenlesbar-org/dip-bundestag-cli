@@ -174,8 +174,10 @@ everything the CLI prints and in the library's errors.
 
 **Rate limiting.** DIP limits the request rate; the API returns **429** when it is
 exceeded. The client retries **429** and **503**, and a connection reset mid-request,
-automatically (`--max-retries`, 0–10, default 2), waiting the response's `Retry-After` (up to 30 s; a longer one
-is not retried) or else backing off linearly. The library holds the same bound
+automatically (`--max-retries`, 0–10, default 2), backing off linearly, or waiting
+the response's `Retry-After` when that is longer (never shorter, so `Retry-After: 0`
+causes no burst). A `Retry-After` over 30 s is not retried, and the error names the
+requested wait. The library holds the same bound
 (`MAX_RETRIES`, `maxRetries`) and rejects a value outside it with
 `DipValidationError`, as it does a negative or fractional timeout or size cap.
 

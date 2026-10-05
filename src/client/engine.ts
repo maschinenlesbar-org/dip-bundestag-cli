@@ -156,12 +156,16 @@ export interface EngineOptions {
   timeoutMs?: number;
   /**
    * Number of automatic retries for transient (429/503) responses and reset
-   * connections (`isTransientNetworkError`; GET/HEAD only). Each waits the
-   * response's `Retry-After` (up to `MAX_RETRY_AFTER_MS`; a longer one is not
-   * retried), or else `retryDelayMs * attempt`. An integer 0..`MAX_RETRIES` (10).
+   * connections (`isTransientNetworkError`; GET/HEAD only). Each waits
+   * `retryDelayMs * attempt`, or the response's `Retry-After` when that is longer
+   * (up to `MAX_RETRY_AFTER_MS`; a longer one is not retried, and the error names
+   * it). An integer 0..`MAX_RETRIES` (10).
    */
   maxRetries?: number;
-  /** Base backoff between retries in milliseconds (grows linearly); used without a Retry-After. */
+  /**
+   * Base backoff between retries in milliseconds (grows linearly; default 200, at most
+   * `MAX_RETRY_AFTER_MS`). A Retry-After can lengthen a wait, never shorten it.
+   */
   retryDelayMs?: number;
   /**
    * Number of HTTP redirects (301/302/303/307/308) to follow. Defaults to 5. Any
@@ -241,15 +245,16 @@ export type EngineLimits = Pick<
 const LIMIT_RANGES: ReadonlyArray<[keyof EngineLimits, number]> = [
   ["timeoutMs", MAX_TIMEOUT_MS],
   ["maxRetries", MAX_RETRIES],
-  ["retryDelayMs", Number.MAX_SAFE_INTEGER],
+  ["retryDelayMs", MAX_RETRY_AFTER_MS],
   ["maxRedirects", MAX_REDIRECTS],
   ["maxResponseBytes", Number.MAX_SAFE_INTEGER],
 ];
 
 /**
  * Check every limit that is set: `timeoutMs` 0..`MAX_TIMEOUT_MS`, `maxRetries`
- * 0..`MAX_RETRIES`, `maxRedirects` 0..`MAX_REDIRECTS`, `retryDelayMs` and
- * `maxResponseBytes` any non-negative safe integer. `undefined` keeps the
+ * 0..`MAX_RETRIES`, `maxRedirects` 0..`MAX_REDIRECTS`, `retryDelayMs`
+ * 0..`MAX_RETRY_AFTER_MS` (30 000; a longer base delay would outlast any wait the
+ * server may ask for), `maxResponseBytes` any non-negative safe integer. `undefined` keeps the
  * default and 0 keeps its documented meaning. A negative, fractional, `NaN` or
  * infinite value would otherwise silently disable the timeout or the size cap,
  * or retry without end. Throws `DipValidationError` (`Invalid maxRetries: ...`).
@@ -700,15 +705,21 @@ export class RequestEngine {
       const response = { status, headers: responseHeaders, body };
 
       const retryable = status === 429 || status === 503;
+      let retryAfterTooLong: number | undefined;
       if (idempotent && retryable && attempt < this.maxRetries) {
-        // Honour Retry-After; without a usable one, back off linearly. A Retry-After
-        // beyond MAX_RETRY_AFTER_MS is not retried: the error below surfaces at once.
+        // Back off linearly (retryDelayMs * attempt). A Retry-After header can ask for
+        // longer, never for less: `Retry-After: 0` or a date in the past would turn the
+        // retries into a zero-delay burst against a server that has just asked for less
+        // load. One beyond MAX_RETRY_AFTER_MS is not retried: the error below surfaces
+        // at once and names the wait, since retrying sooner would only land inside it.
         const retryAfter = parseRetryAfter(response.headers["retry-after"]);
         if (retryAfter === undefined || retryAfter <= MAX_RETRY_AFTER_MS) {
           attempt += 1;
-          await this.sleep(retryAfter ?? this.retryDelayMs * attempt);
+          const backoff = this.retryDelayMs * attempt;
+          await this.sleep(retryAfter === undefined ? backoff : Math.max(retryAfter, backoff));
           continue;
         }
+        retryAfterTooLong = retryAfter;
       }
 
       // Follow redirects, resolving the Location relative to the current URL. Only an
@@ -745,7 +756,7 @@ export class RequestEngine {
       // attacker-controlled and may later be echoed into a message.
       const contentType = sanitizeServerText(String(headerValue(response.headers["content-type"]) ?? ""));
       if (status < 200 || status >= 300) {
-        throw this.toApiError(method, url, status, response.body, location, undefined, dropped);
+        throw this.toApiError(method, url, status, response.body, location, undefined, dropped, retryAfterTooLong);
       }
 
       return {
@@ -883,6 +894,7 @@ export class RequestEngine {
     locationHeader?: string,
     redirectsFollowed?: number,
     credentialsDropped?: CredentialsDropped,
+    retryAfterMs?: number,
   ): DipApiError {
     const text = this.scrub(body.toString("utf8"));
     let detail: string | undefined;
@@ -909,6 +921,7 @@ export class RequestEngine {
       ...(location !== undefined ? { location } : {}),
       ...(redirectsFollowed !== undefined ? { redirectsFollowed } : {}),
       ...(credentialsDropped !== undefined ? { credentialsDropped } : {}),
+      ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
     });
   }
 }
