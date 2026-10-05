@@ -359,3 +359,31 @@ test("a 403 from the API is not a verdict on the key: it stops with the real sta
   // One source read, one verification: no further candidate or source is tried.
   assert.equal(mt.calls.length, 2);
 });
+
+test("obtainKey cites the document a redirected source was actually read from", async () => {
+  const moved = "https://content.dip.bundestag.de/content-api/v2/help-api";
+  const mt = makeMockTransport((req) => {
+    if (req.url === KEY_SOURCE_URL) return { status: 301, headers: { location: moved }, body: Buffer.alloc(0) };
+    if (req.url === moved) return rawResponse(HELP_DOC, "application/json");
+    return jsonResponse({ numFound: 0, documents: [] });
+  });
+  const got = await obtainKey({ transport: mt.transport, sourceUrl: KEY_SOURCE_URL, maxRetries: 0 });
+  assert.equal(got.sourceUrl, moved);
+  assert.equal(got.key, KEY);
+});
+
+test("only a DIP-shaped key is ever returned: placeholders, flags and escapes are not candidates", () => {
+  for (const doc of [
+    "Der API-Key lautet: YOUR-API-KEY",
+    "API-Key lautet: <your key here>",
+    "Authorization: ApiKey --help",
+    `API-Key lautet: ${String.fromCharCode(0x1b)}[31mAbCdEfG.${"x".repeat(40)}`,
+    "API-Key lautet: AbCdEfG.short",
+    "API-Key lautet: AbCdEfG.'; rm -rf / #aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  ]) {
+    for (const candidate of extractKeyCandidates(doc)) {
+      assert.match(candidate, /^[A-Za-z0-9_-]{6,12}\.[A-Za-z0-9_-]{30,48}$/, `${JSON.stringify(doc)} gave ${JSON.stringify(candidate)}`);
+    }
+  }
+  assert.deepEqual(extractKeyCandidates("Der API-Key lautet: YOUR-API-KEY"), []);
+});

@@ -117,9 +117,15 @@ key-shaped string (`prefix.body`), labelled forms first: the help document's
 `… gültige API-Key lautet:<br />…` and the README's `Authorization: ApiKey …`, then
 anything else token-shaped, capped at five per source. Each candidate is verified in
 turn, so a reworded sentence degrades to "try the other matches" rather than to
-failure. A non-401/403 verification status is treated as *the API being unwell*, not
-as a bad key, and aborts instead of walking the rest. `--no-verify` prints the first
-candidate unchecked with a loud warning.
+failure. Only a value of that exact shape (`A–Z a–z 0–9 _ -`, 6–12 characters, a
+dot, 30–48 characters) can be a candidate, so a placeholder (`YOUR-API-KEY`), a flag,
+punctuation or a terminal escape is never printed as the key, `--no-verify`
+included. Only a 401 from the origin that received the key rejects it; any other
+status (a 403 from a WAF included), an answer from another origin, or a 2xx that is
+not a DIP list is treated as *the API being unwell*, not as a bad key, and aborts
+instead of walking the rest. `--no-verify` prints the first candidate unchecked with
+a loud warning. When a source redirects, `sourceUrl` (and the CLI's note) names the
+document the key was actually read from.
 
 Do **not** read the portal's own `https://dip.bundestag.de/dip-config.js`
 (`portalApiKey`): that is the web front end's internal credential, scoped to the

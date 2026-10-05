@@ -125,7 +125,10 @@ export interface ObtainKeyOptions
 export interface ObtainedKey {
   /** The key, ready to put in `API_KEY_ENV_VAR`. */
   key: string;
-  /** Which source it came from, so callers can cite it (userinfo shown as `***@`). */
+  /**
+   * Which document the key was read from, so callers can cite it: the source's URL,
+   * or the URL it redirected to (userinfo shown as `***@`).
+   */
   sourceUrl: string;
   /** true = accepted by the live API; false = not checked. */
   verified: boolean;
@@ -189,7 +192,7 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
   for (const rawSourceUrl of sources) {
     // A source behind Basic auth (a private mirror) is named without its userinfo, in
     // the error and in the result, and its credentials are cut from transport text.
-    const sourceUrl = redactUrl(rawSourceUrl);
+    let sourceUrl = redactUrl(rawSourceUrl);
     const sourceCredentials = credentialsIn(rawSourceUrl);
     let document: string;
     try {
@@ -197,6 +200,8 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
         accept: "application/json, text/plain, text/markdown;q=0.9, */*;q=0.8",
       });
       document = decodeBody(response.data, response.contentType, sourceUrl);
+      // After a redirect, cite the document the key was actually read from.
+      if (response.url !== splitUrlForCompare(rawSourceUrl)) sourceUrl = redactUrl(response.url);
     } catch (err) {
       // A non-2xx status (after retries and redirects), or unreachable (DNS,
       // reset, timeout, size cap): either way, try the next source.
@@ -271,6 +276,19 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
   }
 
   throw new DipError(`No usable DIP key: ${failures.join("; ")}. ${WHERE_TO_GET_ONE}`);
+}
+
+/** `url` without userinfo, as the engine reports a final URL, for comparing the two. */
+function splitUrlForCompare(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.username === "" && parsed.password === "") return url;
+    parsed.username = "";
+    parsed.password = "";
+    return parsed.href;
+  } catch {
+    return url;
+  }
 }
 
 /** Why a verification answer is not a DIP list envelope, or undefined. */
