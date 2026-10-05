@@ -7,7 +7,7 @@ import type { CliDeps } from "../io.js";
 import { action, parseNonEmpty, renderJson } from "../shared.js";
 import type { DipClient } from "../../client/client.js";
 import type { QueryParams } from "../../client/query.js";
-import { filterKeyProblem, type ListResource } from "../../client/filters.js";
+import { cursorWithoutFiltersNote, filterKeyProblem, type ListResource } from "../../client/filters.js";
 import { isBlank } from "../../client/validate.js";
 
 type ResourceKey =
@@ -108,7 +108,11 @@ export function registerResourceCommands(program: Command, deps: CliDeps): void 
     group
       .command("list")
       .description(`List/filter ${spec.command}`)
-      .option("--cursor <cursor>", "pagination cursor from a previous page", parseNonEmpty)
+      .option(
+        "--cursor <cursor>",
+        "pagination cursor from a previous page; repeat that page's --filter/--id with it",
+        parseNonEmpty,
+      )
       .option("--id <id>", "filter by id (repeatable -> f.id)", collectNonEmpty)
       .option(
         "--filter <key=value>",
@@ -132,7 +136,12 @@ export function registerResourceCommands(program: Command, deps: CliDeps): void 
           if (mergedIds.length > 0) params["f.id"] = mergedIds;
           else delete params["f.id"];
           const resource = client[spec.resource] as DipClient[ResourceKey];
-          renderJson(deps, global, await resource.list(params));
+          const result = await resource.list(params);
+          // A bare cursor is answered with unrelated records and HTTP 200; say so once
+          // the request succeeded (a rejected one has its own error).
+          const note = cursorWithoutFiltersNote(spec.command, params);
+          if (note !== undefined) deps.io.err(`note: ${note}`);
+          renderJson(deps, global, result);
         }),
       );
 

@@ -70,7 +70,10 @@ class ResourceGroup {
   ) {}
 
   /**
-   * List/filter documents. Pass DIP `f.*` filters and/or a `cursor`.
+   * List/filter documents. Pass DIP `f.*` filters and/or a `cursor`. For the next
+   * page, send the same filters again with the cursor: DIP does not bind a cursor to
+   * its query, so a cursor alone pages through the whole unfiltered list
+   * (`cursorWithoutFiltersNote` says so).
    *
    * Rejects with `DipValidationError`, before any request, for a blank parameter
    * name, a blank value, an empty array or a blank array element: DIP treats an

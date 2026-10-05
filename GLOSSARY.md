@@ -123,7 +123,9 @@ a `cursor`; pass it back via `--cursor` (CLI) or `{ cursor }` (library) to fetch
 the next page. The cursor is opaque — treat it as a token, not a number. When the
 returned cursor stops changing, you have reached the end. **Send the same filters
 again with every cursor:** DIP does not bind a cursor to the query it came from, so
-a cursor sent without them pages through the whole unfiltered list.
+a cursor sent without them pages through the whole unfiltered list. The CLI then
+prints a `note:` on stderr (the library: `cursorWithoutFiltersNote`); it cannot
+refuse, since paging an unfiltered list is legitimate.
 
 **numFound.** The total number of documents matching a list query (across all
 pages), returned in the list envelope alongside the current page's `documents`.

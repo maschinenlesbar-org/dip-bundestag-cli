@@ -139,3 +139,22 @@ export function filterKeyProblem(resource: ListResource): (key: string) => strin
       : `Unknown filter "${key}" for ${resource}. DIP ignores unknown filters and would ` +
         `return the whole unfiltered list. Filters for ${resource}: ${known.join(", ")}.`;
 }
+
+/**
+ * A note for a list request that sends a `cursor` and no filter, or `undefined`. DIP
+ * does not bind a cursor to the query it came from: a cursor from a filtered page,
+ * sent alone, pages through the whole unfiltered collection (page 2 of
+ * `vorgangsposition` for one procedure came back as 100 positions of other procedures
+ * from 2007, with HTTP 200). Paging an unfiltered list this way is legitimate, so this
+ * is a note for the caller to print, not an error; the CLI prints it on stderr.
+ */
+export function cursorWithoutFiltersNote(resource: ListResource, params: Record<string, unknown>): string | undefined {
+  const present = (key: string): boolean => params[key] !== undefined && params[key] !== null;
+  if (!present("cursor")) return undefined;
+  if (Object.keys(params).some((key) => key !== "cursor" && present(key))) return undefined;
+  return (
+    `--cursor without a filter pages through the whole unfiltered ${resource} list: DIP does not ` +
+    `keep the filters of the page the cursor came from. If that page was filtered, repeat every ` +
+    `--filter and --id of it together with --cursor.`
+  );
+}

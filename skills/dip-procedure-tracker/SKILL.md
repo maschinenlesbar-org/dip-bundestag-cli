@@ -109,9 +109,17 @@ that's the non-obvious part (on `vorgang` the CLI rejects it as an unknown filte
 dip --compact vorgangsposition list --filter f.vorgang=298723
 ```
 
-Each document is one step in the procedure's history. Page with `--cursor` if `numFound`
-exceeds the page size (capture `cursor` from the response and pass it back). The fields
-that matter per step:
+Each document is one step in the procedure's history. If `numFound` exceeds the page
+size, page with `--cursor` — **and repeat the filter with it**:
+
+```bash
+dip --compact vorgangsposition list --filter f.vorgang=298723 --cursor '<cursor from the previous page>'
+```
+
+DIP does not bind a cursor to its query: a cursor sent **without** `--filter f.vorgang=…`
+pages through all ~700 000 positions of every procedure (exit 0, the CLI only prints a
+`note:` on stderr), and those steps belong to other bills. Stop when the returned `cursor`
+stops changing. The fields that matter per step:
 
 | Field | Meaning |
 |---|---|

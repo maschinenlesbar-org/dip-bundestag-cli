@@ -25,7 +25,7 @@ export { MAX_TIMEOUT_MS, nodeHttpTransport, sizeLimitMessage } from "./http.js";
 export type { Transport, HttpRequest, HttpResponse } from "./http.js";
 export { obtainKey, looksLikeApiKey, API_KEY_ENV_VAR, KEY_SOURCE_URL } from "./obtain-key.js";
 export type { ObtainKeyOptions, ObtainedKey } from "./obtain-key.js";
-export { LIST_FILTERS, LIST_PAGING_PARAMS, filterKeyProblem } from "./filters.js";
+export { LIST_FILTERS, LIST_PAGING_PARAMS, cursorWithoutFiltersNote, filterKeyProblem } from "./filters.js";
 export type { ListResource } from "./filters.js";
 export { buildQueryString } from "./query.js";
 export type { QueryParams, QueryValue } from "./query.js";

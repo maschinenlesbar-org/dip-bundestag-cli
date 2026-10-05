@@ -74,7 +74,9 @@ error.
 > paging `person list --filter f.wahlperiode=<n>` and matching `nachname` / `vorname`
 > client-side, **to the last page**: the list is ordered by `datum`, not by name, at 100
 > per page, and WP 21 alone spanned 9 pages on 2026-09-15. Capture `cursor` from each
-> response and pass it back with `--cursor` until it stops changing. Only then say the
+> response and pass it back with `--cursor` **together with the same
+> `--filter f.wahlperiode=<n>`** until it stops changing (a cursor alone pages through every
+> person in DIP, not the term). Only then say the
 > person wasn't found and ask for the id or the correct term — don't invent one.
 
 Person fields (top level — the **current** state):
@@ -120,7 +122,11 @@ dip --compact aktivitaet list --filter f.person_id=1502 --filter f.wahlperiode=2
   | jq -r '.documents[] | "\(.datum)\t\(.aktivitaetsart)\t\(.fundstelle.dokumentart) \(.fundstelle.dokumentnummer)\t\(.vorgangsbezug[0].titel // "")"'
 ```
 
-`numFound` gives the total; page with `--cursor` for more than 100. `drucksache` has no
+`numFound` gives the total; for more than 100, page with `--cursor` **and repeat both
+filters** (`--filter f.person_id=1502 --filter f.wahlperiode=21 --cursor '<cursor>'`). A
+cursor alone pages through all ~1.8 million activities of every member — page 2 would start
+with other MPs' activities from the same day, which must never end up in the dossier (the
+CLI only prints a `note:` on stderr). `drucksache` has no
 person filter — to find papers a person signed without going through `aktivitaet`, match
 `autoren_anzeige[]` (objects with `id`, `titel`, `autor_titel`) client-side:
 `select(any(.autoren_anzeige[]?; .id == "1502"))`.

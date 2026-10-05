@@ -474,3 +474,19 @@ test("a 2xx body that is not a DIP list or document exits 1 instead of printing 
   const ok = makeCli(() => jsonResponse({ id: "14", nachname: "Merkel" }));
   assert.equal(await run(["person", "get", "14"], ok.deps), 0);
 });
+
+test("a --cursor without any filter is answered with a stderr note; with its filters it is not", async () => {
+  const page = { numFound: 2, documents: [{ id: "1" }], cursor: "AoJ" };
+  const bare = makeCli(() => jsonResponse(page));
+  assert.equal(await run(["vorgangsposition", "list", "--cursor", "AoJ"], bare.deps), 0);
+  assert.match(bare.err.join("\n"), /^note: --cursor without a filter pages through the whole unfiltered vorgangsposition list/);
+  assert.equal(bare.out.length, 1, "the page is still printed");
+  for (const extra of [["--filter", "f.vorgang=298723"], ["--id", "1"]]) {
+    const filtered = makeCli(() => jsonResponse(page));
+    assert.equal(await run(["vorgangsposition", "list", ...extra, "--cursor", "AoJ"], filtered.deps), 0);
+    assert.deepEqual(filtered.err, [], extra.join(" "));
+  }
+  const first = makeCli(() => jsonResponse(page));
+  assert.equal(await run(["vorgangsposition", "list"], first.deps), 0);
+  assert.deepEqual(first.err, [], "an unfiltered first page needs no note");
+});

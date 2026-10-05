@@ -18,7 +18,8 @@ protocols, activities and people — as clean JSON you can pipe straight into
 - **Clean JSON output** — pretty-printed by default, `--compact` for
   one-line/scripting, `-o <file>` to write directly to disk.
 - **Cursor pagination built in** — pass the returned `cursor` back via
-  `--cursor` to walk large result sets.
+  `--cursor`, with the same `--filter`s, to walk large result sets (DIP does not keep
+  the filters in the cursor; a `--cursor` without any filter prints a note on stderr).
 - **Flexible filtering** — pass any of the resource's DIP `f.*` filters via
   `--filter key=value`; `--id` is shorthand for the repeatable `f.id` filter.
 
@@ -173,7 +174,7 @@ New to terms like *Vorgang*, *Drucksache*, *Wahlperiode* or *Vorgangstyp*? The
 
 | Option | Meaning |
 | --- | --- |
-| `--cursor <cursor>` | Pagination cursor from a previous page |
+| `--cursor <cursor>` | Pagination cursor from a previous page. Repeat that page's `--filter`/`--id` with it: DIP does not keep them in the cursor, and a cursor alone pages through the whole unfiltered list (a `note:` on stderr says so) |
 | `--id <id>` | Filter by id — repeatable; maps to `f.id` |
 | `--filter <key=value>` | DIP filter, e.g. `f.titel=Klima` — repeatable; the key must be one of the resource's `f.*` filters |
 

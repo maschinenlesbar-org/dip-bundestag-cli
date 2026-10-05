@@ -17,7 +17,11 @@ export type JsonObject = { [key: string]: JsonValue };
 export interface ListResult {
   numFound: number;
   documents: JsonObject[];
-  /** Opaque cursor; pass back as `cursor` to fetch the next page. */
+  /**
+   * Opaque cursor; pass it back as `cursor` **together with the same filters** to fetch
+   * the next page. DIP does not bind a cursor to its query: sent alone, it pages
+   * through the whole unfiltered collection. It stops changing on the last page.
+   */
   cursor?: string;
 }
 

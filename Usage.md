@@ -187,7 +187,9 @@ to overwrite deliberately.
 ### Paginate through a large result set
 
 List endpoints are cursor-paginated: pass the `cursor` from one page back via
-`--cursor` to get the next.
+`--cursor` to get the next — **with the same filters**. DIP does not bind a cursor to
+the query it came from, so a cursor alone pages through the whole unfiltered list (the
+CLI answers it, exit 0, with a `note:` on stderr).
 
 ```bash
 # First page — capture the cursor
