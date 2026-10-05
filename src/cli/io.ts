@@ -49,7 +49,8 @@ export interface OutputStreams {
  * pager — closes the pipe while the CLI is still writing, and the next write fails
  * with EPIPE. That is ordinary use, so the process exits 0 at once, quietly. Any
  * other stdout error prints one `Output error: <message>` line to stderr and exits
- * 1; any other stderr error exits 1 silently (there is nowhere left to report it).
+ * 1. On stderr an EPIPE is ignored, so a failed run keeps its exit code; any other
+ * stderr error exits 1 silently (there is nowhere left to report it).
  * The bin shim installs this once, before `run()`.
  */
 export function handleOutputErrors(
@@ -61,8 +62,10 @@ export function handleOutputErrors(
     process.stderr.write(`Output error: ${err.message}\n`);
     exit(1);
   });
+  // stderr's reader going away doesn't make a failed run a success: ignore EPIPE there and
+  // let the run's own exit code stand (`2>&1 | true` used to turn a usage error into 0).
   streams.stderr.on("error", (err: NodeJS.ErrnoException) => {
-    exit(err.code === "EPIPE" ? 0 : 1);
+    if (err.code !== "EPIPE") exit(1);
   });
 }
 

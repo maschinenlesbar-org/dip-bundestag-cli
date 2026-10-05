@@ -73,10 +73,10 @@ test("EPIPE on stdout (reader closed early, e.g. | head) exits 0 instead of cras
   assert.deepEqual(s.exits, [0]);
 });
 
-test("EPIPE on stderr exits 0 as well", () => {
+test("EPIPE on stderr is ignored, so a failed run keeps its exit code", () => {
   const s = outputStreams();
   s.stderr.emit("error", writeError("EPIPE"));
-  assert.deepEqual(s.exits, [0]);
+  assert.deepEqual(s.exits, []);
 });
 
 test("another stderr write error exits 1", () => {

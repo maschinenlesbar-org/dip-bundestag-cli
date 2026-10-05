@@ -349,6 +349,13 @@ for `f.aktualisiert.*`; DIP rejects them for `f.datum.*`, so pass
 (`out`/`err`/`writeFile`/`outBinary`). Lets the whole CLI run in tests with a
 mocked client and captured output — no subprocess.
 
+**Closed pipes.** The bin shim installs `handleOutputErrors()` before `run()`. A
+reader that stops early (`| head`, `| jq` exiting on the first match) closes
+stdout, and the next write fails with EPIPE: the process exits 0 at once, quietly.
+On stderr an EPIPE is ignored, so a failed run keeps its exit code (`2>&1 | true`
+no longer turns a usage error into 0). `test/conformance-p7-pipes-exit-codes.test.ts`
+runs the built bin to check both.
+
 **Error types.** [`errors.ts`](src/client/errors.ts): `DipApiError` (non-2xx,
 carries `status`/`detail`/`url`/`method`/`body`, with `isRetryable` for
 `429`/`503`), `DipNetworkError` (transport failure/timeout; never an invalid
