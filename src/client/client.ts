@@ -23,10 +23,11 @@ import {
   headerValueProblem,
   idProblem,
   isBlank,
+  isPlainObject,
   listResultProblem,
   type Problem,
 } from "./validate.js";
-import { DipParseError } from "./errors.js";
+import { DipParseError, DipValidationError } from "./errors.js";
 
 /** `value` when `problem` accepts it, else a DipParseError naming the endpoint. */
 function expectShape<T>(value: unknown, problem: Problem<unknown>, path: string): T {
@@ -81,6 +82,7 @@ class ResourceGroup {
    */
   async list(params: QueryParams = {}, options: ListOptions = {}): Promise<ListResult> {
     assertNonBlankParams(params);
+    if (!isPlainObject(options)) throw new DipValidationError("Invalid options: Expected an object, e.g. { allowUnknownFilters: true }.");
     if (options.allowUnknownFilters !== true) {
       const problem = filterKeyProblem(this.path);
       for (const [key, value] of Object.entries(params)) {
@@ -100,7 +102,7 @@ class ResourceGroup {
    */
   async get(id: string): Promise<Document> {
     assertValid(`${this.path} id`, id, idProblem);
-    const path = `${API}/${this.path}/${enc(id)}`;
+    const path = `${API}/${this.path}/${enc(String(id))}`;
     return expectShape<Document>(await this.e.getJson(path), documentProblem, path);
   }
 }
@@ -111,7 +113,7 @@ class ResourceGroup {
  * HTTP header. A blank key is not a problem; it means "no key".
  */
 export const apiKeyProblem: Problem<string> = (value) =>
-  isBlank(value) ? undefined : headerValueProblem(value.trim());
+  typeof value !== "string" ? "Expected a string." : isBlank(value) ? undefined : headerValueProblem(value.trim());
 
 /**
  * The key the client sends: trimmed, a blank one counts as none (`undefined`).
@@ -138,7 +140,13 @@ export class DipClient {
   readonly personen: ResourceGroup;
 
   constructor(options: DipClientOptions = {}) {
+    // A JavaScript caller may pass null for "no options".
+    options = options ?? {};
+    if (!isPlainObject(options)) throw new DipValidationError("Invalid options: Expected an object.");
     const { apiKey, ...engineOptions } = options;
+    if (engineOptions.defaultHeaders !== undefined && !isPlainObject(engineOptions.defaultHeaders)) {
+      throw new DipValidationError("Invalid defaultHeaders: Expected an object of header names and values.");
+    }
     // Only send Authorization when a non-blank key was supplied; never default one.
     const key = normaliseApiKey(apiKey);
     this.engine = new RequestEngine({

@@ -205,6 +205,17 @@ parsers call the same functions and turn a reason into commander's
 
 What the library rejects:
 
+- **Wrong types** (JavaScript callers): every rule checks the type first, so a
+  wrong-typed input is a `DipValidationError`, never a raw `TypeError` — params or
+  options that are not a plain object, a filter value that is not a string, finite
+  number, boolean or valid Date (`[object Object]`, `NaN`), a `cursor` that is not
+  one string, an id that is neither a string nor a non-negative integer, a
+  non-string `apiKey`/`userAgent`/`baseUrl`/header value, `defaultHeaders` that are
+  not an object, a `transport` or `sleep` that is not a function, and a `sourceUrl`
+  for `obtainKey` that is not an absolute http(s) URL.
+  `test/conformance-p8-p9-p13-responses-and-errors.test.ts` is the shared check
+  (its bad calls use an offline transport, so a call that slipped through could never
+  reach the live API). A server `detail` is cut at 500 characters in a message.
 - **Blank list parameters** (`assertNonBlankParams`, called first in every
   `list()`): a blank parameter name, a blank string value, an empty array or a
   blank array element, `cursor` included. DIP treats an empty parameter as no

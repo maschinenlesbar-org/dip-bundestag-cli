@@ -346,3 +346,16 @@ test("a 2xx verification answer that is not a DIP list does not verify the key",
     assert.equal(mt.calls.length, 2, `${label}: no further candidate is tried against a host that answers like this`);
   }
 });
+
+test("a 403 from the API is not a verdict on the key: it stops with the real status", async () => {
+  const mt = makeMockTransport(responder([], 403));
+  await assert.rejects(
+    obtainKey({ transport: mt.transport, maxRetries: 0 }),
+    (err: unknown) =>
+      err instanceof DipError &&
+      /^Could not verify the key against https:\/\/search\.dip\.bundestag\.de \(HTTP 403\)\./.test(err.message) &&
+      !/401|no longer accepted/.test(err.message),
+  );
+  // One source read, one verification: no further candidate or source is tried.
+  assert.equal(mt.calls.length, 2);
+});

@@ -35,23 +35,55 @@ export function isBlank(value: string): boolean {
  * silently run unfiltered.
  */
 export const nonEmptyProblem: Problem<string> = (value) =>
-  isBlank(value) ? "Expected a non-empty value." : undefined;
+  typeof value !== "string" ? "Expected a string." : isBlank(value) ? "Expected a non-empty value." : undefined;
+
+/** True for a plain object (`{}`, `Object.create(null)`), not an array, class instance or primitive. */
+export function isPlainObject(value: unknown): boolean {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const proto = Object.getPrototypeOf(value) as unknown;
+  return proto === Object.prototype || proto === null;
+}
 
 /**
- * Reject query parameters that would silently widen a list request: a blank
- * parameter name, a blank string value, an empty array, or a blank string inside
- * an array. `undefined` and `null` still mean "omitted". Throws
- * `DipValidationError` naming the parameter (`Invalid f.titel: ...`).
+ * Why one query value cannot be sent, or `undefined`: a string, a finite number, a
+ * boolean or a valid Date. `String()` would turn anything else into a filter DIP
+ * cannot match (`[object Object]`, `NaN`, `Invalid Date`).
+ */
+const queryScalarProblem: Problem<unknown> = (value) => {
+  if (typeof value === "string" || typeof value === "boolean") return undefined;
+  if (typeof value === "number") return Number.isFinite(value) ? undefined : "Expected a finite number.";
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? "Expected a valid Date." : undefined;
+  return "Expected a string, number, boolean or Date (or an array of them).";
+};
+
+/**
+ * Reject query parameters that would silently widen a list request or send a value
+ * DIP cannot match: params that are not a plain object, a blank parameter name, a
+ * blank string value, an empty array, a blank string inside an array, and a value
+ * that is not a string, finite number, boolean or valid Date. `cursor` takes one
+ * string. `undefined` and `null` still mean "omitted". Throws `DipValidationError`
+ * naming the parameter (`Invalid f.titel: ...`).
  */
 export function assertNonBlankParams(params: QueryParams): void {
+  if (!isPlainObject(params)) {
+    throw new DipValidationError("Invalid params: Expected an object of filters, e.g. { \"f.titel\": \"Klima\" }.");
+  }
   for (const [key, raw] of Object.entries(params)) {
     assertValid("query parameter name", key, nonEmptyProblem);
     if (raw === undefined || raw === null) continue;
+    if (key === "cursor" && typeof raw !== "string") {
+      throw new DipValidationError("Invalid cursor: Expected one cursor string from the previous page.");
+    }
     if (Array.isArray(raw)) {
       if (raw.length === 0) throw new DipValidationError(`Invalid ${key}: Expected at least one value.`);
-      for (const value of raw) if (typeof value === "string") assertValid(key, value, nonEmptyProblem);
-    } else if (typeof raw === "string") {
-      assertValid(key, raw, nonEmptyProblem);
+      for (const value of raw) {
+        if (value === undefined || value === null) continue;
+        assertValid(key, value, queryScalarProblem);
+        if (typeof value === "string") assertValid(key, value, nonEmptyProblem);
+      }
+    } else {
+      assertValid(key, raw, queryScalarProblem);
+      if (typeof raw === "string") assertValid(key, raw, nonEmptyProblem);
     }
   }
 }
@@ -65,7 +97,13 @@ export function assertNonBlankParams(params: QueryParams): void {
  * percent-encoded forms such as "%2e%2e" are ordinary ids.)
  */
 export const idProblem: Problem<string> = (id) => {
-  if (id === undefined || id === null || isBlank(String(id))) return "An id is required, e.g. 123456.";
+  if (id === undefined || id === null) return "An id is required, e.g. 123456.";
+  // A JavaScript caller may pass a number (DIP ids are numeric); anything else would be
+  // sent as "[object Object]".
+  if (typeof id !== "string" && !(typeof id === "number" && Number.isSafeInteger(id) && id >= 0)) {
+    return "Expected an id string, e.g. \"123456\".";
+  }
+  if (isBlank(String(id))) return "An id is required, e.g. 123456.";
   if (id === "." || id === "..") return '"." and ".." cannot be used as an id.';
   return undefined;
 };
@@ -94,6 +132,8 @@ export function intInRangeProblem(min: number, max: number): Problem<number> {
  * stays free of control bytes.
  */
 export const headerValueProblem: Problem<string> = (value) => {
+  // A JavaScript caller may pass anything; `{}.trim()` was a raw TypeError.
+  if (typeof value !== "string") return "Expected a string.";
   const blank = nonEmptyProblem(value);
   if (blank !== undefined) return blank;
   for (let i = 0; i < value.length; i++) {

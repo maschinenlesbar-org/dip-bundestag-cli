@@ -25,8 +25,19 @@ import {
   type EngineOptions,
   type RawResponse,
 } from "./engine.js";
-import { DipApiError, DipError, credentialsIn, redactCredentials, redactUrl } from "./errors.js";
-import { listResultProblem } from "./validate.js";
+import { DipApiError, DipError, DipValidationError, credentialsIn, redactCredentials, redactUrl } from "./errors.js";
+import { assertValid, isPlainObject, listResultProblem, type Problem } from "./validate.js";
+
+/** Why a pinned key source cannot be read, or undefined: it must be an absolute http(s) URL. */
+const sourceUrlProblem: Problem<unknown> = (value) => {
+  if (typeof value !== "string") return "Expected an absolute http(s) URL string.";
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:" ? undefined : "Expected an http(s) URL.";
+  } catch {
+    return "Expected an absolute http(s) URL.";
+  }
+};
 
 /** The environment variable the client and CLI read the key from. */
 export const API_KEY_ENV_VAR = "DIP_API_KEY";
@@ -146,6 +157,11 @@ export function extractKeyCandidates(document: string): string[] {
  * authenticate.
  */
 export async function obtainKey(options: ObtainKeyOptions = {}): Promise<ObtainedKey> {
+  options = options ?? {};
+  if (!isPlainObject(options)) throw new DipValidationError("Invalid options: Expected an object.");
+  // A pinned source must be an http(s) URL; an unparseable one used to fail later as
+  // "could not be read", a non-string as a raw TypeError.
+  if (options.sourceUrl !== undefined) assertValid("sourceUrl", options.sourceUrl, sourceUrlProblem);
   const sources = options.sourceUrl !== undefined ? [options.sourceUrl] : [...KEY_SOURCE_URLS];
   // Every request goes through the API client's engine: the same timeout and
   // size cap (a source or API host that stalls, or streams without end, must not
@@ -205,12 +221,10 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
           headers: { Authorization: `ApiKey ${key}` },
         });
       } catch (err) {
-        // A 401/403 from the origin that received the key rejects it: try the next one.
-        if (
-          err instanceof DipApiError &&
-          (err.status === 401 || err.status === 403) &&
-          err.credentialsDropped === undefined
-        ) {
+        // A 401 from the origin that received the key rejects it: try the next one.
+        // (DIP answers a bad key with 401. A 403 is a WAF, geo block or proxy refusing
+        // the request, which says nothing about the key: it stops below, naming 403.)
+        if (err instanceof DipApiError && err.status === 401 && err.credentialsDropped === undefined) {
           rejected += 1;
           continue;
         }

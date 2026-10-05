@@ -28,6 +28,7 @@ import {
   assertValid,
   headerNameProblem,
   intInRangeProblem,
+  isPlainObject,
   type Problem,
 } from "./validate.js";
 
@@ -290,6 +291,7 @@ export function validateLimits(limits: EngineLimits): void {
  * The reason never echoes the value: a base URL may carry a password.
  */
 export const baseUrlProblem: Problem<string> = (value) => {
+  if (typeof value !== "string") return "Expected an absolute http(s) URL string.";
   let url: URL;
   try {
     url = new URL(value);
@@ -444,6 +446,32 @@ export function isTransientNetworkError(err: unknown): boolean {
   return hasTransientCode(err);
 }
 
+/**
+ * Longest server text (in characters) kept for an error message (a `detail`). A longer
+ * one is cut and ends in "…", so a hostile or buggy body cannot flood stderr or a CI
+ * log with one huge line. `DipApiError.body` keeps the full text.
+ */
+const MAX_DETAIL_LENGTH = 500;
+
+/** sanitizeServerText, then cut at MAX_DETAIL_LENGTH characters. */
+function cleanDetail(text: string): string {
+  const clean = sanitizeServerText(text);
+  return clean.length > MAX_DETAIL_LENGTH ? `${clean.slice(0, MAX_DETAIL_LENGTH)}…` : clean;
+}
+
+/**
+ * Read a function option: `undefined` gives the default; anything else that is not a
+ * function is a DipValidationError. A string `transport` used to fail at the first
+ * request as a raw TypeError, and a bad `sleep` on the first retry.
+ */
+function functionOption<F>(name: string, value: F | undefined, fallback: F): F {
+  if (value === undefined) return fallback;
+  if (typeof value !== "function") {
+    throw new DipValidationError(`Invalid ${name}: Expected a function, got ${typeof value}.`);
+  }
+  return value;
+}
+
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -517,6 +545,8 @@ export class RequestEngine {
   private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(options: EngineOptions = {}) {
+    // A JavaScript caller may pass null for "no options".
+    options = options ?? {};
     validateLimits(options);
     // Check the raw base URL here, not only in the default transport: a library
     // consumer that injects a custom transport would otherwise get no gating at
@@ -531,13 +561,16 @@ export class RequestEngine {
         return [raw];
       }
     });
-    this.transport = options.transport ?? nodeHttpTransport;
+    this.transport = functionOption("transport", options.transport, nodeHttpTransport);
     // Only `undefined` selects the default; a blank or unsendable value is a
     // DipValidationError, as in the CLI's --user-agent.
     this.userAgent =
       options.userAgent === undefined
         ? DEFAULT_USER_AGENT
         : assertHeaderValue("userAgent", options.userAgent);
+    if (options.defaultHeaders !== undefined && !isPlainObject(options.defaultHeaders)) {
+      throw new DipValidationError("Invalid defaultHeaders: Expected an object of header names and values.");
+    }
     this.#defaultHeaders = { ...(options.defaultHeaders ?? {}) };
     for (const [name, value] of Object.entries(this.#defaultHeaders)) {
       assertValid("header name", name, headerNameProblem);
@@ -552,7 +585,7 @@ export class RequestEngine {
     this.retryDelayMs = options.retryDelayMs ?? 200;
     this.maxRedirects = options.maxRedirects ?? 5;
     this.maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
-    this.sleep = options.sleep ?? realSleep;
+    this.sleep = functionOption("sleep", options.sleep, realSleep);
   }
 
   /**
@@ -909,7 +942,7 @@ export class RequestEngine {
     // `detail` came from the (attacker-controlled) response body and flows into
     // DipApiError.message, which run.ts prints to stderr. Strip control
     // characters so a hostile endpoint cannot inject terminal escape sequences.
-    if (detail !== undefined) detail = sanitizeServerText(detail);
+    if (detail !== undefined) detail = cleanDetail(detail);
     // Name the target of a redirect that was not followed.
     const location =
       status >= 300 && status < 400 && locationHeader ? redirectTarget(url, locationHeader) : undefined;

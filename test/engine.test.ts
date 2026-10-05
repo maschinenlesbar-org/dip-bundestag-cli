@@ -462,3 +462,16 @@ test("getJson decodes a body by its declared charset, drops a BOM, and names an 
   });
   await assert.rejects(bad.getJson("/x"), (err) => err instanceof DipParseError && /x-klingon/.test(err.message));
 });
+
+test("a server detail is cut at 500 characters in the message, kept in full in body", async () => {
+  const long = "x".repeat(2000);
+  const mt = makeMockTransport(() => jsonResponse({ detail: long }, 400));
+  const e = new RequestEngine({ transport: mt.transport });
+  await assert.rejects(e.getJson("/x"), (err) => {
+    assert.ok(err instanceof DipApiError);
+    assert.ok(err.message.length < 700, `message has ${err.message.length} characters`);
+    assert.ok(err.message.endsWith("…"));
+    assert.ok(err.body.includes(long));
+    return true;
+  });
+});

@@ -103,7 +103,9 @@ working key comes from — the help page, or a free personal key from
 `parlamentsdokumentation@bundestag.de`. A key counts as verified only when the
 host that received it answers with a DIP list: an answer from another origin (after
 a redirect, which withholds the key) or a 200 that is an error object or an HTML
-page (a captive portal, a proxy) ends in "Could not verify", exit `1`.
+page (a captive portal, a proxy) ends in "Could not verify", exit `1`. So does a
+`403` (a WAF or a geo block refusing the request, not a verdict on the key), which
+the message names as such; only a `401` counts as the key being rejected.
 
 **From obtaining the key to having it where it is used, in one line:**
 
