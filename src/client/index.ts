@@ -8,6 +8,7 @@ export {
   baseUrlProblem,
   cleartextCredentialsProblem,
   DEFAULT_BASE_URL,
+  decodeBody,
   DEFAULT_MAX_RESPONSE_BYTES,
   DEFAULT_TIMEOUT_MS,
   DEFAULT_USER_AGENT,

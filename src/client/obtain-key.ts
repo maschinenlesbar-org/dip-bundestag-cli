@@ -17,7 +17,14 @@
 // moves on to the next candidate, then the next source, when one is rejected.
 // It never returns a key it knows to be dead.
 
-import { API_PATH, DEFAULT_BASE_URL, RequestEngine, type EngineOptions, type RawResponse } from "./engine.js";
+import {
+  API_PATH,
+  DEFAULT_BASE_URL,
+  RequestEngine,
+  decodeBody,
+  type EngineOptions,
+  type RawResponse,
+} from "./engine.js";
 import { DipApiError, DipError, credentialsIn, redactCredentials, redactUrl } from "./errors.js";
 
 /** The environment variable the client and CLI read the key from. */
@@ -172,7 +179,7 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
       const response = await engine.getAbsolute(rawSourceUrl, {
         accept: "application/json, text/plain, text/markdown;q=0.9, */*;q=0.8",
       });
-      document = response.data.toString("utf8");
+      document = decodeBody(response.data, response.contentType, sourceUrl);
     } catch (err) {
       // A non-2xx status (after retries and redirects), or unreachable (DNS,
       // reset, timeout, size cap): either way, try the next source.

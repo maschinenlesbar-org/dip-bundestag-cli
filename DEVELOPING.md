@@ -335,7 +335,10 @@ never forwarded to another host.
 unlimited; default 100 MiB), guarding against unbounded responses.
 
 **RawResponse.** The engine's raw-response shape: `{ data: Buffer,
-contentType, status }` — raw bytes, never lossily decoded.
+contentType, status, url, credentialsDropped? }` — raw bytes, never lossily
+decoded. `getJson` (and `obtainKey` for its source documents) decode them by the
+charset the Content-Type names (`decodeBody`, UTF-8 when none; a BOM is dropped,
+an unknown label is a `DipParseError`).
 
 **Query builder.** [`buildQueryString`](src/client/query.ts) — a
 dependency-free serialiser: omits `undefined`/`null`, repeats keys for arrays,

@@ -444,3 +444,21 @@ test("a reset is retried for a GET, but not for a POST", async () => {
   await assert.rejects(post.request("POST", "/x", { accept: "application/json" }), DipNetworkError);
   assert.equal(always.calls.length, 1);
 });
+
+test("getJson decodes a body by its declared charset, drops a BOM, and names an unknown charset", async () => {
+  const text = "Müller – Ausschuss für Bildung";
+  const cases: Array<[Buffer, string]> = [
+    [Buffer.from(JSON.stringify({ titel: "Müller" }), "latin1"), "application/json; charset=iso-8859-1"],
+    [Buffer.from(JSON.stringify({ titel: text }), "utf8"), "application/json; charset=UTF-8"],
+    [Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(JSON.stringify({ titel: text }))]), "application/json"],
+  ];
+  for (const [body, type] of cases) {
+    const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(body, type)).transport });
+    const got = (await e.getJson<{ titel: string }>("/x")).titel;
+    assert.ok(got === "Müller" || got === text, `${type}: ${got}`);
+  }
+  const bad = new RequestEngine({
+    transport: makeMockTransport(() => rawResponse("{}", "application/json; charset=x-klingon")).transport,
+  });
+  await assert.rejects(bad.getJson("/x"), (err) => err instanceof DipParseError && /x-klingon/.test(err.message));
+});
