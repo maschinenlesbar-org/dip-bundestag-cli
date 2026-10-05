@@ -112,7 +112,9 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       // is bundled, so the request went out with no Authorization header) or the
       // supplied key is invalid/expired. Point the user at how to supply a valid
       // one rather than leaving them with a bare 401.
-      if (err.status === 401) {
+      // When a redirect to another origin dropped the key, the message already says so
+      // (an http: base URL redirected to https: is the usual case): the key is fine.
+      if (err.status === 401 && err.credentialsDropped === undefined) {
         deps.io.err(
           "Authentication failed (401). Check your API key, or if none was set " +
             "pass --api-key <key> or set DIP_API_KEY. The current public key is " +

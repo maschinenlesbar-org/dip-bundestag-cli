@@ -125,11 +125,25 @@ Do **not** read the portal's own `https://dip.bundestag.de/dip-config.js`
 (`portalApiKey`): that is the web front end's internal credential, scoped to the
 portal services, and it is rejected with `401` on `/api/v1/`.
 
-**Redirect safety.** When the API issues a redirect that crosses an origin
-boundary (a different scheme, host, or port), the client **strips credential
-headers** (`Authorization`, `X-API-Key`, `Cookie`) before following it, so
-your API key is never sent to a host other than the one you targeted.
-Same-origin redirects keep it. Only 301/302/303/307/308 with a parseable
+**Redirect safety.** Credentials — the API key, the credential headers
+(`Authorization`, `X-API-Key`, `Cookie`) and a base URL's `user:password@`, which
+goes out as `Authorization: Basic` unless an API key takes that header — are
+attached by the engine per hop, never baked into the URL the transport sees. They
+go to the base URL's origin only: a same-origin redirect (relative or absolute
+`Location`) keeps them; a redirect to another scheme, host or port **drops them**
+for the rest of the chain, so your key is never sent to a host other than the one
+you targeted. That includes http→https on the same host: DIP answers plain http
+with a 301 to https, the key is withheld there, and the resulting 401 says "use an
+https base URL" instead of blaming the key (`DipApiError.credentialsDropped`; the
+CLI then skips its "check your API key" hint). The transport is told
+`redirect: "manual"` (`HttpRequest.redirect`); a transport that follows a redirect
+itself and reports a final `url` on another origin fails the request with a
+`DipNetworkError`. `obtain-key` only counts an answer from the origin that received
+the key as verification. The CLI warns on stderr when a key or userinfo would go to
+a plain-`http:` host other than the loopback interface
+(`cleartextCredentialsProblem`). `test/conformance-p3-redirect-credentials.test.ts`
+is the shared check (two local origins, a fetch transport, the http→https hint and
+the verification rule). Only 301/302/303/307/308 with a parseable
 `Location` are followed, up to `maxRedirects` (5); anything else — another 3xx, a
 missing or malformed `Location`, or the limit — is a `DipApiError` whose message
 names the target: `redirect to <url> not followed`, plus `(stopped after 5
@@ -308,10 +322,10 @@ up to `MAX_RETRY_AFTER_MS` (30 s) — a longer one is not retried, the error
 surfaces at once — or else backs off linearly (`retryDelayMs * attempt`). `DipApiError`
 exposes `isRetryable` (true for `429`/`503`).
 
-**Cross-origin credential stripping.** When the API issues a redirect that
-crosses an origin boundary (different scheme, host, or port), the engine strips
-credential headers (`Authorization`, `X-API-Key`, `Cookie`) before following
-it, so the key is never forwarded to another host.
+**Cross-origin credential stripping.** The engine attaches the credentials per
+hop and only to the base URL's origin; a redirect to a different scheme, host or
+port drops them for the rest of the chain (see *Redirect safety*), so the key is
+never forwarded to another host.
 
 **maxResponseBytes.** A cap on the response body size in bytes (`0` =
 unlimited; default 100 MiB), guarding against unbounded responses.

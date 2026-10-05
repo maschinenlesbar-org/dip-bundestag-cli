@@ -179,10 +179,12 @@ is not retried) or else backing off linearly. The library holds the same bound
 (`MAX_RETRIES`, `maxRetries`) and rejects a value outside it with
 `DipValidationError`, as it does a negative or fractional timeout or size cap.
 
-**Credential stripping on redirect.** The `Authorization` header (and
-`X-API-Key` / `Cookie`) is removed on any redirect that crosses origins, so the
-API key is never leaked to a host other than the one you targeted. Same-origin
-redirects keep it.
+**Credential stripping on redirect.** The API key (and `X-API-Key` / `Cookie`, and
+a base URL's `user:password@`) goes only to the base URL's origin. A redirect to
+another origin — another host, port or scheme, http→https included — drops it, so
+the key is never leaked to a host other than the one you targeted. Same-origin
+redirects keep it, with an absolute `Location` too. A 401 after such a redirect is
+not about the key, and the error says so ("use an https base URL" for http→https).
 
 **Error types.** [`errors.ts`](src/client/errors.ts): `DipApiError` (non-2xx,
 carries `status`/`detail`/`url`/`method`/`body`, with `isRetryable` for 429/503),

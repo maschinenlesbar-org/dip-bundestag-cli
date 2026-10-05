@@ -300,7 +300,8 @@ test("obtain-key names a --base-url verification host instead of claiming the li
   const err = cli.err.join("\n");
   assert.match(err, /verified it against http:\/\/\*\*\*@localhost:18110\/s\/ok \(--base-url\), not against the live DIP API\./);
   assert.doesNotMatch(err, /secret/);
-  assert.equal(cli.mt.calls[1]?.url, "http://u:secret@localhost:18110/s/ok/api/v1/vorgang");
+  assert.equal(cli.mt.calls[1]?.url, "http://localhost:18110/s/ok/api/v1/vorgang");
+  assert.equal(cli.mt.calls[1]?.headers?.["Authorization"], `ApiKey ${KEY}`);
 });
 
 test("obtain-key refuses -o instead of silently printing the key to the terminal", async () => {

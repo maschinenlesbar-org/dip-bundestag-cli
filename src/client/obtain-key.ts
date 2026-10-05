@@ -17,7 +17,7 @@
 // moves on to the next candidate, then the next source, when one is rejected.
 // It never returns a key it knows to be dead.
 
-import { API_PATH, DEFAULT_BASE_URL, RequestEngine, type EngineOptions } from "./engine.js";
+import { API_PATH, DEFAULT_BASE_URL, RequestEngine, type EngineOptions, type RawResponse } from "./engine.js";
 import { DipApiError, DipError, credentialsIn, redactCredentials, redactUrl } from "./errors.js";
 
 /** The environment variable the client and CLI read the key from. */
@@ -190,27 +190,48 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
 
     let rejected = 0;
     for (const key of candidates) {
+      let response: RawResponse;
       try {
-        await engine.request("GET", `${API_PATH}/vorgang`, {
+        response = await engine.request("GET", `${API_PATH}/vorgang`, {
           accept: "application/json",
           headers: { Authorization: `ApiKey ${key}` },
         });
-        return { key, sourceUrl, verified: true };
       } catch (err) {
-        if (err instanceof DipApiError && (err.status === 401 || err.status === 403)) {
+        // A 401/403 from the origin that received the key rejects it: try the next one.
+        if (
+          err instanceof DipApiError &&
+          (err.status === 401 || err.status === 403) &&
+          err.credentialsDropped === undefined
+        ) {
           rejected += 1;
           continue;
         }
-        // Not an authentication verdict: the API host is unreachable or unwell,
-        // so stop rather than blame the key or walk the remaining candidates
-        // against a broken host.
-        const reason = err instanceof DipApiError ? `HTTP ${err.status}` : describeError(err);
+        // Not an authentication verdict: the API host is unreachable or unwell, or a
+        // redirect took the request to another origin, which never saw the key. Stop
+        // rather than blame the key or walk the remaining candidates.
+        const reason =
+          err instanceof DipApiError
+            ? err.credentialsDropped !== undefined
+              ? `HTTP ${err.status} from ${err.credentialsDropped.to}, another origin, which did not receive the key`
+              : `HTTP ${err.status}`
+            : describeError(err);
         throw new DipError(
           `Could not verify the key against ${redactUrl(baseUrl)} (${reason}). ` +
             `Re-run with --no-verify to print it unchecked, or see ${HELP_PAGE_URL}.`,
           err instanceof DipApiError ? {} : { cause: err },
         );
       }
+      // Only an answer from the origin that received the key verifies it: after a
+      // redirect to another origin the key was (rightly) withheld, so that server's
+      // 200 says nothing about the key.
+      if (response.credentialsDropped !== undefined) {
+        throw new DipError(
+          `Could not verify the key against ${redactUrl(baseUrl)} (redirected to ` +
+            `${response.credentialsDropped.to}, another origin, which did not receive the key). ` +
+            `Re-run with --no-verify to print it unchecked, or see ${HELP_PAGE_URL}.`,
+        );
+      }
+      return { key, sourceUrl, verified: true };
     }
     failures.push(
       `the key${rejected > 1 ? "s" : ""} published at ${sourceUrl} ` +

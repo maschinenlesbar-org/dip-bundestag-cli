@@ -109,6 +109,22 @@ export interface RawResponse {
   data: Buffer;
   contentType: string;
   status: number;
+  /** The URL that answered, after any redirects, without userinfo. */
+  url: string;
+  /**
+   * Set when a redirect led to another origin (another scheme, host or port), so the
+   * credentials (the API key, the base URL's userinfo) were not sent to the server
+   * that answered: the origins before and after that hop.
+   */
+  credentialsDropped?: CredentialsDropped;
+}
+
+/** Where a redirect left the origin the credentials belong to. */
+export interface CredentialsDropped {
+  /** The origin that received the credentials. */
+  from: string;
+  /** The other origin the redirect led to, which did not. */
+  to: string;
 }
 
 export interface EngineOptions {
@@ -304,6 +320,29 @@ export const baseUrlProblem: Problem<string> = (value) => {
 };
 
 /**
+ * Why credentials would cross the network unencrypted, or `undefined`: the base URL
+ * is plain `http:` to a host other than the loopback interface, and an API key or a
+ * `user:password@` would be sent to it. Not an error (a mirror on a trusted network
+ * is a legitimate setup), so the CLI prints it as a warning; a missing "s" is an easy
+ * slip, and DIP itself only answers plain http with a redirect to https.
+ */
+export function cleartextCredentialsProblem(baseUrl: string, hasKey: boolean): string | undefined {
+  let url: URL;
+  try {
+    url = new URL(baseUrl);
+  } catch {
+    return undefined;
+  }
+  if (url.protocol !== "http:") return undefined;
+  const host = url.hostname.replace(/^\[|\]$/g, "");
+  if (host === "localhost" || host === "::1" || /^127\./.test(host)) return undefined;
+  const userinfo = url.username !== "" || url.password !== "";
+  if (!hasKey && !userinfo) return undefined;
+  const what = hasKey && userinfo ? "The API key and the base URL's credentials are" : hasKey ? "The API key is" : "The base URL's credentials are";
+  return `${what} sent unencrypted to ${url.host} (http:, not https:).`;
+}
+
+/**
  * Check a configured base URL (`baseUrlProblem`) and return it without trailing
  * slashes. Throws `DipValidationError` (`Invalid baseUrl: ...`): a bad base URL
  * is a configuration error, not a transport failure (`DipNetworkError` is kept
@@ -405,6 +444,43 @@ const realSleep = (ms: number): Promise<void> =>
 // Header names (lower-cased) that carry credentials and must never follow a
 // redirect to a different origin.
 const CREDENTIAL_HEADERS = new Set(["authorization", "x-api-key", "cookie"]);
+
+/**
+ * `url` without its userinfo, and the `Authorization: Basic` value the userinfo
+ * stands for (undefined without one). The engine attaches credentials per hop
+ * itself, so a transport never sees a URL with userinfo: Node's http would turn it
+ * into a Basic header on every hop, and `fetch` refuses such a URL. A URL that does
+ * not parse is returned as is, for the transport to report.
+ */
+function splitUserinfo(url: string): { url: string; basic: string | undefined } {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { url, basic: undefined };
+  }
+  if (parsed.username === "" && parsed.password === "") return { url, basic: undefined };
+  const decode = (part: string): string => {
+    try {
+      return decodeURIComponent(part);
+    } catch {
+      return part;
+    }
+  };
+  const pair = `${decode(parsed.username)}:${decode(parsed.password)}`;
+  parsed.username = "";
+  parsed.password = "";
+  return { url: parsed.href, basic: `Basic ${Buffer.from(pair, "latin1").toString("base64")}` };
+}
+
+/** The origin of `url` (scheme, host and port), or undefined when it does not parse. */
+function originOf(url: string): string | undefined {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return undefined;
+  }
+}
 
 /** Return a copy of `headers` with any credential-bearing header removed. */
 function stripCredentialHeaders(headers: Record<string, string>): Record<string, string> {
@@ -525,19 +601,42 @@ export class RequestEngine {
     return this.send("GET", url, options.accept, options.headers);
   }
 
+  /**
+   * Send a request, following redirects and retrying transient failures.
+   *
+   * Credentials — the credential headers (`Authorization`, `X-API-Key`, `Cookie`) and
+   * the start URL's userinfo, sent as `Authorization: Basic` unless an Authorization
+   * header (the API key) is already set — are attached by the engine per hop, never
+   * baked into the URL the transport sees. They go to the start URL's origin only:
+   * a redirect to the same origin (a relative or an absolute `Location`) keeps them,
+   * one to another scheme, host or port drops them for the rest of the chain, and the
+   * result says so (`credentialsDropped`). The transport is told `redirect:
+   * "manual"`; a transport that followed a redirect to another origin itself (its
+   * response `url` says so) fails the request instead of being trusted.
+   */
   private async send(
     method: string,
     startUrl: string,
     accept: string,
     extraHeaders: Record<string, string> = {},
   ): Promise<RawResponse> {
-    let url = startUrl;
-    let headers: Record<string, string> = {
+    const all: Record<string, string> = {
       Accept: accept,
       "User-Agent": this.userAgent,
       ...this.#defaultHeaders,
       ...extraHeaders,
     };
+    const plain = stripCredentialHeaders(all);
+    const credentials: Record<string, string> = {};
+    for (const [name, value] of Object.entries(all)) if (!(name in plain)) credentials[name] = value;
+    const start = splitUserinfo(startUrl);
+    if (start.basic !== undefined && !Object.keys(credentials).some((n) => n.toLowerCase() === "authorization")) {
+      credentials["Authorization"] = start.basic;
+    }
+    const hasCredentials = Object.keys(credentials).length > 0;
+    const credentialOrigin = originOf(start.url);
+    let dropped: CredentialsDropped | undefined;
+    let url = start.url;
 
     // Only an idempotent request is sent again: request() is public, and a POST re-sent
     // after a reset or a 503 may be applied twice. The client itself sends GETs only.
@@ -546,12 +645,15 @@ export class RequestEngine {
     let redirects = 0;
     // attempts = initial try + maxRetries (redirects are counted separately)
     for (;;) {
+      const sendCredentials = dropped === undefined && originOf(url) === credentialOrigin;
+      const headers = sendCredentials ? { ...plain, ...credentials } : plain;
       let raw: HttpResponse;
       try {
         raw = await this.callTransport({
           method,
           url,
           headers,
+          redirect: "manual",
           timeoutMs: this.timeoutMs,
           ...(this.maxResponseBytes > 0 ? { maxResponseBytes: this.maxResponseBytes } : {}),
         });
@@ -573,6 +675,18 @@ export class RequestEngine {
       if (invalid !== undefined) {
         throw new DipNetworkError(
           `${method} ${redactUrl(url)} failed: the transport returned an invalid response (${invalid}).`,
+        );
+      }
+      // A transport that followed a redirect itself (fetch's default) took the request
+      // to a host the engine never checked, credential headers and all: fetch strips
+      // Authorization across origins, but not X-API-Key or Cookie. Don't trust it.
+      const reported = (raw as { url?: unknown }).url;
+      if (typeof reported === "string" && reported !== "" && originOf(reported) !== originOf(url)) {
+        throw new DipNetworkError(
+          `${method} ${redactUrl(url)} failed: the transport followed a redirect to ` +
+            `${originOf(reported) ?? "an unparseable URL"}, another origin. A transport must not ` +
+            `follow redirects (HttpRequest.redirect is "manual"); the engine follows them and ` +
+            `decides where credentials may go.`,
         );
       }
       const status = raw.status;
@@ -606,18 +720,21 @@ export class RequestEngine {
       if (next !== undefined && redirects >= this.maxRedirects) {
         // A loop (or a long chain): say how far it got rather than a bare 3xx.
         // (With maxRedirects 0 nothing was followed; the plain text says enough.)
-        throw this.toApiError(method, url, status, response.body, location, redirects || undefined);
+        throw this.toApiError(method, url, status, response.body, location, redirects || undefined, dropped);
       }
       if (next !== undefined) {
-        const prev = new URL(url);
-        // SECURITY: the header object carries `Authorization: ApiKey <key>` (and
-        // possibly Cookie / X-API-Key). When the redirect crosses origins, drop
-        // every credential header so the API key is never sent to a foreign host
-        // (the classic credential-leak-on-redirect that fetch/curl guard against).
-        if (next.origin !== prev.origin) {
-          headers = stripCredentialHeaders(headers);
+        // SECURITY: the credentials (`Authorization: ApiKey <key>`, the base URL's
+        // userinfo as Basic, Cookie / X-API-Key) belong to the start URL's origin. A
+        // redirect to another scheme, host or port drops them for the rest of the
+        // chain — http→https on the same host included, as the key must not be
+        // re-sent on a hop the user did not choose. A Location's own userinfo is
+        // never used.
+        next.username = "";
+        next.password = "";
+        if (hasCredentials && dropped === undefined && next.origin !== credentialOrigin) {
+          dropped = { from: originOf(url) ?? "", to: next.origin };
         }
-        url = next.toString();
+        url = next.href;
         redirects += 1;
         continue;
       }
@@ -628,10 +745,16 @@ export class RequestEngine {
       // attacker-controlled and may later be echoed into a message.
       const contentType = sanitizeServerText(String(headerValue(response.headers["content-type"]) ?? ""));
       if (status < 200 || status >= 300) {
-        throw this.toApiError(method, url, status, response.body, location);
+        throw this.toApiError(method, url, status, response.body, location, undefined, dropped);
       }
 
-      return { data: response.body, contentType, status };
+      return {
+        data: response.body,
+        contentType,
+        status,
+        url,
+        ...(dropped !== undefined ? { credentialsDropped: dropped } : {}),
+      };
     }
   }
 
@@ -759,6 +882,7 @@ export class RequestEngine {
     body: Buffer,
     locationHeader?: string,
     redirectsFollowed?: number,
+    credentialsDropped?: CredentialsDropped,
   ): DipApiError {
     const text = this.scrub(body.toString("utf8"));
     let detail: string | undefined;
@@ -784,6 +908,7 @@ export class RequestEngine {
       detail,
       ...(location !== undefined ? { location } : {}),
       ...(redirectsFollowed !== undefined ? { redirectsFollowed } : {}),
+      ...(credentialsDropped !== undefined ? { credentialsDropped } : {}),
     });
   }
 }

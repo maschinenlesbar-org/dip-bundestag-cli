@@ -7,7 +7,7 @@ import type { CliDeps } from "./io.js";
 import type { RawResponse } from "../client/engine.js";
 import { apiKeyProblem, normaliseApiKey, type DipClientOptions } from "../client/client.js";
 import { DipError } from "../client/errors.js";
-import { baseUrlProblem } from "../client/engine.js";
+import { DEFAULT_BASE_URL, baseUrlProblem, cleartextCredentialsProblem } from "../client/engine.js";
 import { headerValueProblem, intInRangeProblem, nonEmptyProblem } from "../client/validate.js";
 
 /**
@@ -231,7 +231,11 @@ export function action(
     const global = command.optsWithGlobals() as GlobalOptions;
     // `-o -` means stdout: from here on it is the same as no -o.
     if (global.output === "-") delete global.output;
-    const client = deps.createClient(toEngineOptions(global));
+    const options = toEngineOptions(global);
+    const client = deps.createClient(options);
+    // Built first, so a key the client rejects is a usage error before any warning.
+    const cleartext = cleartextCredentialsProblem(options.baseUrl ?? DEFAULT_BASE_URL, options.apiKey !== undefined);
+    if (cleartext !== undefined) deps.io.err(`warning: ${cleartext}`);
     await fn({ client, global, opts: command.opts() }, positionals);
   };
 }

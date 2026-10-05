@@ -278,6 +278,9 @@ deliberately. A directory is refused either way, and `-o -` prints to stdout.
 - **`command not found: dip`** — the global npm bin directory isn't on your
   `PATH`. Run `npm bin -g` to find it and add it, or run via
   `npx @maschinenlesbar.org/dip-bundestag-cli …`.
+- **Exit `1` / HTTP 401 "… use an https base URL"** — `--base-url` starts with
+  `http://`; DIP redirects to `https://`, and the key is not sent across that change
+  of scheme. Use the `https://` URL.
 - **Exit `1` / "Authentication failed (401)"** — no key was sent, or the key
   is not (or no longer) valid. Try `dip obtain-key` (it checks a key before
   printing it), or export `DIP_API_KEY` / pass `--api-key` with the
@@ -311,7 +314,7 @@ These may be given **before or after** the command, e.g.
 | `--compact` | Print JSON on a single line instead of pretty-printed |
 | `-o, --output <file>` | Write output to this file instead of stdout (refuses to overwrite an existing file; `-` = stdout; a blank path is a usage error, exit `2`) |
 | `--force` | With `-o`, overwrite the output file if it already exists |
-| `--base-url <url>` | API base URL: the host, **without** `/api/v1`, which the CLI adds (default `https://search.dip.bundestag.de`). `http:`/`https:` only; a query (`?`), fragment (`#`), whitespace (surrounding or inside), a trailing `/api/v1` or a `%` in the user name or password that is not an escape (write a literal `%` as `%25`) is a usage error (exit `2`). A `user:password@` part is sent but shown as `***@` in everything the CLI prints, usage errors included |
+| `--base-url <url>` | API base URL: the host, **without** `/api/v1`, which the CLI adds (default `https://search.dip.bundestag.de`). `http:`/`https:` only; a query (`?`), fragment (`#`), whitespace (surrounding or inside), a trailing `/api/v1` or a `%` in the user name or password that is not an escape (write a literal `%` as `%25`) is a usage error (exit `2`). A `user:password@` part is sent as HTTP Basic auth (unless an API key takes the `Authorization` header) but shown as `***@` in everything the CLI prints, usage errors included. Credentials go to this origin only: a redirect to another host, port or scheme (http→https included) drops them, so use `https://`; a key or userinfo bound for a plain-`http:` host other than localhost prints a warning |
 | `--timeout <ms>` | Time limit per request, reading the whole response included (default `30000`; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value. A blank value, control characters or characters above U+00FF are a usage error (exit `2`) |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections (`0`–`10`, default `2`). Each retry waits the server's `Retry-After` (up to 30 s; a longer one is not retried) or else backs off linearly |

@@ -322,9 +322,11 @@ test("a password in --base-url never reaches an error message", async () => {
   assert.equal(code, 4);
   const err = cli.err.join("\n");
   assert.doesNotMatch(err, /secret|user:/);
-  assert.match(err, /^Error: HTTP 404 for GET http:\/\/\*\*\*@localhost:18110\/api\/v1\/vorgang: Not found/);
-  // The request itself keeps the userinfo (a basic-auth mirror still works).
-  assert.match(cli.mt.last().url, /^http:\/\/user:secret@localhost:18110\//);
+  assert.match(err, /^Error: HTTP 404 for GET http:\/\/localhost:18110\/api\/v1\/vorgang: Not found/);
+  // The userinfo goes out as Basic auth (a basic-auth mirror still works), attached by
+  // the engine per hop; the transport never sees it in the URL.
+  assert.equal(cli.mt.last().url, "http://localhost:18110/api/v1/vorgang");
+  assert.equal(cli.mt.last().headers?.["Authorization"], `Basic ${Buffer.from("user:secret").toString("base64")}`);
 });
 
 test("prototype-named --filter keys are usage errors, not a crash", async () => {
@@ -428,4 +430,24 @@ test("a response nested too deeply to pretty-print is a clear error, not a stack
   const compact = makeCli(deep);
   const code = await run(["--compact", "vorgang", "list"], compact.deps);
   if (code !== 0) assert.match(compact.err.join("\n"), /^Error: The response is nested too deeply to print\./);
+});
+
+test("a key or userinfo bound for a plain-http host is warned about; loopback and https are not", async () => {
+  const cases: Array<[string[], Record<string, string>, RegExp | undefined]> = [
+    [["--base-url", "http://search.dip.bundestag.de", "--api-key", "k3y-value"], {}, /^warning: The API key is sent unencrypted to search\.dip\.bundestag\.de \(http:, not https:\)\.$/],
+    [["--base-url", "http://search.dip.bundestag.de"], { DIP_API_KEY: "k3y-value" }, /The API key is sent unencrypted/],
+    [["--base-url", "http://u:pw@mirror.test"], {}, /^warning: The base URL's credentials are sent unencrypted to mirror\.test/],
+    [["--base-url", "http://mirror.test"], {}, undefined],
+    [["--base-url", "http://127.0.0.1:20180", "--api-key", "k3y-value"], {}, undefined],
+    [["--base-url", "http://localhost:20180", "--api-key", "k3y-value"], {}, undefined],
+    [["--api-key", "k3y-value"], {}, undefined],
+  ];
+  for (const [args, env, expected] of cases) {
+    const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }), env);
+    assert.equal(await run([...args, "vorgang", "list"], cli.deps), 0, args.join(" "));
+    const warnings = cli.err.filter((l) => l.startsWith("warning:"));
+    if (expected === undefined) assert.deepEqual(warnings, [], args.join(" "));
+    else assert.match(warnings.join("\n"), expected, args.join(" "));
+    assert.ok(!cli.err.join("\n").includes("pw@"), "the warning never shows the credentials");
+  }
 });

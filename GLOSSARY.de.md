@@ -187,10 +187,13 @@ Bibliothek hat dieselbe Grenze (`MAX_RETRIES`, `maxRetries`) und lehnt einen Wer
 außerhalb mit `DipValidationError` ab, ebenso ein negatives oder gebrochenes Timeout oder
 Größenlimit.
 
-**Entfernen von Zugangsdaten bei Weiterleitungen.** Der Header `Authorization` (sowie
-`X-API-Key` / `Cookie`) wird bei jeder Weiterleitung auf einen anderen Origin entfernt,
-sodass der API-Schlüssel nie an einen anderen Host als den angesteuerten gelangt.
-Weiterleitungen innerhalb desselben Origins behalten ihn.
+**Entfernen von Zugangsdaten bei Weiterleitungen.** Der API-Schlüssel (sowie
+`X-API-Key` / `Cookie` und ein `user:password@` der Basis-URL) geht nur an den Origin
+der Basis-URL. Eine Weiterleitung auf einen anderen Origin — anderer Host, Port oder
+anderes Schema, auch http→https — lässt ihn weg, sodass er nie an einen anderen Host als
+den angesteuerten gelangt. Weiterleitungen innerhalb desselben Origins behalten ihn,
+auch mit absolutem `Location`. Ein 401 nach einer solchen Weiterleitung sagt nichts über
+den Schlüssel, und die Fehlermeldung sagt das („use an https base URL“ bei http→https).
 
 **Fehlertypen.** [`errors.ts`](src/client/errors.ts): `DipApiError` (Nicht-2xx-Antwort,
 enthält `status`/`detail`/`url`/`method`/`body` sowie `isRetryable` für 429/503),

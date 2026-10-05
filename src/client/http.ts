@@ -22,6 +22,13 @@ export interface HttpRequest {
   /** Hard cap on the response body size in bytes; the request aborts if exceeded. */
   maxResponseBytes?: number;
   /**
+   * Always `"manual"` from the engine: a transport must not follow redirects but
+   * return the 3xx as it came (`fetch(url, { redirect: req.redirect })`). The engine
+   * follows them itself and decides per hop where credentials may go; a response
+   * whose `url` shows the transport went to another origin is rejected.
+   */
+  redirect?: "manual";
+  /**
    * Aborted when the engine's time limit (`timeoutMs`) passes. A transport should stop
    * the request then (`fetch(url, { signal })`); the engine rejects at the deadline
    * either way, and enforces `maxResponseBytes` on the body it gets back, so neither
@@ -34,6 +41,12 @@ export interface HttpResponse {
   status: number;
   headers: http.IncomingHttpHeaders;
   body: Buffer;
+  /**
+   * The URL that answered, if the transport knows it (fetch's `response.url`). When it
+   * is on another origin than the request's, the transport followed a redirect itself
+   * and the engine fails the request (`DipNetworkError`).
+   */
+  url?: string;
 }
 
 export type Transport = (request: HttpRequest) => Promise<HttpResponse>;

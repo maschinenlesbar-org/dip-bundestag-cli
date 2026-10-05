@@ -6,6 +6,7 @@ export {
   RequestEngine,
   API_PATH,
   baseUrlProblem,
+  cleartextCredentialsProblem,
   DEFAULT_BASE_URL,
   DEFAULT_MAX_RESPONSE_BYTES,
   DEFAULT_TIMEOUT_MS,
@@ -18,7 +19,7 @@ export {
   validateBaseUrl,
   validateLimits,
 } from "./engine.js";
-export type { EngineLimits, EngineOptions, RawResponse } from "./engine.js";
+export type { CredentialsDropped, EngineLimits, EngineOptions, RawResponse } from "./engine.js";
 export { MAX_TIMEOUT_MS, nodeHttpTransport, sizeLimitMessage } from "./http.js";
 export type { Transport, HttpRequest, HttpResponse } from "./http.js";
 export { obtainKey, looksLikeApiKey, API_KEY_ENV_VAR, KEY_SOURCE_URL } from "./obtain-key.js";
@@ -34,6 +35,7 @@ export {
   DipParseError,
   DipUsageError,
   DipValidationError,
+  credentialsDroppedHint,
   credentialsIn,
   redactCredentials,
   redactSecrets,
