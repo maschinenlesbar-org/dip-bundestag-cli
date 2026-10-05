@@ -237,6 +237,8 @@ export function validateLimits(limits: EngineLimits): void {
  * - no query or fragment: request paths are appended to the base URL as a
  *   string, so `http://h/?x=1` would request `/?x=1/api/v1/...` and `http://h/#f`
  *   would request `/`;
+ * - a `%` in the user name or password must start a valid escape (`%25` for a
+ *   literal one): the userinfo is decoded for the Authorization header;
  * - no surrounding whitespace and no whitespace or control character inside.
  *   `new URL()` trims the first and drops tab/CR/LF inside, but the engine
  *   appends paths to the raw string, so `"https://h "` would request
@@ -257,6 +259,15 @@ export const baseUrlProblem: Problem<string> = (value) => {
     return `Unsupported scheme "${url.protocol}". Expected an http(s) URL.`;
   }
   if (/[?#]/.test(value)) return "A base URL cannot have a query (?) or fragment (#).";
+  // Node decodes the userinfo for the Authorization header and throws "URI malformed"
+  // for a "%" that isn't an escape — at request time, as a network error. Reject it here.
+  for (const part of [url.username, url.password]) {
+    try {
+      decodeURIComponent(part);
+    } catch {
+      return 'The user name or password has a "%" that is not followed by two hex digits; write a literal "%" as %25.';
+    }
+  }
   if (value !== value.trim()) return "A base URL cannot have surrounding whitespace.";
   if (/[\u0000-\u0020\u007f]/.test(value)) {
     return "A base URL cannot contain whitespace or control characters.";

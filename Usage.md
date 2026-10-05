@@ -215,7 +215,7 @@ and `dip vorgang list --compact` are the same):
 | Option | Description |
 | --- | --- |
 | `-V, --version` | Print the CLI version |
-| `--base-url <url>` | API base URL: the host, **without** `/api/v1`, which the CLI adds (default `https://search.dip.bundestag.de`). `http:`/`https:` only; a query (`?`), fragment (`#`), whitespace (surrounding or inside) or a trailing `/api/v1` is a usage error (exit `2`). A `user:password@` part is sent but shown as `***@` in everything the CLI prints, usage errors included |
+| `--base-url <url>` | API base URL: the host, **without** `/api/v1`, which the CLI adds (default `https://search.dip.bundestag.de`). `http:`/`https:` only; a query (`?`), fragment (`#`), whitespace (surrounding or inside), a trailing `/api/v1` or a `%` in the user name or password that is not an escape (write a literal `%` as `%25`) is a usage error (exit `2`). A `user:password@` part is sent but shown as `***@` in everything the CLI prints, usage errors included |
 | `--api-key <key>` | DIP API key (env `DIP_API_KEY`). Surrounding whitespace is trimmed, as for `DIP_API_KEY`. A blank value, control characters or characters above U+00FF are a usage error (exit `2`), from the flag or the env var; the error never repeats the key |
 | `--timeout <ms>` | Time limit per request in milliseconds, reading the whole response included (at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value. A blank value, control characters or characters above U+00FF are a usage error (exit `2`) |

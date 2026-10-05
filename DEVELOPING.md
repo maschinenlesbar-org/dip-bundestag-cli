@@ -223,7 +223,9 @@ What the library rejects:
   before the trailing-slash strip): a value that does not parse as an absolute
   URL, a scheme other than `http:`/`https:`, a query or fragment (paths are
   appended to the raw string), surrounding whitespace, whitespace or a control
-  character inside (`new URL()` would hide both), and a path ending in `/api/v1`
+  character inside (`new URL()` would hide both), a `%` in the user name or
+  password that is not an escape (Node would fail to decode it at request time),
+  and a path ending in `/api/v1`
   (the client adds it; the message suggests the value without it). All of these
   are a `DipValidationError` (a configuration error), not a `DipNetworkError`;
   that class stays for the default transport's per-hop checks. Only `undefined`

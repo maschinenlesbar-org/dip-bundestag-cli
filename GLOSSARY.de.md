@@ -171,9 +171,12 @@ ist `2023-12-31T23:00:00.000Z`, also der Vortag.
 Pfadpräfix eines Spiegels) ohne diesen Teil. CLI und Bibliothek (`validateBaseUrl`)
 lehnen vor jeder Anfrage mit derselben Begründung eine URL ab, die sich nicht parsen
 lässt, nicht `http:`/`https:` ist, auf `/api/v1` endet, Leerraum am Rand oder im
-Inneren enthält oder eine Query bzw. ein Fragment hat (Bibliothek: `DipValidationError`,
+Inneren enthält, eine Query bzw. ein Fragment hat oder im Benutzernamen oder Passwort ein
+`%` enthält, das keine gültige Escape-Sequenz einleitet (ein wörtliches `%` wird `%25`
+geschrieben) (Bibliothek: `DipValidationError`,
 nicht `DipNetworkError`). Zugangsdaten darin
-(`user:password@`) werden gesendet, in Fehlermeldungen aber zu `***@` geschwärzt.
+(`user:password@`) werden gesendet, in allem, was die CLI ausgibt, und in den Fehlern der
+Bibliothek aber zu `***@` geschwärzt.
 
 **Rate-Limiting.** Das DIP begrenzt die Anfragerate; bei Überschreitung antwortet die
 API mit **429**. Der Client wiederholt **429** und **503** automatisch

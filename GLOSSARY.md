@@ -167,9 +167,10 @@ for `f.datum.*` (HTTP 400 `Invalid date`). Library users pass `f.datum.*` as a
 `/api/v1`, which the client adds: the base URL is the host (plus any mirror path
 prefix) without it. The CLI and the library (`validateBaseUrl`) reject one that
 does not parse, is not `http:`/`https:`, ends in `/api/v1`, has surrounding
-whitespace or whitespace inside, or has a query or fragment, before any request,
+whitespace or whitespace inside, has a query or fragment, or has a `%` in the user
+name or password that is not an escape (a literal `%` is written `%25`), before any request,
 with the same reason (library: `DipValidationError`, not `DipNetworkError`). Userinfo in it (`user:password@`) is sent, but redacted to `***@` in
-error messages.
+everything the CLI prints and in the library's errors.
 
 **Rate limiting.** DIP limits the request rate; the API returns **429** when it is
 exceeded. The client retries **429** and **503** automatically (`--max-retries`,
