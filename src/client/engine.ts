@@ -17,6 +17,9 @@ import {
   DipNetworkError,
   DipParseError,
   DipValidationError,
+  credentialsIn,
+  redactCredentials,
+  redactSecrets,
   redactUrl,
 } from "./errors.js";
 import {
@@ -413,10 +416,17 @@ function stripCredentialHeaders(headers: Record<string, string>): Record<string,
 }
 
 export class RequestEngine {
-  private readonly baseUrl: string;
+  // Real private fields (not TypeScript's `private`): util.inspect, console.log and
+  // JSON.stringify of a client never show them, so a password in the base URL or
+  // the API key in the default headers can't be logged by accident.
+  readonly #baseUrl: string;
+  readonly #defaultHeaders: Record<string, string>;
+  /** The base URL's userinfo, raw and percent-decoded, for scrubbing server and transport text. */
+  readonly #credentials: string[];
+  /** Secrets without an `@` to anchor on (the API key), for the same scrubbing. */
+  readonly #secrets: string[];
   private readonly transport: Transport;
   private readonly userAgent: string;
-  private readonly defaultHeaders: Record<string, string>;
   private readonly timeoutMs: number;
   private readonly maxRetries: number;
   private readonly retryDelayMs: number;
@@ -430,8 +440,15 @@ export class RequestEngine {
     // consumer that injects a custom transport would otherwise get no gating at
     // all, and could be steered to a non-http(s) scheme. Only `undefined`
     // selects the default.
-    this.baseUrl =
+    this.#baseUrl =
       options.baseUrl === undefined ? DEFAULT_BASE_URL : validateBaseUrl(options.baseUrl);
+    this.#credentials = credentialsIn(this.#baseUrl).flatMap((raw) => {
+      try {
+        return [raw, decodeURIComponent(raw)];
+      } catch {
+        return [raw];
+      }
+    });
     this.transport = options.transport ?? nodeHttpTransport;
     // Only `undefined` selects the default; a blank or unsendable value is a
     // DipValidationError, as in the CLI's --user-agent.
@@ -439,11 +456,15 @@ export class RequestEngine {
       options.userAgent === undefined
         ? DEFAULT_USER_AGENT
         : assertHeaderValue("userAgent", options.userAgent);
-    this.defaultHeaders = options.defaultHeaders ?? {};
-    for (const [name, value] of Object.entries(this.defaultHeaders)) {
+    this.#defaultHeaders = { ...(options.defaultHeaders ?? {}) };
+    for (const [name, value] of Object.entries(this.#defaultHeaders)) {
       assertValid("header name", name, headerNameProblem);
       assertHeaderValue(`${name} header`, value);
     }
+    // The secret part of a credential header (`ApiKey <key>` → the key), never echoed.
+    this.#secrets = Object.entries(this.#defaultHeaders)
+      .filter(([name]) => CREDENTIAL_HEADERS.has(name.toLowerCase()))
+      .map(([, value]) => value.replace(/^\S+\s+/, "").trim());
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.maxRetries = options.maxRetries ?? 2;
     this.retryDelayMs = options.retryDelayMs ?? 200;
@@ -471,7 +492,7 @@ export class RequestEngine {
       );
     }
     const qs = query ? buildQueryString(query) : "";
-    return `${this.baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;
+    return `${this.#baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;
   }
 
   /**
@@ -514,7 +535,7 @@ export class RequestEngine {
     let headers: Record<string, string> = {
       Accept: accept,
       "User-Agent": this.userAgent,
-      ...this.defaultHeaders,
+      ...this.#defaultHeaders,
       ...extraHeaders,
     };
 
@@ -615,6 +636,36 @@ export class RequestEngine {
   }
 
   /**
+   * `text` without the base URL's credentials or the API key: server text (an error
+   * body that echoes the request URL or its headers) and transport text (fetch's
+   * "Failed to fetch <url>") can carry them.
+   */
+  private scrub(text: string): string {
+    return redactSecrets(redactCredentials(text, this.#credentials), this.#secrets);
+  }
+
+  /**
+   * A transport failure as the `cause` of the error the engine raises: the original
+   * when its text carries no secret, otherwise a copy with them scrubbed (message,
+   * `code` and the cause chain kept), so logging the error with its causes can't
+   * reveal the base URL's password or the key.
+   */
+  private scrubCause(cause: unknown, depth = 0): unknown {
+    if ((this.#credentials.length === 0 && this.#secrets.length === 0) || depth > 5) return cause;
+    if (typeof cause === "string") return this.scrub(cause);
+    if (!(cause instanceof Error)) return cause;
+    const inner = this.scrubCause(cause.cause, depth + 1);
+    const message = this.scrub(cause.message);
+    const stack = cause.stack ?? "";
+    if (message === cause.message && inner === cause.cause && this.scrub(stack) === stack) return cause;
+    const copy = new Error(message, inner === undefined ? undefined : { cause: inner });
+    copy.name = cause.name;
+    const code = (cause as { code?: unknown }).code;
+    if (code !== undefined) Object.assign(copy, { code });
+    return copy;
+  }
+
+  /**
    * Call the transport under the request's time limit (`timeoutMs`): the request gets
    * an AbortSignal that fires at the deadline, and the call rejects then whether the
    * transport stops or not — a custom transport (fetch, a node:http wrapper) that
@@ -647,6 +698,14 @@ export class RequestEngine {
    * `cause`, so every failure stays a `DipError`.
    */
   private toNetworkError(method: string, url: string, cause: unknown): DipError {
+    if (cause instanceof DipNetworkError) {
+      // The built-in transport's own errors carry no URL; scrub anyway, in case a
+      // custom transport built one from a server's text.
+      const message = this.scrub(cause.message);
+      const inner = this.scrubCause(cause.cause);
+      if (message === cause.message && inner === cause.cause) return cause;
+      return new DipNetworkError(message, inner === undefined ? undefined : { cause: inner });
+    }
     if (cause instanceof DipError) return cause;
     const reason =
       cause instanceof Error && cause.message.trim() !== ""
@@ -654,7 +713,9 @@ export class RequestEngine {
         : typeof cause === "string" && cause.trim() !== ""
           ? cause
           : "the transport failed without a message";
-    return new DipNetworkError(`${method} ${redactUrl(url)} failed: ${sanitizeServerText(reason)}`, { cause });
+    return new DipNetworkError(`${method} ${redactUrl(url)} failed: ${sanitizeServerText(this.scrub(reason))}`, {
+      cause: this.scrubCause(cause),
+    });
   }
 
   /** Perform a GET expecting JSON and parse it into `T`. */
@@ -699,7 +760,7 @@ export class RequestEngine {
     locationHeader?: string,
     redirectsFollowed?: number,
   ): DipApiError {
-    const text = body.toString("utf8");
+    const text = this.scrub(body.toString("utf8"));
     let detail: string | undefined;
     try {
       const parsed = JSON.parse(text) as { detail?: unknown; message?: unknown };

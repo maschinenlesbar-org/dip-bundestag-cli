@@ -18,7 +18,7 @@
 // It never returns a key it knows to be dead.
 
 import { API_PATH, DEFAULT_BASE_URL, RequestEngine, type EngineOptions } from "./engine.js";
-import { DipApiError, DipError, redactUrl } from "./errors.js";
+import { DipApiError, DipError, credentialsIn, redactCredentials, redactUrl } from "./errors.js";
 
 /** The environment variable the client and CLI read the key from. */
 export const API_KEY_ENV_VAR = "DIP_API_KEY";
@@ -106,7 +106,7 @@ export interface ObtainKeyOptions
 export interface ObtainedKey {
   /** The key, ready to put in `API_KEY_ENV_VAR`. */
   key: string;
-  /** Which source it came from, so callers can cite it. */
+  /** Which source it came from, so callers can cite it (userinfo shown as `***@`). */
   sourceUrl: string;
   /** true = accepted by the live API; false = not checked. */
   verified: boolean;
@@ -162,10 +162,14 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
   // Why each source failed, in order, so the final error can say what was tried.
   const failures: string[] = [];
 
-  for (const sourceUrl of sources) {
+  for (const rawSourceUrl of sources) {
+    // A source behind Basic auth (a private mirror) is named without its userinfo, in
+    // the error and in the result, and its credentials are cut from transport text.
+    const sourceUrl = redactUrl(rawSourceUrl);
+    const sourceCredentials = credentialsIn(rawSourceUrl);
     let document: string;
     try {
-      const response = await engine.getAbsolute(sourceUrl, {
+      const response = await engine.getAbsolute(rawSourceUrl, {
         accept: "application/json, text/plain, text/markdown;q=0.9, */*;q=0.8",
       });
       document = response.data.toString("utf8");
@@ -173,7 +177,7 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
       // A non-2xx status (after retries and redirects), or unreachable (DNS,
       // reset, timeout, size cap): either way, try the next source.
       const reason = err instanceof DipApiError ? `HTTP ${err.status}` : describeError(err);
-      failures.push(`${sourceUrl} could not be read (${reason})`);
+      failures.push(`${sourceUrl} could not be read (${redactCredentials(reason, sourceCredentials)})`);
       continue;
     }
 

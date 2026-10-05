@@ -247,6 +247,14 @@ What the library rejects:
   where `obtain-key` prints the key. `test/conformance-p1-cli-redaction.test.ts`
   is the shared check (ten passwords, seven URL shapes, every echo path, plus the
   key by flag, by environment and typed without its flag).
+- **Secrets in the library's objects and errors.** The engine keeps the base URL
+  and the default headers (with the API key) in real `#private` fields, so
+  `console.log(client)`, `util.inspect` and `JSON.stringify` never show them. The
+  base URL's userinfo (raw and percent-decoded) and the key are scrubbed from
+  error bodies and details, from transport error text and from the `cause` chain
+  (`scrub`/`scrubCause`). `obtainKey` names a source URL without its userinfo, in
+  its errors and in `ObtainedKey.sourceUrl`.
+  `test/conformance-p2-library-redaction.test.ts` is the shared check.
 
 ### Library / technical terms
 
