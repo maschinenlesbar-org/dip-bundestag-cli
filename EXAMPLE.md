@@ -3,9 +3,19 @@
 Real examples for the Claude Code skills of the `dip-bundestag` plugin, one per skill: a request,
 the `dip` commands the skill ran, and the answer Claude gave.
 
-Every example ran against the live API on 15 September 2026 with `dip` 0.0.7.
-The data changes, so your results will differ; the ids and keys shown work for trying the
-requests yourself. Long lists are shortened.
+Every example ran against the live API on 6 October 2026 with `dip` 0.2.0.
+The data changes, so your results will differ; the ids shown work for trying the requests
+yourself. Long lists are shortened.
+
+Each skill starts by obtaining the API key once and reuses it on every later call:
+
+```bash
+dip obtain-key          # reads DIP's help document, verifies the key, prints it on stdout
+DIP_API_KEY="<the key>" dip --compact …
+```
+
+`obtain-key` printed `Obtained the key from https://content.dip.bundestag.de/content-api/v1/content/help-api
+and verified it against the live API.` on stderr. The key itself is left out below.
 
 To try them, install the CLI and the plugin — see [SKILLS.md](SKILLS.md).
 
@@ -17,78 +27,80 @@ Skills: [dip-document-digest](#dip-document-digest) · [dip-member-dossier](#dip
 
 ```bash
 dip --compact drucksache list --filter f.titel=Gebäudemodernisierungsgesetz --filter f.wahlperiode=21   # 7 hits
-dip --compact drucksache-text get 290675        # Antwort 21/7982: no text field yet
-dip --compact drucksache-text get 290149        # Kleine Anfrage 21/7563
-dip --compact vorgang list --filter f.titel=Gebäude --filter f.wahlperiode=21                          # to link the law itself
+dip --compact drucksache-text get 290675        # Antwort 21/7982, with the question text
+dip --compact vorgang list --filter f.titel=Gebäude --filter f.wahlperiode=21 \
+  --filter f.vorgangstyp=Gesetzgebung                                                                  # to link the law itself
 ```
 
-The search found only Kleine Anfragen and answers, no bill. The law is filed as "Gesetz zur Änderung
-des Gebäudeenergiegesetzes, …", and "Gebäudemodernisierungsgesetz" appears only in its abstract.
-The newest hit, the government's answer of 10 Sep, has no extracted text yet. So the skill
-digested the questions and pointed to the answer's PDF. It dropped URLs split across lines and the
+The search found only Kleine Anfragen and answers, no bill: the law is filed as "Gesetz zur Änderung
+des Gebäudeenergiegesetzes, …". The newest hit is the government's answer of 10 Sep, and its text
+is extracted now. Since an answer repeats every question in small print, the skill digested
+questions and answers from that one document. It dropped URLs split across lines and the
 printer's footer from the OCR text.
 
 ```
-Drucksache 21/7563 (WP 21, 2026-08-13) — Kleine Anfrage, Fraktion BÜNDNIS 90/DIE GRÜNEN
-Gesetzgebungsverfahren zum Gebäudemodernisierungsgesetz
-Asked by Dr. Alaa Alhamwi, Dr. Julia Verlinden and 12 other Green MdBs (signed 6 Aug 2026)
+Drucksache 21/7982 (WP 21, 2026-09-10) — Antwort der Bundesregierung (BMWE)
+on Kleine Anfrage 21/7563 of Dr. Alaa Alhamwi, Dr. Julia Verlinden, Hanna Steinmüller and the
+Fraktion BÜNDNIS 90/DIE GRÜNEN: "Gesetzgebungsverfahren zum Gebäudemodernisierungsgesetz"
 
-Premise: the adopted GModG drops the 65-percent rule (§ 71 GEG), allows fossil heating beyond
-2045, and adds a Grüngasquote for fuel suppliers from 2028 and a "Bio-Treppe" from 2029.
-37 questions:
-  • Q1–5, 10–12  contacts with the gas industry ("Die Gas- und Wasserstoffwirtschaft e. V.",
-                 "Initiative Grüngasquote"): meetings, letters and drafting proposals to Minister
-                 Katherina Reiche, state secretaries and BMWE officials since 6 May 2025
-  • Q6–9, 13–14  who pushed dropping § 71 GEG, ending the 2045 fossil-boiler ban (§ 72 (4) GEG)
-                 and the Bio-Treppe, and when
-  • Q15–24       evidence base, controls and sanctions for Bio-Treppe and quota; biomethane
-                 supply, cost forecasts, timetable for the quota
-  • Q25–32       objections from the BMWSB in the Ressortabstimmung; constitutionality reviews
-  • Q33–37       climate effect vs. the GEG 2026–2035, new gas heaters per year until 2045,
-                 why their earlier Anfrage on gas costs for tenants took until 29 May to answer
+Premise of the questions: the adopted GModG drops the 65-percent rule (§ 71 GEG), allows fossil
+heating beyond 2045, adds a Grüngasquote from 2028 and a "Bio-Treppe" from 2029.
 
-Answer: Drucksache 21/7982 (2026-09-10, Bundesregierung, lead BMWE). Text not yet extracted:
-  https://dserver.bundestag.de/btd/21/079/2107982.pdf
-Procedure: Vorgang 338265 (Kleine Anfrage, Beantwortet)
-The law: Vorgang 334923, GModG as Art. 1, Verkündet in BGBl I 2026, 226 (2026-07-28)
-Source: https://dserver.bundestag.de/btd/21/075/2107563.pdf
+Answered (37 questions):
+  • Preface: the core of executive responsibility is not open to parliamentary inquiry; contacts
+    are not logged in full, so the lists may be incomplete.
+  • Q1–2 meetings: BMin Reiche with BDEW (Dohler, Andreae) on 23 Jul 2025 and with BDEW's
+    board, management and steering groups on 12 Jan 2026, both "Wärmewende/GModG"; PSt
+    Rouenhoff with ITGA-NRW/BTGA (20 Aug 2025) and BDI (16 Mar 2026). Q3 letters from the
+    gas industry: none ("Fehlanzeige").
+  • Q4–14 drafts and who pushed what: the statements of Länder and associations are on BMWE's
+    website; the coalition agreement ("Wir werden das Heizungsgesetz abschaffen") applied from
+    day one; "everyone is free to lobby"; most questions referred to the answer on Q4.
+  • Q15–24 Bio-Treppe and quota: a supplier's bill confirms the Bio-Treppe, breaches carry fines;
+    the Grüngas-/Grünheizölquote law is "in preparation" (no timetable); forecasts of supply and
+    prices vary too widely to use.
+  • Q25–32 ministries and constitution: BMWE and BMWSB wrote a joint draft; the government
+    considers the law constitutional.
+  • Q33–37 climate effect: the Bundestag passed the law on 10 Jul 2026, the Bundesrat raised no
+    objection; an estimate of its climate effect is "being prepared"; no forecast of new gas
+    heaters; the late answer to 21/6229 was due to inter-ministry coordination and research.
+
+Procedure: Vorgang 338265 (Kleine Anfrage)
+The law: Vorgang 334923, Verkündet in BGBl I 2026, 226 (2026-07-28)
+Source: https://dserver.bundestag.de/btd/21/079/2107982.pdf
 ```
 
-Next steps offered: re-fetch `drucksache-text get 290675` once the answer's text is extracted, or run dip-procedure-tracker on Vorgang 334923.
+Next steps offered: the full answers to Q1–2 as a table, or run dip-procedure-tracker on Vorgang 334923.
 
 ## dip-member-dossier
 
 > What does the Bundestag record say about Julia Klöckner: party, roles, and which terms?
 
 ```bash
-dip --compact person list --filter f.wahlperiode=21                      # page 1 of 823 records, no match
-dip --compact person list --filter f.wahlperiode=21 --cursor "$cursor"   # pages 2–10; hit on page 4, cursor unchanged after 10
+dip --compact person list --filter f.person=Klöckner --filter f.wahlperiode=21   # 1 hit: id 224
 dip --compact person get 224
 ```
 
-`/person` has no name filter, so the skill paged the whole WP 21 list and matched `nachname`
-itself. It read all 9 pages to rule out a second Klöckner. Party and function sit in top-level
-`fraktion[]`/`funktion[]` arrays. `person_roles[]` here holds only term numbers and ministries,
-with no role title.
+`f.person` found her by surname in one request, so no paging was needed. Party and function sit
+in the top-level `fraktion[]`/`funktion[]` arrays. `person_roles[]` holds only term numbers and
+ministries, with no role title.
 
 ```
 Julia Klöckner — Person 224
 Current (WP 21): MdB · CDU/CSU        (titel "Julia Klöckner, MdB, CDU/CSU")
 
-Terms in the record: WP 15, 16, 17, 19, 20, 21 (not 18) · basisdatum 2002-11-13
-Roles:
-  • WP 21  MdB · CDU/CSU (role entry has no further detail)
-  • WP 19  government role · Bundesministerium für Ernährung und Landwirtschaft
-  • WP 17  government role · Bundesministerium für Ernährung, Landwirtschaft und Verbraucherschutz
+Terms in the record: WP 15, 16, 17, 19, 20, 21 (not 18) · basisdatum 2002-11-13 · latest 2026-09-10
+Earlier roles:
+  • WP 19  Ressort Bundesministerium für Ernährung und Landwirtschaft (role title not in the record)
+  • WP 17  Ressort Bundesministerium für Ernährung, Landwirtschaft und Verbraucherschutz
+  • WP 21  a role entry with her name only, no further detail
   (no role entries for WP 15, 16 and 20)
 
-Not in the record: the title of either ministry role, Wahlkreis, Bundesland, committees.
-No Präsidium office in the record: none of the 823 WP 21 person records has the function
-"Bundestagspräs." (4 have "Bundestagsvizepräs.").
-Matched on nachname within WP 21: one hit in 823 records.
+Not in the record: the title of either ministry role, Wahlkreis, Bundesland, committees, and no
+Präsidium office (her current function is MdB).
 ```
 
-Next steps offered: a scan of WP 21 Drucksachen for "Klöckner" in `autoren_anzeige` (slow, loosely attributable).
+Next steps offered: her WP 21 activities (`aktivitaet list --filter f.person_id=224 --filter f.wahlperiode=21`, paged with both filters repeated).
 
 ## dip-procedure-tracker
 
@@ -96,13 +108,14 @@ Next steps offered: a scan of WP 21 Drucksachen for "Klöckner" in `autoren_anze
 
 ```bash
 dip --compact vorgang list --filter f.titel=Haushaltsgesetz --filter f.wahlperiode=21   # 14 hits
-dip --compact vorgangsposition list --filter f.vorgang=338317                         # 31 steps, one page
+dip --compact vorgangsposition list --filter f.vorgang=338317                         # 33 steps, one page
 ```
 
 Most of the 14 hits were Entschließungsanträge on the 2025 and 2026 budgets. The skill kept
-`vorgangstyp` Gesetzgebung and took the 2027 bill. 26 of the 31 steps belong to the first
-reading, mostly one per Einzelplan, so the skill folded them into one line per sitting day. The
-only `beschlussfassung` is a referral, not a vote. The Vorgang's abstract says
+`vorgangstyp` Gesetzgebung and took the 2027 bill. All 33 steps fit on one page (`numFound` 33),
+so no `--cursor` call was needed. 26 steps belong to the first reading, mostly one per Einzelplan,
+so the skill folded them into one line per sitting day. Neither `beschlussfassung` is a vote on
+the bill: one is the referral, the other the Bundesrat's opinion. The Vorgang's abstract says
 "Bundeshaushaltsplans 2026" although everything else is 2027, so its figures are quoted with
 that caveat.
 
@@ -122,13 +135,16 @@ Timeline:
   2026-09-10  BT  1. Beratung (PlPr 21/93): Epl 06, 07, 10, 17, 25, 15
   2026-09-11  BT  1. Beratung (PlPr 21/94): Epl 11, 30, Schlussrunde → Überweisung (p. 11673C)
   2026-09-11  BR  Empfehlungen der Ausschüsse (Drs 450/1/26): Stellungnahme
+  2026-09-25  BR  1. Durchgang (PlPr 1068): Stellungnahme under Art. 110 (3) GG → Beschlussdrucksache 450/26(B)
 
 Notable:
   • Decision 2026-09-11: beschlusstenor "Überweisung" of 21/7300 and 21/7650. A referral, not a vote.
+  • Decision 2026-09-25: the Bundesrat's Stellungnahme in the first passage. An opinion, not a vote.
   • Lead committee: Haushaltsausschuss (HaushA); no co-advising committees listed.
-  • Debated with the Finanzplan des Bundes 2026 bis 2030; 389 activities over four sittings.
+  • Debated with the Finanzplan des Bundes 2026 bis 2030 and the Haushaltsbegleitgesetz 2027;
+    397 activities over the four sittings and the Bundesrat session.
   • Abstract figures: 555,436 Mrd Euro total, net borrowing up to 118,727 Mrd Euro,
     investment 56,272 Mrd Euro.
 ```
 
-Next steps offered: dip-document-digest on the Schlussrunde in Plenarprotokoll 21/94 (pp. 11652–11673), or the Bundesrat committees' recommendations 450/1/26.
+Next steps offered: dip-document-digest on the Schlussrunde in Plenarprotokoll 21/94 (pp. 11652–11673), or the Bundesrat's Stellungnahme 450/26(B).
