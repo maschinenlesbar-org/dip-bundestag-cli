@@ -44,6 +44,15 @@ export const KEY_CONTACT = "parlamentsdokumentation@bundestag.de";
 const KEY_TOKEN = String.raw`[A-Za-z0-9_-]{6,12}\.[A-Za-z0-9_-]{30,48}`;
 
 /**
+ * True when `value` (as a whole) has the shape of a DIP key: a 6–12 character
+ * prefix, a dot, a 30–48 character body, from `A–Z a–z 0–9 _ -`. The CLI uses it to
+ * keep a key typed in the wrong place (`dip <key> vorgang list`) out of its messages.
+ */
+export function looksLikeApiKey(value: string): boolean {
+  return new RegExp(`^${KEY_TOKEN}$`).test(value.trim());
+}
+
+/**
  * Ways a source states the key, most specific first:
  *   1. the help document's prose — `… gültige API-Key lautet:<br />R2BZaee.Djd…`
  *   2. the README's header form — `Authorization: ApiKey OSOegLs.PR2…`

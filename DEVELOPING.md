@@ -235,6 +235,16 @@ What the library rejects:
   The CLI's `--api-key` parser (after its own blank-flag check) and the
   `DIP_API_KEY` path end up in the same function, so all three send the same
   header or fail the same way (exit 2).
+- **Secrets in the CLI's output** (`withRedactedOutput` in `run.ts`): commander
+  echoes a rejected value in its usage error and names an unknown command or
+  option as typed, so `run()` wraps `deps.io` first. The userinfo of every
+  URL-like argument (`credentialsIn`, which finds it whether the value parses or
+  not, then `redactCredentials`) becomes `***@` on stdout and stderr; the
+  `--api-key` value, the `DIP_API_KEY` value and any argument shaped like a DIP
+  key (`looksLikeApiKey`) become `***` on stderr (`redactSecrets`). Not on stdout,
+  where `obtain-key` prints the key. `test/conformance-p1-cli-redaction.test.ts`
+  is the shared check (ten passwords, seven URL shapes, every echo path, plus the
+  key by flag, by environment and typed without its flag).
 
 ### Library / technical terms
 
