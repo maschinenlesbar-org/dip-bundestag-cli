@@ -115,3 +115,50 @@ export const headerNameProblem: Problem<string> = (name) =>
 export function assertHeaderValue(name: string, value: string): string {
   return assertValid(name, value, headerValueProblem);
 }
+
+/** A short, safe description of a JSON value's kind, for a message. */
+function kindOf(value: unknown): string {
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "an array";
+  if (typeof value === "object") return `an object with ${Object.keys(value as object).slice(0, 5).map((k) => JSON.stringify(k)).join(", ") || "no keys"}`;
+  return `a ${typeof value}`;
+}
+
+/**
+ * Why a 2xx body is not a DIP list envelope, or `undefined` when it is: an object with
+ * a numeric `numFound`, a `documents` array of objects and, if present, a string
+ * `cursor`. A proxy, mirror or upstream fault answering `null`, `[]`, a string or an
+ * error object (`{"error": …}`) with HTTP 200 must not be printed as an empty or valid
+ * result with exit 0.
+ */
+export const listResultProblem: Problem<unknown> = (value) => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return `expected a DIP list (numFound, documents), got ${kindOf(value)}`;
+  }
+  const v = value as Record<string, unknown>;
+  const numFound = v["numFound"];
+  const documents = v["documents"];
+  if (typeof numFound !== "number" || !Number.isFinite(numFound) || !Array.isArray(documents)) {
+    return `expected a DIP list (numFound, documents), got ${kindOf(value)}`;
+  }
+  if (documents.some((d) => typeof d !== "object" || d === null || Array.isArray(d))) {
+    return "expected a DIP list whose documents are objects";
+  }
+  if (v["cursor"] !== undefined && typeof v["cursor"] !== "string") return "expected a string cursor";
+  return undefined;
+};
+
+/**
+ * Why a 2xx body is not a DIP document, or `undefined` when it is: an object with an
+ * `id` (every DIP resource has one), not a list envelope or an error object.
+ */
+export const documentProblem: Problem<unknown> = (value) => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return `expected a DIP document (an object with an id), got ${kindOf(value)}`;
+  }
+  const id = (value as Record<string, unknown>)["id"];
+  if ((typeof id !== "string" && typeof id !== "number") || String(id).trim() === "") {
+    return `expected a DIP document (an object with an id), got ${kindOf(value)}`;
+  }
+  return undefined;
+};

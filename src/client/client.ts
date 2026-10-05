@@ -19,11 +19,21 @@ import { filterKeyProblem, type ListResource } from "./filters.js";
 import {
   assertNonBlankParams,
   assertValid,
+  documentProblem,
   headerValueProblem,
   idProblem,
   isBlank,
+  listResultProblem,
   type Problem,
 } from "./validate.js";
+import { DipParseError } from "./errors.js";
+
+/** `value` when `problem` accepts it, else a DipParseError naming the endpoint. */
+function expectShape<T>(value: unknown, problem: Problem<unknown>, path: string): T {
+  const reason = problem(value);
+  if (reason !== undefined) throw new DipParseError(`Unexpected response from ${path}: ${reason}.`);
+  return value as T;
+}
 
 const API = API_PATH;
 // Percent-encodes one path segment. It leaves "." and ".." unchanged; get()
@@ -64,7 +74,8 @@ class ResourceGroup {
    * Rejects with `DipValidationError`, before any request, for a blank parameter
    * name, a blank value, an empty array or a blank array element: DIP treats an
    * empty parameter as no filter and would answer with the whole unfiltered list.
-   * `undefined`/`null` values are omitted. It also rejects a key that is not one
+   * `undefined`/`null` values are omitted. A 2xx answer that is not a list envelope
+   * (`numFound`, `documents`) is a `DipParseError`. It also rejects a key that is not one
    * of the resource's filters (`LIST_FILTERS`) or `cursor`, which DIP would ignore
    * in the same way, unless `options.allowUnknownFilters` is set.
    */
@@ -76,18 +87,21 @@ class ResourceGroup {
         if (value !== undefined && value !== null) assertValid("filter", key, problem);
       }
     }
-    return this.e.getJson(`${API}/${this.path}`, params);
+    const path = `${API}/${this.path}`;
+    return expectShape<ListResult>(await this.e.getJson(path, params), listResultProblem, path);
   }
 
   /**
    * A single document by id. Rejects with `DipValidationError`, before any
    * request, for a blank id (`Invalid vorgang id: ...`), which would request the
    * collection endpoint and resolve with the list envelope, and for "." or "..",
-   * which URL parsing resolves to the list or the API root.
+   * which URL parsing resolves to the list or the API root. A 2xx answer that is not
+   * a document (an object with an `id`) is a `DipParseError`.
    */
   async get(id: string): Promise<Document> {
     assertValid(`${this.path} id`, id, idProblem);
-    return this.e.getJson(`${API}/${this.path}/${enc(id)}`);
+    const path = `${API}/${this.path}/${enc(id)}`;
+    return expectShape<Document>(await this.e.getJson(path), documentProblem, path);
   }
 }
 

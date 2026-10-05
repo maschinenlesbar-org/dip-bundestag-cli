@@ -328,3 +328,21 @@ test("obtain-key rejects a blank --user-agent before any request", async () => {
   assert.equal(await run(["--user-agent", "", "obtain-key"], cli.deps), 2);
   assert.equal(cli.mt.calls.length, 0);
 });
+
+test("a 2xx verification answer that is not a DIP list does not verify the key", async () => {
+  const answers: Array<[string, HttpResponse]> = [
+    ["error object", jsonResponse({ error: "invalid api key", code: 401 })],
+    ["HTML page", rawResponse("<html><body>Welcome to the hotel Wi-Fi</body></html>", "text/html")],
+    ["null", jsonResponse(null)],
+    ["empty object", jsonResponse({})],
+  ];
+  for (const [label, answer] of answers) {
+    const mt = makeMockTransport((req) => (req.url === KEY_SOURCE_URL ? rawResponse(HELP_DOC, "application/json") : answer));
+    await assert.rejects(
+      obtainKey({ transport: mt.transport, sourceUrl: KEY_SOURCE_URL, maxRetries: 0 }),
+      (err: unknown) => err instanceof DipError && /^Could not verify the key .*not a DIP list/.test(err.message),
+      label,
+    );
+    assert.equal(mt.calls.length, 2, `${label}: no further candidate is tried against a host that answers like this`);
+  }
+});

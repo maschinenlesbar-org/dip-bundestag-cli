@@ -100,7 +100,10 @@ That verification is the point. DIP rotates its published key (the one in place 
 rejected key anyway would hand you something that cannot authenticate. So when no
 published key is accepted, `obtain-key` fails instead and names the two places a
 working key comes from — the help page, or a free personal key from
-`parlamentsdokumentation@bundestag.de`.
+`parlamentsdokumentation@bundestag.de`. A key counts as verified only when the
+host that received it answers with a DIP list: an answer from another origin (after
+a redirect, which withholds the key) or a 200 that is an error object or an HTML
+page (a captive portal, a proxy) ends in "Could not verify", exit `1`.
 
 **From obtaining the key to having it where it is used, in one line:**
 

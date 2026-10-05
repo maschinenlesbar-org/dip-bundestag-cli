@@ -199,7 +199,7 @@ den Schlüssel, und die Fehlermeldung sagt das („use an https base URL“ bei 
 
 **Fehlertypen.** [`errors.ts`](src/client/errors.ts): `DipApiError` (Nicht-2xx-Antwort,
 enthält `status`/`detail`/`url`/`method`/`body` sowie `isRetryable` für 429/503),
-`DipNetworkError` (Transportfehler/Timeout, nie eine ungültige Basis-URL), `DipParseError` (ungültiges JSON),
+`DipNetworkError` (Transportfehler/Timeout, nie eine ungültige Basis-URL), `DipParseError` (ungültiges JSON, oder ein 2xx-Body, der keine DIP-Liste und kein DIP-Dokument ist: `null`, `[]`, ein Fehlerobjekt),
 `DipUsageError` (ein Bedienfehler, keine Anfrage gesendet) und dessen Unterklasse
 `DipValidationError` (die Bibliothek hat eine Eingabe vor jeder Anfrage abgelehnt:
 `Invalid <name>: <reason>`), alle abgeleitet von `DipError`. Exit-Codes: `0` bei Erfolg, `2` bei Bedienfehlern, `4` bei `404`, `1` bei

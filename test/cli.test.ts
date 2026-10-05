@@ -420,7 +420,8 @@ test("an overwrite refusal is a clear error, not an unexpected one", async () =>
 
 test("a response nested too deeply to pretty-print is a clear error, not a stack overflow", async () => {
   const depth = 200_000;
-  const body = Buffer.from("[".repeat(depth) + "]".repeat(depth));
+  // Nested inside a valid list envelope, which the client checks first.
+  const body = Buffer.from(`{"numFound":1,"documents":[{"id":"1","x":${"[".repeat(depth)}${"]".repeat(depth)}}]}`);
   const deep = () => ({ status: 200, headers: { "content-type": "application/json" }, body });
   const pretty = makeCli(deep);
   assert.equal(await run(["vorgang", "list"], pretty.deps), 1);
@@ -450,4 +451,26 @@ test("a key or userinfo bound for a plain-http host is warned about; loopback an
     else assert.match(warnings.join("\n"), expected, args.join(" "));
     assert.ok(!cli.err.join("\n").includes("pw@"), "the warning never shows the credentials");
   }
+});
+
+test("a 2xx body that is not a DIP list or document exits 1 instead of printing it", async () => {
+  const cases: Array<[string[], unknown]> = [
+    [["vorgang", "list"], null],
+    [["vorgang", "list"], []],
+    [["vorgang", "list"], { error: "invalid api key", code: 401 }],
+    [["vorgang", "list"], { numFound: 3 }],
+    [["vorgang", "get", "1"], null],
+    [["person", "get", "14"], "hello"],
+    [["person", "get", "14"], { error: "invalid api key", code: 401 }],
+    [["person", "get", "14"], { numFound: 0, documents: [] }],
+  ];
+  for (const [argv, body] of cases) {
+    const cli = makeCli(() => jsonResponse(body));
+    assert.equal(await run(["-o", "out.json", ...argv], cli.deps), 1, `${argv.join(" ")} ${JSON.stringify(body)}`);
+    assert.deepEqual(cli.out, []);
+    assert.equal(cli.files.size, 0, "no file is written");
+    assert.match(cli.err.join("\n"), /^Error: Unexpected response from \/api\/v1\//);
+  }
+  const ok = makeCli(() => jsonResponse({ id: "14", nachname: "Merkel" }));
+  assert.equal(await run(["person", "get", "14"], ok.deps), 0);
 });

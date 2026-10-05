@@ -26,6 +26,7 @@ import {
   type RawResponse,
 } from "./engine.js";
 import { DipApiError, DipError, credentialsIn, redactCredentials, redactUrl } from "./errors.js";
+import { listResultProblem } from "./validate.js";
 
 /** The environment variable the client and CLI read the key from. */
 export const API_KEY_ENV_VAR = "DIP_API_KEY";
@@ -238,6 +239,15 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
             `Re-run with --no-verify to print it unchecked, or see ${HELP_PAGE_URL}.`,
         );
       }
+      // Nor does any 2xx: a captive portal, a proxy's error page or a mirror answering
+      // `{"error": …}` with 200 has not accepted the key. Only a DIP list does.
+      const shape = verificationBodyProblem(response);
+      if (shape !== undefined) {
+        throw new DipError(
+          `Could not verify the key against ${redactUrl(baseUrl)} (the answer is not a DIP list: ` +
+            `${shape}). Re-run with --no-verify to print it unchecked, or see ${HELP_PAGE_URL}.`,
+        );
+      }
       return { key, sourceUrl, verified: true };
     }
     failures.push(
@@ -247,6 +257,18 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
   }
 
   throw new DipError(`No usable DIP key: ${failures.join("; ")}. ${WHERE_TO_GET_ONE}`);
+}
+
+/** Why a verification answer is not a DIP list envelope, or undefined. */
+function verificationBodyProblem(response: RawResponse): string | undefined {
+  let value: unknown;
+  try {
+    value = JSON.parse(decodeBody(response.data, response.contentType, "the verification answer"));
+  } catch {
+    const type = response.contentType.split(";")[0]?.trim() || "no Content-Type";
+    return `not JSON (${type})`;
+  }
+  return listResultProblem(value);
 }
 
 /** A transport failure's message for the error text (never empty). */

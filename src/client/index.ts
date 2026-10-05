@@ -50,7 +50,9 @@ export {
   headerValueProblem,
   idProblem,
   intInRangeProblem,
+  documentProblem,
   isBlank,
+  listResultProblem,
   nonEmptyProblem,
 } from "./validate.js";
 export type { Problem } from "./validate.js";

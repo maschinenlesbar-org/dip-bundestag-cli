@@ -363,7 +363,10 @@ runs the built bin to check both.
 carries `status`/`detail`/`url`/`method`/`body`, with `isRetryable` for
 `429`/`503`), `DipNetworkError` (transport failure/timeout; never an invalid
 base URL, which is a `DipValidationError`), `DipParseError`
-(bad JSON), `DipUsageError` (a usage error — no request made) and its subclass
+(bad JSON, or a 2xx body without the documented shape: `list()` requires a list
+envelope — `numFound`, `documents` — and `get()` a document with an `id`, checked
+by `listResultProblem`/`documentProblem`, so `null`, `[]`, a string or an error
+object is never printed with exit 0), `DipUsageError` (a usage error — no request made) and its subclass
 `DipValidationError` (the library rejected an input before any request, see
 [Library input validation](#library-input-validation)), all extending `DipError`.
 

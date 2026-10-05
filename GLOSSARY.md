@@ -190,7 +190,7 @@ not about the key, and the error says so ("use an https base URL" for http→htt
 
 **Error types.** [`errors.ts`](src/client/errors.ts): `DipApiError` (non-2xx,
 carries `status`/`detail`/`url`/`method`/`body`, with `isRetryable` for 429/503),
-`DipNetworkError` (transport failure/timeout, never a bad base URL), `DipParseError` (bad JSON),
+`DipNetworkError` (transport failure/timeout, never a bad base URL), `DipParseError` (bad JSON, or a 2xx body that is not a DIP list or document: `null`, `[]`, an error object),
 `DipUsageError` (a usage error, no request made) and its subclass
 `DipValidationError` (the library rejected an input before any request:
 `Invalid <name>: <reason>`), all extending `DipError`. Exit codes: `0` success, `2` usage errors, `4` on a `404`, `1` for

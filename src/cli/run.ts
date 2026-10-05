@@ -58,13 +58,18 @@ export function withRedactedOutput(deps: CliDeps, argv: readonly string[]): CliD
   );
   const envKey = env[API_KEY_ENV_VAR] ?? "";
   const userinfo = new Set<string>();
+  const keys = new Set<string>();
+  const encodedUserinfo = new Set<string>();
   for (const source of [...argv, ...values, envKey]) {
     for (const secret of credentialsIn(source)) {
       userinfo.add(secret);
       userinfo.add(JSON.stringify(secret).slice(1, -1));
+      // A URL typed as an id is echoed percent-encoded in a request path
+      // (`/vorgang/https%3A%2F%2Falice%3Apw%40host`): no "@" to anchor on there.
+      const encoded = encodeURIComponent(secret);
+      if (encoded !== secret) encodedUserinfo.add(encoded);
     }
   }
-  const keys = new Set<string>();
   const addKey = (value: string | undefined): void => {
     if (value === undefined) return;
     for (const form of [value, value.trim()]) {
@@ -83,7 +88,8 @@ export function withRedactedOutput(deps: CliDeps, argv: readonly string[]): CliD
   const urlList = [...userinfo];
   // Longest first, so a key is never left half-replaced by one of its own substrings.
   const keyList = [...keys].sort((a, b) => b.length - a.length);
-  const redactOut = (text: string): string => redactCredentials(text, urlList);
+  const encodedList = [...encodedUserinfo];
+  const redactOut = (text: string): string => redactSecrets(redactCredentials(text, urlList), encodedList);
   const redactErr = (text: string): string => redactSecrets(redactOut(text), keyList);
   return {
     ...deps,
