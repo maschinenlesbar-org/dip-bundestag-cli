@@ -21,6 +21,13 @@ export interface HttpRequest {
   timeoutMs?: number;
   /** Hard cap on the response body size in bytes; the request aborts if exceeded. */
   maxResponseBytes?: number;
+  /**
+   * Aborted when the engine's time limit (`timeoutMs`) passes. A transport should stop
+   * the request then (`fetch(url, { signal })`); the engine rejects at the deadline
+   * either way, and enforces `maxResponseBytes` on the body it gets back, so neither
+   * limit depends on it.
+   */
+  signal?: AbortSignal;
 }
 
 export interface HttpResponse {
@@ -30,6 +37,11 @@ export interface HttpResponse {
 }
 
 export type Transport = (request: HttpRequest) => Promise<HttpResponse>;
+
+/** The message for a body over the size cap, naming the option on both sides. */
+export function sizeLimitMessage(maxBytes: number): string {
+  return `Response exceeded maxResponseBytes (${maxBytes} bytes; --max-response-bytes on the CLI)`;
+}
 
 /**
  * The longest delay Node's timers support (2^31 - 1 ms, about 24.8 days). A longer one
@@ -65,7 +77,7 @@ export const nodeHttpTransport: Transport = (request) =>
     try {
       url = new URL(request.url);
     } catch {
-      reject(new DipNetworkError(`Invalid URL: ${request.url}`));
+      reject(new DipNetworkError(`Invalid URL: ${redactUrl(request.url)}`));
       return;
     }
 
@@ -103,7 +115,7 @@ export const nodeHttpTransport: Transport = (request) =>
         if (maxBytes !== undefined && received > maxBytes) {
           aborted = true;
           res.destroy();
-          fail(new DipNetworkError(`Response exceeded maxResponseBytes (${maxBytes})`));
+          fail(new DipNetworkError(sizeLimitMessage(maxBytes)));
           return;
         }
         chunks.push(chunk);
@@ -143,6 +155,17 @@ export const nodeHttpTransport: Transport = (request) =>
         fail(err);
         req.destroy(err);
       }, Math.min(timeoutMs, MAX_TIMEOUT_MS));
+    }
+
+    if (request.signal !== undefined) {
+      const abort = (): void => {
+        const reason = request.signal?.reason;
+        const err = reason instanceof DipNetworkError ? reason : new DipNetworkError("Request aborted");
+        fail(err);
+        req.destroy(err);
+      };
+      if (request.signal.aborted) abort();
+      else request.signal.addEventListener("abort", abort, { once: true });
     }
 
     req.on("error", (err) => {

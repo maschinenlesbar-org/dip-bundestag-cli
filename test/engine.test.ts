@@ -412,3 +412,35 @@ test("a redirect target's userinfo is redacted and its control characters stripp
       /redirect to https:\/\/\*\*\*@evil\.test\/a/.test(err.message),
   );
 });
+
+test("a redirect to a non-http(s) target is refused before the transport is called", async () => {
+  for (const target of ["file:///etc/passwd", "data:text/plain,hi", "javascript:alert(1)", "ftp://h.test/x"]) {
+    const mt = makeMockTransport(() => redirectResponse(target));
+    const e = new RequestEngine({ baseUrl: "https://api.test", transport: mt.transport });
+    await assert.rejects(
+      e.getJson("/x"),
+      (err) => err instanceof DipApiError && err.status === 302 && /not followed/.test(err.message),
+      target,
+    );
+    assert.equal(mt.calls.length, 1, `${target}: only the first request is sent`);
+  }
+});
+
+test("a reset is retried for a GET, but not for a POST", async () => {
+  const reset = () => Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" });
+  let n = 0;
+  const flaky = makeMockTransport(() => {
+    if (n++ === 0) throw reset();
+    return jsonResponse({ ok: 1 });
+  });
+  const e = new RequestEngine({ transport: flaky.transport, sleep: async () => {} });
+  assert.deepEqual(await e.getJson("/x"), { ok: 1 });
+  assert.equal(flaky.calls.length, 2);
+
+  const always = makeMockTransport(() => {
+    throw reset();
+  });
+  const post = new RequestEngine({ transport: always.transport, sleep: async () => {} });
+  await assert.rejects(post.request("POST", "/x", { accept: "application/json" }), DipNetworkError);
+  assert.equal(always.calls.length, 1);
+});

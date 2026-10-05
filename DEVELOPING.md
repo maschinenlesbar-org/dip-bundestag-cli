@@ -264,6 +264,21 @@ CLI. Each resource is a generic **ResourceGroup** with `.list(params)` and
 ([`http.ts`](src/client/http.ts)). The default uses Node's built-in
 `http`/`https`; tests inject a mock. This is the only HTTP seam.
 
+**Custom transports.** The engine holds the contract for every transport, not only
+the built-in one. `timeoutMs` is enforced by the engine: the transport gets an
+`AbortSignal` (`HttpRequest.signal`) that fires at the deadline, and the call
+rejects then whether the transport stops or not, so a `fetch` transport can't hang
+a caller. `maxResponseBytes` is checked on the body any transport returns (the
+built-in one aborts early). A body may be a Buffer, any `ArrayBuffer` view
+(fetch's `Uint8Array`, from any realm), an `ArrayBuffer` or a string; headers may be
+a plain record in any case, a `Headers` object or a `Map`. Whatever a transport
+throws becomes a `DipNetworkError` naming the request (the original as `cause`), and
+a malformed response (no numeric status, no headers object, no body) is one too. A
+reset reported as `ECONNRESET`/`EPIPE`/`ECONNABORTED` or undici's `UND_ERR_SOCKET`
+anywhere in the `cause` chain (`isTransientNetworkError`) is retried for a GET like a
+503. A redirect to anything but an `http:`/`https:` URL is never handed to the
+transport; it surfaces as a `DipApiError` naming the target.
+
 **Request engine.** [`RequestEngine`](src/client/engine.ts) — builds URLs,
 serialises queries, applies retry/backoff, follows redirects, decodes
 JSON/raw responses and maps errors. Sits between the client's resource methods
@@ -277,8 +292,9 @@ the seam that injects `Authorization: ApiKey <key>`. Names and values are
 checked when the engine is built (see
 [Library input validation](#library-input-validation)).
 
-**Retry / backoff.** Transient `429` (rate limit) and `503` responses are
-retried automatically, up to `--max-retries` (0–10). Each retry waits the
+**Retry / backoff.** Transient `429` (rate limit) and `503` responses, and
+reset connections (`isTransientNetworkError`), are retried automatically for a
+GET, up to `--max-retries` (0–10). Each retry waits the
 response's `Retry-After` (`parseRetryAfter`: delay-seconds or an IMF-fixdate)
 up to `MAX_RETRY_AFTER_MS` (30 s) — a longer one is not retried, the error
 surfaces at once — or else backs off linearly (`retryDelayMs * attempt`). `DipApiError`

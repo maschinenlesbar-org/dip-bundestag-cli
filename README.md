@@ -314,7 +314,7 @@ These may be given **before or after** the command, e.g.
 | `--base-url <url>` | API base URL: the host, **without** `/api/v1`, which the CLI adds (default `https://search.dip.bundestag.de`). `http:`/`https:` only; a query (`?`), fragment (`#`), whitespace (surrounding or inside), a trailing `/api/v1` or a `%` in the user name or password that is not an escape (write a literal `%` as `%25`) is a usage error (exit `2`). A `user:password@` part is sent but shown as `***@` in everything the CLI prints, usage errors included |
 | `--timeout <ms>` | Time limit per request, reading the whole response included (default `30000`; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value. A blank value, control characters or characters above U+00FF are a usage error (exit `2`) |
-| `--max-retries <n>` | Retries for transient `429`/`503` responses (`0`–`10`, default `2`). Each retry waits the server's `Retry-After` (up to 30 s; a longer one is not retried) or else backs off linearly |
+| `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections (`0`–`10`, default `2`). Each retry waits the server's `Retry-After` (up to 30 s; a longer one is not retried) or else backs off linearly |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 
 ## Learn more

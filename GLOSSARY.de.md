@@ -179,7 +179,8 @@ nicht `DipNetworkError`). Zugangsdaten darin
 Bibliothek aber zu `***@` geschwärzt.
 
 **Rate-Limiting.** Das DIP begrenzt die Anfragerate; bei Überschreitung antwortet die
-API mit **429**. Der Client wiederholt **429** und **503** automatisch
+API mit **429**. Der Client wiederholt **429** und **503** sowie eine mitten in der
+Anfrage abgebrochene Verbindung automatisch
 (`--max-retries`, 0–10, Standard 2) und wartet dabei das `Retry-After` der Antwort ab
 (bis 30 s; ein längeres wird nicht wiederholt), sonst mit linearem Backoff. Die
 Bibliothek hat dieselbe Grenze (`MAX_RETRIES`, `maxRetries`) und lehnt einen Wert
