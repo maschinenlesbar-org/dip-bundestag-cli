@@ -24,7 +24,7 @@ protocols, activities and people — as clean JSON you can pipe straight into
   `--filter key=value`; `--id` is shorthand for the repeatable `f.id` filter.
 
 > Want to use this as a TypeScript library or understand how it's built?
-> See **[DEVELOPING.md](DEVELOPING.md)**.
+> See **[DEVELOPING.md](https://github.com/maschinenlesbar-org/dip-bundestag-cli/blob/main/DEVELOPING.md)**.
 
 ## Install
 
@@ -168,7 +168,7 @@ Every resource follows the same two-subcommand pattern:
 | `person` | Person (member / actor) |
 
 New to terms like *Vorgang*, *Drucksache*, *Wahlperiode* or *Vorgangstyp*? The
-**[Glossary](GLOSSARY.md)** decodes every one.
+**[Glossary](https://github.com/maschinenlesbar-org/dip-bundestag-cli/blob/main/GLOSSARY.md)** decodes every one.
 
 ### `list` options
 
@@ -204,7 +204,7 @@ repeated query parameters, which DIP treats as an OR set. `--id` and
 
 ## Common tasks
 
-A few recipes to get going — see **[Usage.md](Usage.md)** for the full,
+A few recipes to get going — see **[Usage.md](https://github.com/maschinenlesbar-org/dip-bundestag-cli/blob/main/Usage.md)** for the full,
 use-case-driven set.
 
 ```bash
@@ -329,10 +329,10 @@ These may be given **before or after** the command, e.g.
 
 ## Learn more
 
-- **[SKILLS.md](SKILLS.md)** — Claude Code Agent Skills that drive this CLI.
-- **[Usage.md](Usage.md)** — full use-case-driven cookbook.
-- **[GLOSSARY.md](GLOSSARY.md)** — every domain term and filter explained.
-- **[DEVELOPING.md](DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
+- **[SKILLS.md](https://github.com/maschinenlesbar-org/dip-bundestag-cli/blob/main/SKILLS.md)** — Claude Code Agent Skills that drive this CLI.
+- **[Usage.md](https://github.com/maschinenlesbar-org/dip-bundestag-cli/blob/main/Usage.md)** — full use-case-driven cookbook.
+- **[GLOSSARY.md](https://github.com/maschinenlesbar-org/dip-bundestag-cli/blob/main/GLOSSARY.md)** — every domain term and filter explained.
+- **[DEVELOPING.md](https://github.com/maschinenlesbar-org/dip-bundestag-cli/blob/main/DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
 
 ## Data license
 

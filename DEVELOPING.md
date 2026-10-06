@@ -411,7 +411,10 @@ npm test          # builds, then runs `node --test` over dist/test
   P4/P19 configuration validation, P5 transport contract, P6 retry policy, P7 pipes
   and exit codes, P8/P9/P13 responses and errors, **P20** the plain-`http:` warning
   (`conformance-p20-cleartext-warning.test.ts`; its base-URL-variable case is
-  skipped, dip has `--base-url` only).
+  skipped, dip has `--base-url` only), **P21** README links
+  (`conformance-p21-readme-links.test.ts`: README ships to npmjs.com, so a relative
+  link may only point at a file `package.json` `files` ships; the rest are absolute
+  `https://github.com/maschinenlesbar-org/dip-bundestag-cli/blob/main/…` URLs).
 - **Parity tests** use `parity()` from `test/helpers.ts`: one input goes through
   `run()` and through a library call on one recording mock transport, and the
   test asserts the same outcome (both reject with no request, or both send the
