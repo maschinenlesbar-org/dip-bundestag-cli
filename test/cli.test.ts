@@ -519,3 +519,38 @@ test("a --cursor without any filter is a usage error before any request; with it
   assert.equal(await run(["vorgangsposition", "list"], first.deps), 0);
   assert.deepEqual(first.err, [], "an unfiltered first page is fine");
 });
+
+test("dip help <unknown> reports the unknown command like dip <unknown>, at every level", async () => {
+  const cases: Array<[string[], string[]]> = [
+    [["help", "nope"], ["nope"]],
+    [["help", "vorgnag"], ["vorgnag"]],
+    [["help", "vorgang", "nope"], ["vorgang", "nope"]],
+    [["vorgang", "help", "nope"], ["vorgang", "nope"]],
+    [["help", "https://alice:s3cret@x.test"], ["https://alice:s3cret@x.test"]],
+  ];
+  for (const [helpArgv, plainArgv] of cases) {
+    const viaHelp = makeCli(() => jsonResponse({}));
+    const plain = makeCli(() => jsonResponse({}));
+    assert.equal(await run(helpArgv, viaHelp.deps), 2, helpArgv.join(" "));
+    assert.equal(await run(plainArgv, plain.deps), 2, plainArgv.join(" "));
+    assert.match(viaHelp.err[0] ?? "", /^error: unknown command '/, helpArgv.join(" "));
+    assert.deepEqual(viaHelp.err, plain.err, helpArgv.join(" "));
+    assert.deepEqual(viaHelp.out, []);
+    assert.ok(!viaHelp.err.join("\n").includes("s3cret"));
+    assert.equal(viaHelp.mt.calls.length, 0);
+  }
+});
+
+test("dip help <command path> shows that command's help on stdout, exit 0", async () => {
+  for (const [argv, usage] of [
+    [["help"], "Usage: dip [options] [command]"],
+    [["help", "vorgang"], "Usage: dip vorgang [options] [command]"],
+    [["help", "vorgang", "list"], "Usage: dip vorgang list [options]"],
+    [["vorgang", "help", "get"], "Usage: dip vorgang get [options] <id>"],
+  ] as const) {
+    const cli = makeCli(() => jsonResponse({}));
+    assert.equal(await run([...argv], cli.deps), 0, argv.join(" "));
+    assert.equal(cli.out.join("\n").split("\n")[0], usage, argv.join(" "));
+    assert.deepEqual(cli.err, []);
+  }
+});

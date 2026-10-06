@@ -234,7 +234,7 @@ and `dip vorgang list --compact` are the same):
 | `--compact` | Print JSON on a single line instead of pretty-printed |
 | `-o, --output <file>` | Write output to this file instead of stdout (refuses to overwrite an existing file; `-` = stdout; a blank path is a usage error, exit `2`) |
 | `--force` | With `-o`, overwrite the output file if it already exists |
-| `-h, --help` | Show help (also available per command, e.g. `dip vorgang list --help`) |
+| `-h, --help` | Show help (also available per command, e.g. `dip vorgang list --help`, or as `dip help vorgang list`; an unknown name there is the same usage error as `dip nope`: `error: unknown command 'nope'`, exit `2`) |
 
 **Commands:** `vorgang`, `vorgangsposition`, `drucksache`, `drucksache-text`,
 `plenarprotokoll`, `plenarprotokoll-text`, `aktivitaet`, `person` — each with

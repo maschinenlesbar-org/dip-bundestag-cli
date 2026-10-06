@@ -282,8 +282,8 @@ deliberately. A directory is refused either way, and `-o -` prints to stdout.
 
 | Code | Meaning |
 | --- | --- |
-| `0` | Success (also `--help` / `--version`) |
-| `2` | Bad usage / invalid argument (nothing was sent) |
+| `0` | Success (also `--help` / `--version` / `help [command…]`) |
+| `2` | Bad usage / invalid argument (nothing was sent) — an unknown command too, also via `help` (`dip help nope` says `error: unknown command 'nope'`, as `dip nope` does) |
 | `4` | Document not found (`404` from the API) |
 | `1` | Any other runtime error — including `401` (missing/expired key) and network failures |
 

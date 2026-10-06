@@ -382,6 +382,15 @@ for `f.aktualisiert.*`; DIP rejects them for `f.datum.*`, so pass
 (`out`/`err`/`writeFile`/`outBinary`). Lets the whole CLI run in tests with a
 mocked client and captured output — no subprocess.
 
+**`help` command.** `run.ts` replaces commander's built-in `help [command]` on every
+command with subcommands by its own `help [command...]` (in `configureTree`, so the
+tree `buildProgram()` gives the website stays as commander builds it). It walks every
+name: `dip help vorgang list` shows the `list` help (exit 0), and an unknown name is
+parsed by the command it was meant for, so `dip help nope` and `dip vorgang help nope`
+fail exactly like `dip nope` and `dip vorgang nope` (`error: unknown command 'nope'`,
+suggestion and help included, redacted, exit 2). The built-in one read only the first
+name and printed the root help with no word about the unknown one.
+
 **Closed pipes.** The bin shim installs `handleOutputErrors()` before `run()`. A
 reader that stops early (`| head`, `| jq` exiting on the first match) closes
 stdout, and the next write fails with EPIPE (ENOTCONN when stdout is a socket, as
