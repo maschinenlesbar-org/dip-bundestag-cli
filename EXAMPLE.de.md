@@ -3,7 +3,9 @@
 Echte Beispiele für die Claude-Code-Skills des Plugins `dip-bundestag`, eines pro Skill: eine
 Anfrage, die `dip`-Befehle, die der Skill ausgeführt hat, und Claudes Antwort.
 
-Jedes Beispiel lief am 6. Oktober 2026 mit `dip` 0.2.0 gegen die Live-API.
+Jedes Beispiel lief am 6. Oktober 2026 gegen die Live-API: dip-member-dossier und
+dip-procedure-tracker mit `dip` 0.3.0 (erneut ausgeführt, nachdem sich ihre Hinweise zu
+`--cursor` geändert hatten, mit denselben Antworten), dip-document-digest mit 0.2.0.
 Die Daten ändern sich, Ihre Ergebnisse werden also abweichen; mit den gezeigten IDs können Sie
 die Anfragen selbst ausprobieren. Lange Listen sind gekürzt.
 

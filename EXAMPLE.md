@@ -3,7 +3,9 @@
 Real examples for the Claude Code skills of the `dip-bundestag` plugin, one per skill: a request,
 the `dip` commands the skill ran, and the answer Claude gave.
 
-Every example ran against the live API on 6 October 2026 with `dip` 0.2.0.
+Every example ran against the live API on 6 October 2026: dip-member-dossier and
+dip-procedure-tracker with `dip` 0.3.0 (re-run after their notes on `--cursor` changed, with
+the same answers), dip-document-digest with 0.2.0.
 The data changes, so your results will differ; the ids shown work for trying the requests
 yourself. Long lists are shortened.
 
