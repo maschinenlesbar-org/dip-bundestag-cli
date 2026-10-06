@@ -18,7 +18,8 @@
     "dist/src",
     "!dist/src/**/*.map",
     "LICENSING.md",
-    "CONTRIBUTING.md"
+    "CONTRIBUTING.md",
+    "DATA_LICENSE.md"
   ],
   "engines": {
     "node": ">=22.12"
