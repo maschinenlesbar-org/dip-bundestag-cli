@@ -39,7 +39,7 @@ them each time.
 
   ```bash
   dip obtain-key                       # checks a key works before printing it
-  eval "$(dip obtain-key --export)"    # ...or put it straight into this shell
+  key=$(dip obtain-key) && export DIP_API_KEY="$key"   # ...or put it straight into this shell
   export DIP_API_KEY=key-from-the-help-page-or-your-personal-key   # or set it yourself
   ```
 

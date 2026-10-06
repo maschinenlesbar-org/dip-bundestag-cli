@@ -112,11 +112,16 @@ the message names as such; only a `401` counts as the key being rejected.
 
 ```bash
 # this shell only
-eval "$(dip obtain-key --export)"
+key=$(dip obtain-key) && export DIP_API_KEY="$key"
 
 # or keep it for later — appends one `export …` line to your shell profile
 dip obtain-key --export >> ~/.zshrc     # ~/.bashrc on bash
 ```
+
+The `&&` matters: when no key can be obtained, nothing is exported and the line
+exits with `obtain-key`'s non-zero code, in sh, bash and zsh alike. The tempting
+`eval "$(dip obtain-key --export)"` fails quietly instead — `eval` of an empty string
+exits `0`. In a script, stop on the failure: `key=$(dip obtain-key) || exit`.
 
 Once you have a key from the help page or by email, the same one-liner shape
 works without the network round-trip:

@@ -25,6 +25,10 @@ way:
 export DIP_API_KEY=your-personal-key
 dip vorgang list
 
+# Or the published key, checked before it is exported (nothing is exported, and the
+# line exits non-zero, when no key can be obtained)
+key=$(dip obtain-key) && export DIP_API_KEY="$key"
+
 # Or per-invocation (a global option: it works before or after the command)
 dip --api-key your-personal-key vorgang list
 ```
