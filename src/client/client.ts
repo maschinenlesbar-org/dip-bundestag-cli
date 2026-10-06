@@ -15,7 +15,13 @@
 import { API_PATH, RequestEngine, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
 import type { ListResult, Document } from "./types.js";
-import { cursorWithoutFiltersProblem, filterKeyProblem, type ListResource } from "./filters.js";
+import {
+  INTEGER_FILTERS,
+  cursorWithoutFiltersProblem,
+  filterKeyProblem,
+  integerFilterProblem,
+  type ListResource,
+} from "./filters.js";
 import {
   assertNonBlankParams,
   assertValid,
@@ -89,7 +95,9 @@ class ResourceGroup {
    * `undefined`/`null` values are omitted. A 2xx answer that is not a list envelope
    * (`numFound`, `documents`) is a `DipParseError`. It also rejects a key that is not one
    * of the resource's filters (`LIST_FILTERS`) or `cursor`, which DIP would ignore
-   * in the same way, unless `options.allowUnknownFilters` is set.
+   * in the same way, unless `options.allowUnknownFilters` is set, and a value of an
+   * integer filter (`INTEGER_FILTERS`: ids, `f.wahlperiode`, …) that is not a
+   * non-negative whole number (`integerFilterProblem`).
    */
   async list(params: QueryParams = {}, options: ListOptions = {}): Promise<ListResult> {
     assertNonBlankParams(params);
@@ -102,6 +110,12 @@ class ResourceGroup {
       const problem = filterKeyProblem(this.path);
       for (const [key, value] of Object.entries(params)) {
         if (value !== undefined && value !== null) assertValid("filter", key, problem);
+      }
+    }
+    for (const key of INTEGER_FILTERS) {
+      const value = params[key];
+      for (const one of Array.isArray(value) ? value : [value]) {
+        if (one !== undefined && one !== null) assertValid(key, one, integerFilterProblem);
       }
     }
     const path = `${API}/${this.path}`;

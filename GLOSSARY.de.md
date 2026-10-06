@@ -117,6 +117,12 @@ Ein leerer Filterwert, eine leere `--id` oder ein leerer `--cursor` wird ebenfal
 abgelehnt (Exit 2), und `list()` der Bibliothek lehnt einen leeren Parameternamen oder
 -wert, ein leeres Array und ein leeres Array-Element vor jeder Anfrage mit
 `DipValidationError` ab: Das DIP behandelt einen leeren Parameter als keinen Filter.
+Die **ganzzahligen Filter** (`INTEGER_FILTERS`: `f.id`, `f.wahlperiode`, `f.vorgang`, `f.drucksache`, `f.plenarprotokoll`, `f.aktivitaet`, `f.person_id`, `f.vorgangsposition_id` und `f.vorgangstyp_notation`, in der
+OpenAPI-Beschreibung des DIP alle ganzzahlig) nehmen eine nicht negative ganze Zahl – auf
+der Kommandozeile nur Ziffern (auch `--id`), in der Bibliothek eine Ziffernfolge oder eine
+Zahl; alles andere lehnt die CLI mit Exit 2 und `list()` mit `DipValidationError` ab
+(`integerFilterProblem`), denn das DIP beantwortet `f.wahlperiode=abc` mit einem
+irreführenden `400 … Invalid cursor`.
 
 **cursor.** Die Listen-Endpoints des DIP sind **cursorbasiert paginiert**. Eine
 Listenantwort enthält einen `cursor`; geben Sie ihn über `--cursor` (CLI) oder

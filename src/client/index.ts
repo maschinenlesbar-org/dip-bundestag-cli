@@ -27,11 +27,13 @@ export type { Transport, HttpRequest, HttpResponse } from "./http.js";
 export { obtainKey, looksLikeApiKey, API_KEY_ENV_VAR, KEY_SOURCE_URL } from "./obtain-key.js";
 export type { ObtainKeyOptions, ObtainedKey } from "./obtain-key.js";
 export {
+  INTEGER_FILTERS,
   LIST_FILTERS,
   LIST_PAGING_PARAMS,
   cursorWithoutFiltersNote,
   cursorWithoutFiltersProblem,
   filterKeyProblem,
+  integerFilterProblem,
 } from "./filters.js";
 export type { ListResource } from "./filters.js";
 export { buildQueryString } from "./query.js";

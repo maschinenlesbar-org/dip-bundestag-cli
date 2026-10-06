@@ -180,7 +180,7 @@ New to terms like *Vorgang*, *Drucksache*, *Wahlperiode* or *Vorgangstyp*? The
 | Option | Meaning |
 | --- | --- |
 | `--cursor <cursor>` | Pagination cursor from a previous page. Repeat that page's `--filter`/`--id` with it: DIP does not keep them in the cursor, and a cursor alone would page through the whole unfiltered list, so `--cursor` without any `--filter` or `--id` is a usage error (exit `2`) |
-| `--id <id>` | Filter by id — repeatable; maps to `f.id` |
+| `--id <id>` | Filter by id, a whole number — repeatable; maps to `f.id` |
 | `--filter <key=value>` | DIP filter, e.g. `f.titel=Klima` — repeatable; the key must be one of the resource's `f.*` filters |
 
 `--filter` passes the key and value verbatim to DIP. The key must be one of the
@@ -189,7 +189,10 @@ a key it does not know and answers with the whole unfiltered list, so a typo suc
 as `f.titl`, or `f.person` on `vorgang`, is a usage error (exit `2`) instead. Only the first `=` splits
 key from value, so a value may itself contain `=`. Repeating the same key sends
 repeated query parameters, which DIP treats as an OR set. `--id` and
-`--filter f.id=…` are merged (neither silently wins).
+`--filter f.id=…` are merged (neither silently wins). The integer filters — `f.id`, `f.wahlperiode`, `f.vorgang`, `f.drucksache`, `f.plenarprotokoll`, `f.aktivitaet`, `f.person_id`, `f.vorgangsposition_id` and `f.vorgangstyp_notation` —
+take a non-negative whole number in plain digits; anything else (`abc`, `1e3`, `-1`,
+a value with spaces) is a usage error (exit `2`), because DIP answers it with a misleading
+`400 … Invalid cursor` or with 0 hits.
 
 ### Common DIP filters
 

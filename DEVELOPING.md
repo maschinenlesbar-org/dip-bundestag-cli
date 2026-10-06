@@ -234,6 +234,12 @@ What the library rejects:
   filter and answers with the whole unfiltered list. `undefined`/`null` still
   mean "omitted". The CLI's `parseNonEmpty` and `--filter` checks use the same
   `nonEmptyProblem`/`isBlank`, as early parse-time copies.
+- **Integer filters** (`integerFilterProblem`, for the `INTEGER_FILTERS` in every
+  `list()`, `allowUnknownFilters` or not): a value of `f.id`, `f.wahlperiode`,
+  `f.vorgang` and the other filters DIP's OpenAPI types as integers that is not a
+  non-negative safe integer or a string of ASCII digits. DIP answers
+  `f.wahlperiode=abc` with `400 … Invalid cursor` and a non-numeric id with 0 hits.
+  The CLI's `--filter` and `--id` parsers call the same function.
 - **`get` id** (`idProblem`, in every `get(id)`): a blank id (an empty last
   path segment would request the collection endpoint and resolve with the list
   envelope typed as a `Document`), and `.` or `..` (`encodeURIComponent` leaves

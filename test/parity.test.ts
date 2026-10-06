@@ -505,3 +505,32 @@ test("a cursor without any filter is refused by the CLI and by list(); allowUnfi
   assert.equal(calls.length, 1);
   assert.match(calls[0]!.url, /\/vorgang\?cursor=AoE$/);
 });
+
+test("integer filters take whole numbers only, in the CLI and in list()", async () => {
+  const bad: Array<[string[], Record<string, unknown>, string]> = [
+    [["vorgang", "list", "--filter", "f.wahlperiode=abc"], { "f.wahlperiode": "abc" }, "f.wahlperiode"],
+    [["vorgang", "list", "--filter", "f.wahlperiode=1e3"], { "f.wahlperiode": ["1e3"] }, "f.wahlperiode"],
+    [["vorgang", "list", "--filter", "f.wahlperiode= 21"], { "f.wahlperiode": " 21" }, "f.wahlperiode"],
+    [["vorgang", "list", "--filter", "f.wahlperiode=-1"], { "f.wahlperiode": -1 }, "f.wahlperiode"],
+    [["vorgang", "list", "--id", "abc"], { "f.id": ["abc"] }, "f.id"],
+    [["vorgang", "list", "--filter", "f.id=12.5"], { "f.id": 12.5 }, "f.id"],
+    [["aktivitaet", "list", "--filter", "f.person_id=Merz"], { "f.person_id": "Merz" }, "f.person_id"],
+    [["vorgangsposition", "list", "--filter", "f.vorgang=0x10"], { "f.vorgang": "0x10" }, "f.vorgang"],
+  ];
+  for (const [argv, params, key] of bad) {
+    const resource = argv[0] === "vorgang" ? "vorgaenge" : argv[0] === "aktivitaet" ? "aktivitaeten" : "vorgangspositionen";
+    const r = await parity({ argv, lib: (t) => client(t)[resource].list(params as never) });
+    assertBothReject(r, new RegExp(`^Invalid ${key.replace(".", "\\.")}: Expected a non-negative whole number`));
+    assert.match(r.cli.err, /non-negative whole number/, argv.join(" "));
+  }
+  const ok = await parity({
+    argv: ["--api-key", "k", "vorgang", "list", "--filter", "f.wahlperiode=21", "--id", "007", "--filter", "f.vorgangstyp_notation=100"],
+    lib: (t) => client(t).vorgaenge.list({ "f.wahlperiode": ["21"], "f.vorgangstyp_notation": ["100"], "f.id": ["007"] }),
+  });
+  assertSameRequests(ok);
+  // A number is fine in the library; text filters are untouched.
+  const calls: HttpRequest[] = [];
+  const t: Transport = async (req) => (calls.push(req), jsonResponse({ numFound: 0, documents: [] }));
+  await client(t).vorgaenge.list({ "f.wahlperiode": 21, "f.titel": "21a" });
+  assert.equal(calls.length, 1);
+});

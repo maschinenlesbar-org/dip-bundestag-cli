@@ -122,6 +122,37 @@ export const LIST_FILTERS: Readonly<Record<ListResource, readonly string[]>> = {
   person: [...DATES, "f.id", "f.person", "f.wahlperiode"],
 };
 
+/**
+ * The filters whose values are integers in the OpenAPI description (ids, the
+ * Wahlperiode, the Vorgangstyp notation). DIP answers a non-integer one with a
+ * misleading `400 Invalid cursor` or 0 hits, so `list()` and the CLI's `--filter`/`--id`
+ * check the value first (`integerFilterProblem`).
+ */
+export const INTEGER_FILTERS: readonly string[] = [
+  "f.aktivitaet",
+  "f.drucksache",
+  "f.id",
+  "f.person_id",
+  "f.plenarprotokoll",
+  "f.vorgang",
+  "f.vorgangsposition_id",
+  "f.vorgangstyp_notation",
+  "f.wahlperiode",
+];
+
+/**
+ * Why `value` cannot be sent for one of the `INTEGER_FILTERS`, or `undefined`: a
+ * non-negative safe integer, as a number or as a string of ASCII digits only (no sign,
+ * no spaces, no `1e3` or `0x10`). The reason does not echo the value.
+ */
+export function integerFilterProblem(value: unknown): string | undefined {
+  const ok =
+    typeof value === "number"
+      ? Number.isSafeInteger(value) && value >= 0
+      : typeof value === "string" && /^\d+$/.test(value) && Number.isSafeInteger(Number(value));
+  return ok ? undefined : "Expected a non-negative whole number (digits only), e.g. 21.";
+}
+
 /** The paging parameter `list()` takes besides the resource's `f.*` filters. */
 export const LIST_PAGING_PARAMS: readonly string[] = ["cursor"];
 

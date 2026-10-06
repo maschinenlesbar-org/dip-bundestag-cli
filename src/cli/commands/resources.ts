@@ -7,7 +7,7 @@ import type { CliDeps } from "../io.js";
 import { action, parseNonEmpty, renderJson } from "../shared.js";
 import type { DipClient } from "../../client/client.js";
 import type { QueryParams } from "../../client/query.js";
-import { filterKeyProblem, type ListResource } from "../../client/filters.js";
+import { INTEGER_FILTERS, filterKeyProblem, integerFilterProblem, type ListResource } from "../../client/filters.js";
 import { DipUsageError } from "../../client/errors.js";
 import { isBlank } from "../../client/validate.js";
 
@@ -44,11 +44,15 @@ const RESOURCES: ResourceSpec[] = [
 ];
 
 /**
- * commander accumulator for repeatable, non-blank string options (`--id`). Each
- * value is validated so a blank id is a usage error rather than being dropped.
+ * commander accumulator for the repeatable `--id` (sent as `f.id`). Each value is
+ * validated: a blank id is a usage error rather than being dropped, and so is one
+ * that is not a whole number (`integerFilterProblem`, as `list()` checks `f.id`).
  */
-function collectNonEmpty(value: string, previous: string[] = []): string[] {
-  return previous.concat([parseNonEmpty(value)]);
+function collectIds(value: string, previous: string[] = []): string[] {
+  parseNonEmpty(value);
+  const problem = integerFilterProblem(value);
+  if (problem !== undefined) throw new InvalidArgumentError(problem);
+  return previous.concat([value]);
 }
 
 type FilterMap = Record<string, string[]>;
@@ -77,6 +81,9 @@ function filterCollector(resource: ListResource): (value: string, previous?: Fil
     // The same check list() applies, checked here first for the usage error.
     const reason = problem(key);
     if (reason !== undefined) throw new InvalidArgumentError(reason);
+    // DIP answers a non-integer id or Wahlperiode with "400 Invalid cursor" or 0 hits.
+    const intReason = INTEGER_FILTERS.includes(key) ? integerFilterProblem(val) : undefined;
+    if (intReason !== undefined) throw new InvalidArgumentError(`Invalid --filter "${value}": ${key}: ${intReason}`);
     return { ...previous, [key]: (previous[key] ?? []).concat([val]) };
   };
 }
@@ -114,7 +121,7 @@ export function registerResourceCommands(program: Command, deps: CliDeps): void 
         "pagination cursor from a previous page; repeat that page's --filter/--id with it",
         parseNonEmpty,
       )
-      .option("--id <id>", "filter by id (repeatable -> f.id)", collectNonEmpty)
+      .option("--id <id>", "filter by id, a whole number (repeatable -> f.id)", collectIds)
       .option(
         "--filter <key=value>",
         `DIP filter, e.g. f.titel=Klima (repeatable; one of ${spec.command}'s f.* filters)`,

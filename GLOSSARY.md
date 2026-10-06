@@ -116,7 +116,12 @@ value may itself contain `=`. Repeating the same key sends repeated query keys
 or `--cursor` is rejected too (exit 2), and the library's `list()` rejects a blank
 parameter name or value, an empty array and a blank array element with
 `DipValidationError` before any request: DIP treats an empty parameter as no
-filter.
+filter. The **integer filters** (`INTEGER_FILTERS`: `f.id`, `f.wahlperiode`, `f.vorgang`, `f.drucksache`, `f.plenarprotokoll`, `f.aktivitaet`, `f.person_id`, `f.vorgangsposition_id` and `f.vorgangstyp_notation`, all
+integers in DIP's OpenAPI description) take a non-negative whole number — plain digits
+on the command line (`--id` too), a string of digits or a number in the library; the
+CLI rejects anything else with exit 2 and `list()` with `DipValidationError`
+(`integerFilterProblem`), since DIP answers `f.wahlperiode=abc` with a misleading
+`400 … Invalid cursor`.
 
 **cursor.** DIP list endpoints are **cursor-paginated**. A list response carries
 a `cursor`; pass it back via `--cursor` (CLI) or `{ cursor }` (library) to fetch

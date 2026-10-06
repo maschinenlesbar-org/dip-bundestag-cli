@@ -47,7 +47,9 @@ The examples assume `DIP_API_KEY` is exported. Filters are passed verbatim to DI
 via `--filter <key=value>` (repeatable); `--id` is shorthand for the repeatable
 `f.id` filter. The key must be one of the resource's `f.*` filters — DIP ignores
 an unknown one and would return the whole unfiltered list, so the CLI rejects it
-(exit `2`) and lists the valid ones.
+(exit `2`) and lists the valid ones. The integer filters (`f.id`, `f.wahlperiode`, `f.vorgang`, `f.drucksache`, `f.plenarprotokoll`, `f.aktivitaet`, `f.person_id`, `f.vorgangsposition_id` and `f.vorgangstyp_notation`,
+and `--id`) take plain digits only; another value is a usage error (exit `2`) rather
+than DIP's misleading `400 … Invalid cursor`.
 
 ### Search Drucksachen by title
 
