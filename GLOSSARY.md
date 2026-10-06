@@ -95,7 +95,8 @@ parliament (Abgeordnete:r), but also other actors. CLI: `person`. Client:
 
 **id.** Every resource document has a numeric `id`, used by the `get` endpoint
 (`drucksache get 123456`) and by the `f.id` filter. The CLI's `--id` flag is
-shorthand for `f.id` and is repeatable. A blank id, `.` or `..` is rejected (CLI
+shorthand for `f.id` and is repeatable (a whole number, see below). The `get` id is
+trimmed first, so a copy-pasted `"282486 "` finds the document. A blank id, `.` or `..` is rejected (CLI
 exit 2, library `DipValidationError`, same message) before any request: `get("")`
 or `get(".")` would otherwise request the collection endpoint and return the list,
 and `get("..")` the API root.

@@ -123,15 +123,17 @@ class ResourceGroup {
   }
 
   /**
-   * A single document by id. Rejects with `DipValidationError`, before any
-   * request, for a blank id (`Invalid vorgang id: ...`), which would request the
+   * A single document by id. A string id is trimmed first (a copy-pasted
+   * `"282486 "` used to be sent as `282486%20` and reported as not found). Rejects
+   * with `DipValidationError`, before any request, for a blank id (`Invalid vorgang id: ...`), which would request the
    * collection endpoint and resolve with the list envelope, and for "." or "..",
    * which URL parsing resolves to the list or the API root. A 2xx answer that is not
    * a document (an object with an `id`) is a `DipParseError`.
    */
   async get(id: string): Promise<Document> {
-    assertValid(`${this.path} id`, id, idProblem);
-    const path = `${API}/${this.path}/${enc(String(id))}`;
+    const trimmed = typeof id === "string" ? id.trim() : id;
+    assertValid(`${this.path} id`, trimmed, idProblem);
+    const path = `${API}/${this.path}/${enc(String(trimmed))}`;
     return expectShape<Document>(await this.e.getJson(path), documentProblem, path);
   }
 }

@@ -534,3 +534,15 @@ test("integer filters take whole numbers only, in the CLI and in list()", async 
   await client(t).vorgaenge.list({ "f.wahlperiode": 21, "f.titel": "21a" });
   assert.equal(calls.length, 1);
 });
+
+test("a get id is trimmed in the CLI and in get(); a blank one stays a usage error", async () => {
+  const doc = () => jsonResponse({ id: "282486", titel: "x" });
+  for (const id of [" 282486", "282486 ", "\t282486\n"]) {
+    const r = await parity({ argv: ["--api-key", "k", "vorgang", "get", id], lib: (t) => client(t).vorgaenge.get(id), responder: doc });
+    assertSameRequests(r);
+    assert.match(r.cli.requests[0]!.url, /\/api\/v1\/vorgang\/282486$/, JSON.stringify(id));
+  }
+  for (const id of ["   ", " . ", ".. "]) {
+    assertBothReject(await parity({ argv: ["vorgang", "get", id], lib: (t) => client(t).vorgaenge.get(id) }), /^Invalid vorgang id: /);
+  }
+});

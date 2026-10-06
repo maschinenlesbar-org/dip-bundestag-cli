@@ -119,6 +119,8 @@ dip vorgangsposition list --filter f.vorgang=282486 \
 ```
 
 `get <id>` takes the id as a positional argument and returns the full document.
+Surrounding whitespace is trimmed (a copy-pasted `"282486 "` works); a blank id is a
+usage error (exit `2`).
 
 ### Pull a Drucksache with full text
 
