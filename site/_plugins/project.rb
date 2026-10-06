@@ -163,7 +163,8 @@ module ProjectSite
       end
     end
 
-    # Rewrites repository-relative Markdown links (outside code blocks): the README and
+    # Rewrites repository-relative Markdown links, and links to this repository's own files
+    # on GitHub (`…/blob/<ref>/<path>`), outside code blocks: the README and
     # the documents (and their translations) go to this site's pages in the same
     # language, images to raw.githubusercontent.com, everything else to the file on
     # GitHub at SITE_REF.
@@ -178,6 +179,10 @@ module ProjectSite
     end
 
     def link_target(target, ctx)
+      # The README links documents the npm package doesn't ship by their GitHub URL (so the
+      # links work on npmjs.com); on this site they are repository files like any other.
+      own_blob = %r{\Ahttps://github\.com/#{Regexp.escape(ctx[:repository])}/blob/[^/]+/}i
+      target = target.sub(own_blob, "") if target.match?(own_blob)
       return target if target.match?(%r{\A(?:[a-z][a-z0-9+.-]*:|#|/)}i)
 
       path, anchor = target.split("#", 2)
