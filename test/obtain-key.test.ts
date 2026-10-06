@@ -304,6 +304,19 @@ test("obtain-key names a --base-url verification host instead of claiming the li
   assert.equal(cli.mt.calls[1]?.headers?.["Authorization"], `ApiKey ${KEY}`);
 });
 
+test("obtain-key warns when it would verify the key over plain http, not with --no-verify", async () => {
+  const cli = makeCli(responder([KEY]));
+  assert.equal(await run(["--base-url", "http://mirror.test", "obtain-key"], cli.deps), 0);
+  assert.deepEqual(
+    cli.err.filter((l) => l.startsWith("warning:")),
+    ["warning: the API key is sent unencrypted to mirror.test (http:, not https:)"],
+  );
+  assert.deepEqual(cli.out, [KEY]);
+  const unverified = makeCli(responder([KEY]));
+  assert.equal(await run(["--base-url", "http://mirror.test", "obtain-key", "--no-verify"], unverified.deps), 0);
+  assert.deepEqual(unverified.err.filter((l) => l.startsWith("warning:")), []);
+});
+
 test("obtain-key refuses -o instead of silently printing the key to the terminal", async () => {
   const cli = makeCli(responder([KEY]));
   const code = await run(["-o", "k.txt", "obtain-key", "--no-verify"], cli.deps);

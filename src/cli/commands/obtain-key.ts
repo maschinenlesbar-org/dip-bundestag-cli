@@ -7,7 +7,7 @@ import {
   obtainKey,
   shellQuoteSingle,
 } from "../../client/obtain-key.js";
-import { toEngineOptions, type GlobalOptions } from "../shared.js";
+import { toEngineOptions, warnIfCleartext, type GlobalOptions } from "../shared.js";
 import { DEFAULT_BASE_URL } from "../../client/engine.js";
 import { DipUsageError, redactUrl } from "../../client/errors.js";
 
@@ -44,6 +44,9 @@ export function registerObtainKeyCommands(program: Command, deps: CliDeps): void
       // User-Agent, retries) goes to obtainKey too; only the key, which this
       // command looks for, is left out.
       const { apiKey: _apiKey, ...requestOptions } = toEngineOptions(global);
+      // Only the verification goes to the base URL (the key is read from DIP's fixed
+      // https help page), and it sends the candidate key.
+      if (opts["verify"] !== false) warnIfCleartext(deps, global.baseUrl, true);
       const { key, sourceUrl, verified } = await obtainKey({
         ...requestOptions,
         ...(deps.transport !== undefined ? { transport: deps.transport } : {}),

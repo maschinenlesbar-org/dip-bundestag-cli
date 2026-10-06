@@ -7,6 +7,7 @@ import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
 import { makeMockTransport, jsonResponse } from "./helpers.js";
 import { DipError, DipNetworkError } from "../src/client/errors.js";
+import { cleartextCredentialsProblem, cleartextProblem } from "../src/index.js";
 
 const API = "/api/v1";
 
@@ -433,12 +434,13 @@ test("a response nested too deeply to pretty-print is a clear error, not a stack
   if (code !== 0) assert.match(compact.err.join("\n"), /^Error: The response is nested too deeply to print\./);
 });
 
-test("a key or userinfo bound for a plain-http host is warned about; loopback and https are not", async () => {
+test("a plain-http base URL is warned about, naming a key or userinfo; loopback and https are not", async () => {
   const cases: Array<[string[], Record<string, string>, RegExp | undefined]> = [
-    [["--base-url", "http://search.dip.bundestag.de", "--api-key", "k3y-value"], {}, /^warning: The API key is sent unencrypted to search\.dip\.bundestag\.de \(http:, not https:\)\.$/],
-    [["--base-url", "http://search.dip.bundestag.de"], { DIP_API_KEY: "k3y-value" }, /The API key is sent unencrypted/],
-    [["--base-url", "http://u:pw@mirror.test"], {}, /^warning: The base URL's credentials are sent unencrypted to mirror\.test/],
-    [["--base-url", "http://mirror.test"], {}, undefined],
+    [["--base-url", "http://search.dip.bundestag.de", "--api-key", "k3y-value"], {}, /^warning: the API key is sent unencrypted to search\.dip\.bundestag\.de \(http:, not https:\)$/],
+    [["--base-url", "http://search.dip.bundestag.de"], { DIP_API_KEY: "k3y-value" }, /the API key is sent unencrypted/],
+    [["--base-url", "http://u:pw@mirror.test"], {}, /^warning: the base URL's credentials are sent unencrypted to mirror\.test \(http:, not https:\)$/],
+    [["--base-url", "http://u:pw@mirror.test", "--api-key", "k3y-value"], {}, /^warning: the API key and the base URL's credentials are sent unencrypted to mirror\.test/],
+    [["--base-url", "http://mirror.test:8080"], {}, /^warning: requests to mirror\.test:8080 are sent unencrypted \(http:, not https:\)$/],
     [["--base-url", "http://127.0.0.1:20180", "--api-key", "k3y-value"], {}, undefined],
     [["--base-url", "http://localhost:20180", "--api-key", "k3y-value"], {}, undefined],
     [["--api-key", "k3y-value"], {}, undefined],
@@ -448,9 +450,29 @@ test("a key or userinfo bound for a plain-http host is warned about; loopback an
     assert.equal(await run([...args, "vorgang", "list"], cli.deps), 0, args.join(" "));
     const warnings = cli.err.filter((l) => l.startsWith("warning:"));
     if (expected === undefined) assert.deepEqual(warnings, [], args.join(" "));
-    else assert.match(warnings.join("\n"), expected, args.join(" "));
+    else {
+      assert.equal(warnings.length, 1, args.join(" "));
+      assert.match(warnings[0]!, expected, args.join(" "));
+    }
     assert.ok(!cli.err.join("\n").includes("pw@"), "the warning never shows the credentials");
+    assert.ok(!cli.err.join("\n").includes("k3y-value"), "the warning never shows the key");
   }
+});
+
+test("cleartextProblem: loopback by address only, every secret named, none printed", () => {
+  assert.equal(cleartextProblem("http://127.1:9"), undefined);
+  assert.equal(cleartextProblem("not a url"), undefined);
+  assert.match(cleartextProblem("http://127.example:9") ?? "", /^requests to 127\.example:9 are sent/);
+  assert.equal(
+    cleartextProblem("http://a:b@mirror.test", ["the API key", "the token"]),
+    "the API key, the token and the base URL's credentials are sent unencrypted to mirror.test (http:, not https:)",
+  );
+  // The deprecated name keeps its contract: nothing to say when no secret goes out.
+  assert.equal(cleartextCredentialsProblem("http://mirror.test", false), undefined);
+  assert.equal(
+    cleartextCredentialsProblem("http://mirror.test", true),
+    "the API key is sent unencrypted to mirror.test (http:, not https:)",
+  );
 });
 
 test("a 2xx body that is not a DIP list or document exits 1 instead of printing it", async () => {

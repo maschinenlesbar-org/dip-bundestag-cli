@@ -145,9 +145,10 @@ CLI then skips its "check your API key" hint). The transport is told
 `redirect: "manual"` (`HttpRequest.redirect`); a transport that follows a redirect
 itself and reports a final `url` on another origin fails the request with a
 `DipNetworkError`. `obtain-key` only counts an answer from the origin that received
-the key as verification. The CLI warns on stderr when a key or userinfo would go to
-a plain-`http:` host other than the loopback interface
-(`cleartextCredentialsProblem`). `test/conformance-p3-redirect-credentials.test.ts`
+the key as verification. The CLI warns on stderr (`warning: …`, once per run, before the first request;
+`obtain-key` only when it verifies) whenever the base URL is plain `http:` to a host
+other than the loopback interface, naming the API key or userinfo that goes with it
+(`cleartextProblem`, exported; `cleartextCredentialsProblem` is its deprecated alias). `test/conformance-p3-redirect-credentials.test.ts`
 is the shared check (two local origins, a fetch transport, the http→https hint and
 the verification rule). Only 301/302/303/307/308 with a parseable
 `Location` are followed, up to `maxRedirects` (5); anything else — another 3xx, a
@@ -405,6 +406,12 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`cli.test.ts`** — command parsing, `--api-key`/`--filter`/`--id`, and exit
   codes — mocked client.
 - **`validate.test.ts`** — `assertValid`, `DipValidationError` and its exit code.
+- **`conformance-p*.test.ts`** — the checks shared across the `*-cli` repos (only
+  each file's adapter block differs): P1/P2 redaction, P3 redirect credentials,
+  P4/P19 configuration validation, P5 transport contract, P6 retry policy, P7 pipes
+  and exit codes, P8/P9/P13 responses and errors, **P20** the plain-`http:` warning
+  (`conformance-p20-cleartext-warning.test.ts`; its base-URL-variable case is
+  skipped, dip has `--base-url` only).
 - **Parity tests** use `parity()` from `test/helpers.ts`: one input goes through
   `run()` and through a library call on one recording mock transport, and the
   test asserts the same outcome (both reject with no request, or both send the

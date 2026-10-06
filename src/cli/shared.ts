@@ -7,7 +7,7 @@ import type { CliDeps } from "./io.js";
 import type { RawResponse } from "../client/engine.js";
 import { apiKeyProblem, normaliseApiKey, type DipClientOptions } from "../client/client.js";
 import { DipError } from "../client/errors.js";
-import { DEFAULT_BASE_URL, baseUrlProblem, cleartextCredentialsProblem } from "../client/engine.js";
+import { API_KEY_PHRASE, DEFAULT_BASE_URL, baseUrlProblem, cleartextProblem } from "../client/engine.js";
 import { headerValueProblem, intInRangeProblem, nonEmptyProblem } from "../client/validate.js";
 
 /**
@@ -206,6 +206,18 @@ export function renderRaw(deps: CliDeps, global: GlobalOptions, response: RawRes
   }
 }
 
+/**
+ * Write `warning: <sentence>` to stderr when the effective base URL (`--base-url`, else
+ * the default) is plain `http:` to a host other than the loopback interface
+ * (`cleartextProblem`), naming the API key when one is sent. Called once per run,
+ * after the options are parsed and before the first request; stdout and the exit code
+ * are untouched.
+ */
+export function warnIfCleartext(deps: CliDeps, baseUrl: string | undefined, sendsKey: boolean): void {
+  const problem = cleartextProblem(baseUrl ?? DEFAULT_BASE_URL, sendsKey ? [API_KEY_PHRASE] : []);
+  if (problem !== undefined) deps.io.err(`warning: ${problem}`);
+}
+
 export interface ActionContext {
   client: ReturnType<CliDeps["createClient"]>;
   global: GlobalOptions;
@@ -234,8 +246,7 @@ export function action(
     const options = toEngineOptions(global);
     const client = deps.createClient(options);
     // Built first, so a key the client rejects is a usage error before any warning.
-    const cleartext = cleartextCredentialsProblem(options.baseUrl ?? DEFAULT_BASE_URL, options.apiKey !== undefined);
-    if (cleartext !== undefined) deps.io.err(`warning: ${cleartext}`);
+    warnIfCleartext(deps, options.baseUrl, options.apiKey !== undefined);
     await fn({ client, global, opts: command.opts() }, positionals);
   };
 }

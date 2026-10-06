@@ -7,6 +7,7 @@ export {
   API_PATH,
   baseUrlProblem,
   cleartextCredentialsProblem,
+  cleartextProblem,
   DEFAULT_BASE_URL,
   decodeBody,
   DEFAULT_MAX_RESPONSE_BYTES,
