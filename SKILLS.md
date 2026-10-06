@@ -120,7 +120,8 @@ non-obvious parts of this API, for example:
 - **`f.aktualisiert.*` needs a full ISO datetime** (`YYYY-MM-DDThh:mm:ss`) or DIP returns
   `400`, whereas `f.datum.*` takes a bare `YYYY-MM-DD`;
 - **lists are cursor-paginated** — capture `cursor` from each response and pass it back via
-  `--cursor`; you've reached the end when the cursor stops changing. An empty page is
+  `--cursor` together with the same `--filter`/`--id` (a bare `--cursor` is refused, exit
+  `2`); you've reached the end when the cursor stops changing. An empty page is
   `{ "numFound": 0, "documents": [] }` at exit `0`, not an error.
 
 ## Contributing

@@ -7,7 +7,8 @@ import type { CliDeps } from "../io.js";
 import { action, parseNonEmpty, renderJson } from "../shared.js";
 import type { DipClient } from "../../client/client.js";
 import type { QueryParams } from "../../client/query.js";
-import { cursorWithoutFiltersNote, filterKeyProblem, type ListResource } from "../../client/filters.js";
+import { filterKeyProblem, type ListResource } from "../../client/filters.js";
+import { DipUsageError } from "../../client/errors.js";
 import { isBlank } from "../../client/validate.js";
 
 type ResourceKey =
@@ -119,6 +120,19 @@ export function registerResourceCommands(program: Command, deps: CliDeps): void 
         `DIP filter, e.g. f.titel=Klima (repeatable; one of ${spec.command}'s f.* filters)`,
         filterCollector(spec.command),
       )
+      // Before the action (and so before the plain-http warning): DIP does not keep the
+      // filters of the page a cursor came from, so a cursor sent alone pages through the
+      // whole unfiltered list and answers with unrelated records, HTTP 200.
+      .hook("preAction", (_program, command) => {
+        const opts = command.opts();
+        if (opts["cursor"] !== undefined && opts["filter"] === undefined && opts["id"] === undefined) {
+          throw new DipUsageError(
+            `--cursor needs the filters of the page it came from: DIP does not keep them in ` +
+              `the cursor, so a cursor alone pages through the whole unfiltered ${spec.command} ` +
+              `list. Repeat every --filter and --id of that page together with --cursor.`,
+          );
+        }
+      })
       .action(
         action(deps, async ({ client, global, opts }) => {
           const filter = opts["filter"] as FilterMap | undefined;
@@ -136,12 +150,7 @@ export function registerResourceCommands(program: Command, deps: CliDeps): void 
           if (mergedIds.length > 0) params["f.id"] = mergedIds;
           else delete params["f.id"];
           const resource = client[spec.resource] as DipClient[ResourceKey];
-          const result = await resource.list(params);
-          // A bare cursor is answered with unrelated records and HTTP 200; say so once
-          // the request succeeded (a rejected one has its own error).
-          const note = cursorWithoutFiltersNote(spec.command, params);
-          if (note !== undefined) deps.io.err(`note: ${note}`);
-          renderJson(deps, global, result);
+          renderJson(deps, global, await resource.list(params));
         }),
       );
 

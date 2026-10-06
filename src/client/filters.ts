@@ -140,18 +140,39 @@ export function filterKeyProblem(resource: ListResource): (key: string) => strin
         `return the whole unfiltered list. Filters for ${resource}: ${known.join(", ")}.`;
 }
 
+/** True when `params` sends a `cursor` and no other parameter. */
+function bareCursor(params: Record<string, unknown>): boolean {
+  const present = (key: string): boolean => params[key] !== undefined && params[key] !== null;
+  return present("cursor") && !Object.keys(params).some((key) => key !== "cursor" && present(key));
+}
+
 /**
- * A note for a list request that sends a `cursor` and no filter, or `undefined`. DIP
- * does not bind a cursor to the query it came from: a cursor from a filtered page,
+ * Why a list request that sends a `cursor` and no filter is refused, or `undefined`.
+ * DIP does not bind a cursor to the query it came from: a cursor from a filtered page,
  * sent alone, pages through the whole unfiltered collection (page 2 of
  * `vorgangsposition` for one procedure came back as 100 positions of other procedures
- * from 2007, with HTTP 200). Paging an unfiltered list this way is legitimate, so this
- * is a note for the caller to print, not an error; the CLI prints it on stderr.
+ * from 2007, with HTTP 200). `list()` throws this as a `DipValidationError` unless
+ * `allowUnfilteredCursor` is set; the CLI refuses a bare `--cursor` as a usage error.
+ */
+export function cursorWithoutFiltersProblem(resource: ListResource, params: Record<string, unknown>): string | undefined {
+  if (!bareCursor(params)) return undefined;
+  return (
+    `A cursor without a filter pages through the whole unfiltered ${resource} list: DIP does ` +
+    `not keep the filters of the page the cursor came from. Pass that page's filters again ` +
+    `with the cursor, or set allowUnfilteredCursor to page the unfiltered list.`
+  );
+}
+
+/**
+ * A note for a list request that sends a `cursor` and no filter, or `undefined`, for a
+ * caller that pages an unfiltered list on purpose (`allowUnfilteredCursor`).
+ *
+ * @deprecated The CLI no longer prints it: it refuses a bare `--cursor`, and `list()`
+ * refuses a bare cursor unless `allowUnfilteredCursor` is set
+ * ({@link cursorWithoutFiltersProblem}).
  */
 export function cursorWithoutFiltersNote(resource: ListResource, params: Record<string, unknown>): string | undefined {
-  const present = (key: string): boolean => params[key] !== undefined && params[key] !== null;
-  if (!present("cursor")) return undefined;
-  if (Object.keys(params).some((key) => key !== "cursor" && present(key))) return undefined;
+  if (!bareCursor(params)) return undefined;
   return (
     `--cursor without a filter pages through the whole unfiltered ${resource} list: DIP does not ` +
     `keep the filters of the page the cursor came from. If that page was filtered, repeat every ` +

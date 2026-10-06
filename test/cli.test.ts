@@ -497,18 +497,25 @@ test("a 2xx body that is not a DIP list or document exits 1 instead of printing 
   assert.equal(await run(["person", "get", "14"], ok.deps), 0);
 });
 
-test("a --cursor without any filter is answered with a stderr note; with its filters it is not", async () => {
+test("a --cursor without any filter is a usage error before any request; with its filters it is sent", async () => {
   const page = { numFound: 2, documents: [{ id: "1" }], cursor: "AoJ" };
+  // With an http base URL too: the refusal comes before the plain-http warning.
   const bare = makeCli(() => jsonResponse(page));
-  assert.equal(await run(["vorgangsposition", "list", "--cursor", "AoJ"], bare.deps), 0);
-  assert.match(bare.err.join("\n"), /^note: --cursor without a filter pages through the whole unfiltered vorgangsposition list/);
-  assert.equal(bare.out.length, 1, "the page is still printed");
+  assert.equal(await run(["--base-url", "http://mirror.test", "vorgangsposition", "list", "--cursor", "AoJ"], bare.deps), 2);
+  assert.deepEqual(bare.out, []);
+  assert.deepEqual(bare.err, [
+    "Error: --cursor needs the filters of the page it came from: DIP does not keep them in the cursor, so a " +
+      "cursor alone pages through the whole unfiltered vorgangsposition list. Repeat every --filter and --id " +
+      "of that page together with --cursor.",
+  ]);
+  assert.equal(bare.mt.calls.length, 0);
   for (const extra of [["--filter", "f.vorgang=298723"], ["--id", "1"]]) {
     const filtered = makeCli(() => jsonResponse(page));
     assert.equal(await run(["vorgangsposition", "list", ...extra, "--cursor", "AoJ"], filtered.deps), 0);
     assert.deepEqual(filtered.err, [], extra.join(" "));
+    assert.match(filtered.mt.calls[0]?.url ?? "", /cursor=AoJ/);
   }
   const first = makeCli(() => jsonResponse(page));
   assert.equal(await run(["vorgangsposition", "list"], first.deps), 0);
-  assert.deepEqual(first.err, [], "an unfiltered first page needs no note");
+  assert.deepEqual(first.err, [], "an unfiltered first page is fine");
 });

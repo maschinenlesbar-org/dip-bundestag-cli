@@ -117,8 +117,8 @@ dip --compact vorgangsposition list --filter f.vorgang=298723 --cursor '<cursor 
 ```
 
 DIP does not bind a cursor to its query: a cursor sent **without** `--filter f.vorgang=…`
-pages through all ~700 000 positions of every procedure (exit 0, the CLI only prints a
-`note:` on stderr), and those steps belong to other bills. Stop when the returned `cursor`
+would page through all ~700 000 positions of every procedure, steps of other bills, so the
+CLI refuses a `--cursor` without any `--filter` or `--id` (exit 2). Stop when the returned `cursor`
 stops changing. The fields that matter per step:
 
 | Field | Meaning |

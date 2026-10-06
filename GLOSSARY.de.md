@@ -124,9 +124,11 @@ Listenantwort enthält einen `cursor`; geben Sie ihn über `--cursor` (CLI) oder
 opak – behandeln Sie ihn als Token, nicht als Zahl. Ändert sich der zurückgegebene
 Cursor nicht mehr, ist das Ende erreicht. **Senden Sie mit jedem Cursor dieselben Filter
 erneut:** Das DIP bindet einen Cursor nicht an die Abfrage, aus der er stammt, daher
-blättert ein Cursor ohne die Filter durch die ganze ungefilterte Liste. Die CLI gibt
-dann einen `note:` auf stderr aus (Bibliothek: `cursorWithoutFiltersNote`); ablehnen kann
-sie ihn nicht, denn eine ungefilterte Liste zu durchblättern ist legitim.
+blättert ein Cursor ohne die Filter durch die ganze ungefilterte Liste. Deshalb wird ein
+Cursor ohne jeden Filter abgelehnt: `--cursor` ohne `--filter` oder `--id` ist in der CLI
+ein Bedienfehler (Exit-Code 2), und `list()` der Bibliothek wirft `DipValidationError`
+(`cursorWithoutFiltersProblem`), außer `{ allowUnfilteredCursor: true }` wird übergeben,
+um die ungefilterte Liste absichtlich zu durchblättern.
 
 **numFound.** Die Gesamtzahl der Dokumente, die zu einer Listenabfrage passen (über
 alle Seiten hinweg); sie steht in der Listenhülle neben den `documents` der aktuellen

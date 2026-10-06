@@ -45,7 +45,8 @@ const filters = { "f.titel": "Klimaschutz" };
 const page = await client.vorgaenge.list(filters);
 console.log(page.numFound, page.documents.length);
 // Repeat the filters with the cursor: DIP does not bind a cursor to its query, so
-// `{ cursor }` alone returns the next page of the *unfiltered* list.
+// `{ cursor }` alone would return the next page of the *unfiltered* list; list()
+// refuses it (DipValidationError) unless { allowUnfilteredCursor: true } is passed.
 const next = page.cursor ? await client.vorgaenge.list({ ...filters, cursor: page.cursor }) : undefined;
 
 const paper = await client.drucksachen.get("123456");
@@ -192,6 +193,10 @@ src/
   `DipValidationError` before the request (`filterKeyProblem`). The CLI's
   `--filter` uses the same check. When DIP adds a filter, add it there; until
   then `list(params, { allowUnknownFilters: true })` sends it anyway.
+- DIP does not keep a page's filters in its cursor either, so `list()` rejects a
+  `cursor` sent without any filter (`cursorWithoutFiltersProblem`) unless
+  `{ allowUnfilteredCursor: true }` asks for the unfiltered list; the CLI refuses a
+  bare `--cursor` as a usage error in a `preAction` hook (before any warning or request).
 - The HTTP layer is a single `Transport` function; the default uses
   `node:http`/`node:https` and tests inject a mock.
 - The CLI is built around injectable `CliDeps`, so the whole program can be

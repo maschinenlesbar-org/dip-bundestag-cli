@@ -488,3 +488,20 @@ test("list() still accepts the resource's own filters and the cursor", async () 
   await client(t).aktivitaeten.list({ "f.person": "Merz", "f.id": ["1", "2"] });
   assert.equal(calls.length, 2);
 });
+
+test("a cursor without any filter is refused by the CLI and by list(); allowUnfilteredCursor sends it", async () => {
+  assertBothReject(
+    await parity({ argv: ["vorgang", "list", "--cursor", "AoE"], lib: (t) => client(t).vorgaenge.list({ cursor: "AoE" }) }),
+    /^Invalid cursor: A cursor without a filter pages through the whole unfiltered vorgang list/,
+  );
+  // Omitted values do not count as filters.
+  await assert.rejects(client(async () => jsonResponse({ numFound: 0, documents: [] })).vorgaenge.list({ cursor: "AoE", "f.titel": undefined }), DipValidationError);
+  const calls: HttpRequest[] = [];
+  const t: Transport = async (req) => {
+    calls.push(req);
+    return jsonResponse({ numFound: 0, documents: [], cursor: "AoF" });
+  };
+  await client(t).vorgaenge.list({ cursor: "AoE" }, { allowUnfilteredCursor: true });
+  assert.equal(calls.length, 1);
+  assert.match(calls[0]!.url, /\/vorgang\?cursor=AoE$/);
+});

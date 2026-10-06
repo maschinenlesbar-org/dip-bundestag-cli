@@ -15,7 +15,7 @@
 import { API_PATH, RequestEngine, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
 import type { ListResult, Document } from "./types.js";
-import { filterKeyProblem, type ListResource } from "./filters.js";
+import { cursorWithoutFiltersProblem, filterKeyProblem, type ListResource } from "./filters.js";
 import {
   assertNonBlankParams,
   assertValid,
@@ -60,6 +60,13 @@ export interface ListOptions {
    * rejected, because DIP ignores it and returns the whole unfiltered list.
    */
   allowUnknownFilters?: boolean;
+  /**
+   * Send a `cursor` without any filter, to page through the whole unfiltered list on
+   * purpose. Default `false`: a bare cursor is rejected, because DIP does not keep the
+   * filters of the page the cursor came from, so a cursor from a filtered page sent
+   * alone answers with unrelated records (`cursorWithoutFiltersProblem`).
+   */
+  allowUnfilteredCursor?: boolean;
 }
 
 /** A DIP resource: cursor-paginated `list` plus `get` by id. */
@@ -72,8 +79,9 @@ class ResourceGroup {
   /**
    * List/filter documents. Pass DIP `f.*` filters and/or a `cursor`. For the next
    * page, send the same filters again with the cursor: DIP does not bind a cursor to
-   * its query, so a cursor alone pages through the whole unfiltered list
-   * (`cursorWithoutFiltersNote` says so).
+   * its query, so a cursor alone pages through the whole unfiltered list. A cursor
+   * without any filter is therefore rejected (`cursorWithoutFiltersProblem`) unless
+   * `options.allowUnfilteredCursor` is set.
    *
    * Rejects with `DipValidationError`, before any request, for a blank parameter
    * name, a blank value, an empty array or a blank array element: DIP treats an
@@ -86,6 +94,10 @@ class ResourceGroup {
   async list(params: QueryParams = {}, options: ListOptions = {}): Promise<ListResult> {
     assertNonBlankParams(params);
     if (!isPlainObject(options)) throw new DipValidationError("Invalid options: Expected an object, e.g. { allowUnknownFilters: true }.");
+    if (options.allowUnfilteredCursor !== true) {
+      const bare = cursorWithoutFiltersProblem(this.path, params);
+      if (bare !== undefined) throw new DipValidationError(`Invalid cursor: ${bare}`);
+    }
     if (options.allowUnknownFilters !== true) {
       const problem = filterKeyProblem(this.path);
       for (const [key, value] of Object.entries(params)) {
