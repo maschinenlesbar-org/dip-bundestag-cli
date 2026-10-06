@@ -371,8 +371,9 @@ mocked client and captured output — no subprocess.
 
 **Closed pipes.** The bin shim installs `handleOutputErrors()` before `run()`. A
 reader that stops early (`| head`, `| jq` exiting on the first match) closes
-stdout, and the next write fails with EPIPE: the process exits 0 at once, quietly.
-On stderr an EPIPE is ignored, so a failed run keeps its exit code (`2>&1 | true`
+stdout, and the next write fails with EPIPE (ENOTCONN when stdout is a socket, as
+when a Node parent spawns the CLI with piped stdio on macOS): the process exits 0 at
+once, quietly. On stderr an EPIPE or ENOTCONN is ignored, so a failed run keeps its exit code (`2>&1 | true`
 no longer turns a usage error into 0). `test/conformance-p7-pipes-exit-codes.test.ts`
 runs the built bin to check both.
 

@@ -47,9 +47,11 @@ export interface OutputStreams {
  *
  * A reader that stops early — `| head`, `| jq` exiting on the first match, a closed
  * pager — closes the pipe while the CLI is still writing, and the next write fails
- * with EPIPE. That is ordinary use, so the process exits 0 at once, quietly. Any
+ * with EPIPE (ENOTCONN when stdout is a socket whose peer has gone, as when a Node
+ * parent spawns the CLI with piped stdio on macOS). That is ordinary use, so the
+ * process exits 0 at once, quietly. Any
  * other stdout error prints one `Output error: <message>` line to stderr and exits
- * 1. On stderr an EPIPE is ignored, so a failed run keeps its exit code; any other
+ * 1. On stderr an EPIPE (or ENOTCONN) is ignored, so a failed run keeps its exit code; any other
  * stderr error exits 1 silently (there is nowhere left to report it).
  * The bin shim installs this once, before `run()`.
  */
@@ -58,15 +60,20 @@ export function handleOutputErrors(
   exit: (code: number) => void = (code) => process.exit(code),
 ): void {
   streams.stdout.on("error", (err: NodeJS.ErrnoException) => {
-    if (err.code === "EPIPE") return exit(0);
+    if (readerGone(err)) return exit(0);
     process.stderr.write(`Output error: ${err.message}\n`);
     exit(1);
   });
   // stderr's reader going away doesn't make a failed run a success: ignore EPIPE there and
   // let the run's own exit code stand (`2>&1 | true` used to turn a usage error into 0).
   streams.stderr.on("error", (err: NodeJS.ErrnoException) => {
-    if (err.code !== "EPIPE") exit(1);
+    if (!readerGone(err)) exit(1);
   });
+}
+
+/** True for the write errors that mean the reader has gone: EPIPE, or ENOTCONN on a socket. */
+function readerGone(err: NodeJS.ErrnoException): boolean {
+  return err.code === "EPIPE" || err.code === "ENOTCONN";
 }
 
 function isDirectory(path: string): boolean {
