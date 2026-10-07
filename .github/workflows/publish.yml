@@ -1,6 +1,12 @@
 name: Publish
 
-# Manually publish a previously released version to the npm registry.
+# Manually publish a released version to the npm registry, run from its tag:
+#
+#   gh workflow run publish.yml -R <owner>/<repo> --ref vX.Y.Z
+#
+# The version is the tag's (vX.Y.Z -> X.Y.Z); a run from a branch fails. Running
+# from the tag also means this file is the one the release was cut with.
+#
 # Authentication uses npm Trusted Publishing (OIDC): GitHub mints a short-lived
 # token for this run and npm verifies it against the trusted publisher
 # configured for the package — no long-lived NPM_TOKEN is stored.
@@ -9,11 +15,6 @@ name: Publish
 # Settings -> Trusted Publisher -> GitHub Actions, this repo, workflow `publish.yml`.
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Released version to publish to npm, e.g. 1.0.0'
-        required: true
-        type: string
 
 # Least privilege at the workflow level: only read. The OIDC id-token scope is
 # granted per-job, to the publish job that actually needs it.
@@ -21,7 +22,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: publish-${{ inputs.version }}
+  group: publish-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -33,10 +34,27 @@ jobs:
       id-token: write # npm Trusted Publishing (OIDC); provenance is attached automatically
 
     steps:
-      # Publish exactly the tagged source for the requested version.
+      - name: Take the version from the release tag
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          case "$REF" in
+            refs/tags/v*) version="${REF#refs/tags/v}" ;;
+            *)
+              echo "::error::Run this workflow from a release tag (gh workflow run publish.yml --ref vX.Y.Z), not from $REF."
+              exit 1
+              ;;
+          esac
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::Tag v$version is not a release version (vX.Y.Z)."
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      # Publish exactly the tagged source.
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
-          ref: v${{ inputs.version }}
+          ref: ${{ github.ref }}
           persist-credentials: false
 
       - name: Use Node.js
@@ -59,13 +77,11 @@ jobs:
             exit 1
           fi
 
-      - name: Verify package.json matches the requested version
-        env:
-          VERSION: ${{ inputs.version }}
+      - name: Verify package.json matches the tag
         run: |
           pkg="$(node -p "require('./package.json').version")"
           if [ "$pkg" != "$VERSION" ]; then
-            echo "::error::package.json version ('$pkg') does not match requested version ('$VERSION')."
+            echo "::error::package.json version ('$pkg') does not match the tag (v$VERSION)."
             exit 1
           fi
 
