@@ -43,7 +43,12 @@ function runBin(argv: string[], opts: { closeStdoutAfter?: number; closeStderr?:
   });
 }
 
-test("P7: a large output into a reader that stops early exits 0 without a stack trace", async () => {
+// These tests start the built CLI as a process. Process start-up is the one slow part of the
+// suite (a cold disk, a virus scanner, a busy CI runner), so they get 30 s instead of the 5 s
+// default the `test` script sets.
+const STARTS_A_PROCESS = { timeout: 30_000 };
+
+test("P7: a large output into a reader that stops early exits 0 without a stack trace", STARTS_A_PROCESS, async () => {
   const body = JSON.stringify(bigBody());
   const server = http.createServer((_req, res) => {
     res.setHeader("content-type", "application/json");
@@ -60,7 +65,7 @@ test("P7: a large output into a reader that stops early exits 0 without a stack 
   }
 });
 
-test("P7: a failed run keeps its exit code when stderr's reader is gone", async () => {
+test("P7: a failed run keeps its exit code when stderr's reader is gone", STARTS_A_PROCESS, async () => {
   for (const { argv, exit } of [USAGE, NETWORK]) {
     const outcome = await runBin(argv, { closeStderr: true });
     assert.equal(outcome.code, exit, `argv ${argv.join(" ")}`);

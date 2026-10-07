@@ -30,7 +30,7 @@
     "prepack": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "pretest": "npm run build",
-    "test": "node --test dist/test/*.test.js",
+    "test": "node --test --test-timeout=5000 dist/test/*.test.js",
     "docs": "node tools/docs/node_modules/typedoc/bin/typedoc src/index.ts --out out",
     "start": "node dist/src/cli/index.js",
     "obtain-key": "node dist/src/cli/index.js obtain-key"
