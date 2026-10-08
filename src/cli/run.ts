@@ -154,7 +154,7 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       if (err.status === 401 && err.credentialsDropped === undefined) {
         deps.io.err(
           "Authentication failed (401). Check your API key, or if none was set " +
-            "pass --api-key <key> or set DIP_API_KEY. The current public key is " +
+            "pass --api-key <key>, set DIP_API_KEY, or store it with `dip config set api-key`. The current public key is " +
             "published at https://dip.bundestag.de/über-dip/hilfe/api; a personal " +
             "key can be requested from parlamentsdokumentation@bundestag.de.",
         );

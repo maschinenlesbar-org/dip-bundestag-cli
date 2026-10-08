@@ -20,6 +20,8 @@ import {
 } from "./shared.js";
 import { registerResourceCommands } from "./commands/resources.js";
 import { registerObtainKeyCommands } from "./commands/obtain-key.js";
+import { registerConfigCommands } from "./commands/config.js";
+import { CredentialStore } from "./credentials.js";
 import { nodeHttpTransport } from "../client/http.js";
 
 /**
@@ -46,6 +48,7 @@ export const defaultDeps: CliDeps = {
   createClient: (options) => new DipClient(options),
   env: process.env,
   transport: nodeHttpTransport,
+  credentials: () => CredentialStore.fromEnv(process.env),
 };
 
 /**
@@ -68,8 +71,8 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     .description(
       "CLI for the Bundestag DIP API (https://search.dip.bundestag.de/api/v1) — " +
         "Vorgänge, Drucksachen, Plenarprotokolle, Aktivitäten and Personen. " +
-        "Needs an API key: pass --api-key or set DIP_API_KEY (a personal key is " +
-        "available from parlamentsdokumentation@bundestag.de).",
+        "Needs an API key: pass --api-key, set DIP_API_KEY, or store it once with " +
+        "`dip config set api-key` (a personal key is available from parlamentsdokumentation@bundestag.de).",
     )
     .version(VERSION)
     .option(
@@ -109,12 +112,14 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
 
   // Seed --api-key from DIP_API_KEY (trimmed; blank treated as unset). commander
   // treats this as the option's value, which an explicit --api-key on the command
-  // line overrides during parse, giving precedence: --api-key > DIP_API_KEY > none
-  // (no key is bundled; with none supplied the header is omitted and DIP answers 401).
+  // line overrides during parse, giving precedence: --api-key > DIP_API_KEY > the
+  // credentials file (read in `action()`) > none (no key is bundled; with none
+  // supplied the header is omitted and DIP answers 401).
   const envKey = readEnvApiKey(deps.env ?? process.env);
   if (envKey !== undefined) program.setOptionValue("apiKey", envKey);
 
   registerObtainKeyCommands(program, deps);
+  registerConfigCommands(program, deps);
   registerResourceCommands(program, deps);
 
   return program;

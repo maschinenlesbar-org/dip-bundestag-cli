@@ -6,6 +6,9 @@ import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import type { RawResponse } from "../client/engine.js";
 import { apiKeyProblem, normaliseApiKey, type DipClientOptions } from "../client/client.js";
+
+/** The name the API key is stored under in the credentials file (`dip config set api-key`). */
+export const API_KEY_CREDENTIAL = "api-key";
 import { DipError } from "../client/errors.js";
 import { API_KEY_PHRASE, DEFAULT_BASE_URL, baseUrlProblem, cleartextProblem } from "../client/engine.js";
 import { headerValueProblem, intInRangeProblem, nonEmptyProblem } from "../client/validate.js";
@@ -244,6 +247,13 @@ export function action(
     // `-o -` means stdout: from here on it is the same as no -o.
     if (global.output === "-") delete global.output;
     const options = toEngineOptions(global);
+    // flag > DIP_API_KEY > the credentials file (`dip config set api-key`) > none. The
+    // file is read only here, when no key came from the first two, so a problem with
+    // it never stands in the way of a key given another way.
+    if (options.apiKey === undefined) {
+      const stored = deps.credentials?.().get(API_KEY_CREDENTIAL);
+      if (stored !== undefined) options.apiKey = stored;
+    }
     const client = deps.createClient(options);
     // Built first, so a key the client rejects is a usage error before any warning.
     warnIfCleartext(deps, options.baseUrl, options.apiKey !== undefined);

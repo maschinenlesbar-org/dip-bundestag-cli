@@ -14,7 +14,8 @@ compatibility: >
   Requires the `dip` CLI (npm package @maschinenlesbar.org/dip-bundestag-cli) on
   PATH, installed by the user; the skill never installs it. Uses jq for JSON
   filtering. Network access to search.dip.bundestag.de. Needs the public API key
-  via --api-key or DIP_API_KEY (`dip obtain-key` prints it).
+  via --api-key, DIP_API_KEY or a key stored with `dip config set api-key`
+  (`dip obtain-key` prints it).
 ---
 
 # DIP Procedure Tracker
@@ -46,7 +47,8 @@ whatever it gives you actually authenticates. If it fails, it says where a worki
 from — the help page https://dip.bundestag.de/über-dip/hilfe/api or a free personal key from
 `parlamentsdokumentation@bundestag.de`. Relay that to the user and stop; never invent a key.
 
-If `DIP_API_KEY` is already set in the environment, use it and skip `obtain-key`. **Keep the
+If `DIP_API_KEY` is already set in the environment, or a key is stored (`dip config get
+api-key` exits 0), use it and skip `obtain-key`; the CLI reads a stored key by itself. **Keep the
 key for the rest of the session** and put it on every later call — a shell `export` does not
 survive between separate commands:
 

@@ -31,9 +31,19 @@ key=$(dip obtain-key) && export DIP_API_KEY="$key"
 
 # Or per-invocation (a global option: it works before or after the command)
 dip --api-key your-personal-key vorgang list
+
+# Or stored once in a credentials file (typed without echo, or piped in)
+dip config set api-key
+dip obtain-key | dip config set api-key
 ```
 
-Precedence is `--api-key` > `DIP_API_KEY` > none; a blank `--api-key ""` is a usage
+Precedence is `--api-key` > `DIP_API_KEY` > the credentials file > none. `dip config`
+keeps the key in `$XDG_CONFIG_HOME/dip-bundestag/credentials` (else
+`~/.config/dip-bundestag/credentials`), mode 0600, written atomically; `config set` reads
+the value from a prompt without echo or from stdin, never from the command line;
+`config get` shows it masked (`--reveal` prints it whole); `config list` and `config
+unset` do what they say. A file that others can read is refused, and only when it is
+needed; a blank `--api-key ""` is a usage
 error (exit `2`). **No key is bundled** — when
 neither is supplied the `Authorization` header is omitted and requests return
 `401`. The Bundestag publishes a public key on its

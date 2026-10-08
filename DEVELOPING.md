@@ -83,9 +83,17 @@ with `.list(params)` and `.get(id)`.
 DIP requires an `Authorization: ApiKey <key>` header on every request. The key
 is **not bundled** — it must be supplied via `apiKey` (library), `--api-key`
 (CLI), or the `DIP_API_KEY` env var, else the header is omitted and the API
-returns `401`. Precedence is **`--api-key` > `DIP_API_KEY` > none**; no key is
-bundled, so without one supplied the `Authorization` header is omitted entirely
-and requests return `401`.
+returns `401`. Precedence is **`--api-key` > `DIP_API_KEY` > the credentials
+file > none**; no key is bundled, so without one supplied the `Authorization` header
+is omitted entirely and requests return `401`.
+
+The credentials file is the CLI's, not the library's: `src/cli/credentials.ts`
+(`CredentialStore`, the same mechanism as openka-cli's `ka config`) and `dip config`
+(`src/cli/commands/config.ts`). It reaches the CLI through `CliDeps.credentials`, which
+only `defaultDeps` sets, so a test that does not ask for one never reads the user's
+file; `action()` (`src/cli/shared.ts`) reads it only when neither the flag nor the env
+var gave a key. `config set` reads through `CliIO.readSecret` (`readSecretFrom`: raw
+mode without echo on a terminal, the whole input from a pipe), never from argv.
 
 The Bundestag publishes a **public** key on its
 [DIP API help page](https://dip.bundestag.de/über-dip/hilfe/api) (stated there in

@@ -65,7 +65,24 @@ dip --api-key your-personal-key vorgang list
 
 (`--api-key` is a global option, so it works **before or after** the command.)
 
-Precedence is `--api-key` > `DIP_API_KEY` env var > none. A blank `--api-key ""` is
+**Or store it once**, in a credentials file of its own (the same mechanism as
+[openka-cli](https://github.com/maschinenlesbar-org/openka-cli)'s `ka config`):
+
+```bash
+dip config set api-key                        # typed at a prompt, without echo
+dip obtain-key | dip config set api-key       # or the published key, piped in
+dip config get api-key                        # masked: R2bz…QyNa (--reveal prints it whole)
+dip config list                               # what is stored, and where
+dip config unset api-key
+```
+
+The value is never taken from the command line, so it reaches neither shell history
+nor `ps`. The file is `$XDG_CONFIG_HOME/dip-bundestag/credentials` (else
+`~/.config/dip-bundestag/credentials`): mode 0600 in a directory of mode 0700, replaced
+atomically, and not read at all while anyone else could read it. It is consulted only
+when neither `--api-key` nor `DIP_API_KEY` gives a key.
+
+Precedence is `--api-key` > `DIP_API_KEY` env var > the credentials file > none. A blank `--api-key ""` is
 a usage error (exit `2`), not a way to unset the env var; a blank `DIP_API_KEY` counts
 as unset. **No key is bundled**:
 when neither is supplied the `Authorization` header is omitted entirely and the
