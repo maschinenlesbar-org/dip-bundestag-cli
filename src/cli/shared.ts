@@ -3,7 +3,7 @@
 
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
-import { logOf, type CliDeps } from "./io.js";
+import { OutputError, logOf, type CliDeps } from "./io.js";
 import type { RawResponse } from "../client/engine.js";
 import { apiKeyProblem, normaliseApiKey, type DipClientOptions } from "../client/client.js";
 
@@ -178,6 +178,19 @@ function stringifyJson(value: unknown, compact: boolean): string {
 }
 
 /**
+ * `deps.io.writeFile`, with any failure an `OutputError` (message and cause kept), so
+ * every `-o` failure is logged under `dip.output`, whatever the `CliIO` threw.
+ */
+function writeOutputFile(deps: CliDeps, path: string, data: Buffer, force: boolean | undefined): void {
+  try {
+    deps.io.writeFile(path, data, force);
+  } catch (cause) {
+    if (cause instanceof OutputError) throw cause;
+    throw new OutputError(cause instanceof Error ? cause.message : String(cause), { cause });
+  }
+}
+
+/**
  * Render a JSON value, pretty by default and compact with --compact. Writes to
  * the file given by --output (with a short stderr confirmation so stdout stays
  * clean for piping), or to stdout otherwise. An existing file is not overwritten
@@ -187,7 +200,7 @@ export function renderJson(deps: CliDeps, global: GlobalOptions, value: unknown)
   const text = escapeControlChars(stringifyJson(value, global.compact === true));
   if (global.output) {
     const data = Buffer.from(text + "\n", "utf8");
-    deps.io.writeFile(global.output, data, global.force);
+    writeOutputFile(deps, global.output, data, global.force);
     logOf(deps).info("output", `Wrote ${data.length} bytes to ${global.output}`);
   } else {
     deps.io.out(text);
@@ -202,7 +215,7 @@ export function renderJson(deps: CliDeps, global: GlobalOptions, value: unknown)
  */
 export function renderRaw(deps: CliDeps, global: GlobalOptions, response: RawResponse): void {
   if (global.output) {
-    deps.io.writeFile(global.output, response.data, global.force);
+    writeOutputFile(deps, global.output, response.data, global.force);
     logOf(deps).info("output", `Wrote ${response.data.length} bytes to ${global.output}`);
   } else {
     deps.io.outBinary(response.data);

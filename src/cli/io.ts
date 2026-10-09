@@ -8,6 +8,12 @@ import type { Transport } from "../client/http.js";
 import type { CredentialStore } from "./credentials.js";
 import { createLogger, type Logger } from "./log.js";
 
+/**
+ * Writing the output to the `-o` file failed (an existing file without `--force`, a
+ * directory, EACCES, …). Logged as an ERROR of `dip.output`, exit 1.
+ */
+export class OutputError extends DipError {}
+
 export interface CliIO {
   out(text: string): void;
   err(text: string): void;

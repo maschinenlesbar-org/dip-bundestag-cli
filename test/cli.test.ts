@@ -416,7 +416,19 @@ test("an overwrite refusal is a clear error, not an unexpected one", async () =>
   };
   const code = await run(["-o", "out.json", "vorgang", "list"], cli.deps);
   assert.equal(code, 1);
-  assert.match(untimed(cli.err.join("\n")), /^ERROR \[dip\.cli\] Refusing to overwrite existing file "out\.json"; pass --force to overwrite\./);
+  assert.match(untimed(cli.err.join("\n")), /^ERROR \[dip\.output\] Refusing to overwrite existing file "out\.json"; pass --force to overwrite\./);
+});
+
+test("every -o failure is an ERROR record of dip.output, exit 1 (L8)", async () => {
+  for (const thrown of [new DipError('"out" is a directory; give a file path to --output.'), new Error("EACCES: permission denied, open 'out.json'")]) {
+    const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+    cli.deps.io.writeFile = () => {
+      throw thrown;
+    };
+    assert.equal(await run(["-o", "out.json", "vorgang", "list"], cli.deps), 1);
+    assert.match(untimed(cli.err.join("\n")), /^ERROR \[dip\.output\] /);
+    assert.doesNotMatch(cli.err.join("\n"), /Unexpected error/);
+  }
 });
 
 test("a response nested too deeply to pretty-print is a clear error, not a stack overflow", async () => {
