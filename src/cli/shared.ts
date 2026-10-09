@@ -254,6 +254,7 @@ export function action(
       const store = deps.credentials();
       const stored = store.usable(API_KEY_CREDENTIAL);
       if (stored !== undefined) {
+        deps.addSecret?.(stored);
         options.apiKey = stored;
         deps.storedKeyPath = store.path;
       }

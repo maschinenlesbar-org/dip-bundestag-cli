@@ -92,7 +92,8 @@ The credentials file is the CLI's, not the library's: `src/cli/credentials.ts`
 (`src/cli/commands/config.ts`). It reaches the CLI through `CliDeps.credentials`, which
 only `defaultDeps` sets, so a test that does not ask for one never reads the user's
 file; `action()` (`src/cli/shared.ts`) reads it only when neither the flag nor the env
-var gave a key. `config set` reads through `CliIO.readSecret` (`readSecretFrom`: raw
+var gave a key, and makes the value a secret of the run the moment it is read
+(`deps.addSecret`, set by `run()`), so the log replaces it like a flag or env key. `config set` reads through `CliIO.readSecret` (`readSecretFrom`: raw
 mode without echo on a terminal, the whole input from a pipe, at most 64 KiB either way),
 never from argv. On a terminal it drops escape sequences (arrow keys, bracketed-paste
 markers), keeps every other character (so a tab is refused, as from a pipe) and refuses

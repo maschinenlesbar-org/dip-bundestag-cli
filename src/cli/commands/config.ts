@@ -63,6 +63,7 @@ export function registerConfigCommands(program: Command, deps: CliDeps): void {
       const name = credentialNameArg(command, "dip config set");
       if (deps.io.readSecret === undefined) throw new DipUsageError("No way to read a secret here: pipe it in, or run dip config set on a terminal.");
       const value = (await deps.io.readSecret(`${name}: `)).trim();
+      deps.addSecret?.(value);
       const reason = credentialProblem(name, value);
       if (reason !== undefined) throw new DipUsageError(`${reason} Nothing was stored.`);
       const store = storeOf(deps);
@@ -81,6 +82,7 @@ export function registerConfigCommands(program: Command, deps: CliDeps): void {
       const store = storeOf(deps);
       const value = store.usable(name);
       if (value === undefined) throw new DipError(`No ${name} is stored in ${store.path}; dip config set ${name} stores one.`);
+      deps.addSecret?.(value);
       deps.io.out(options.reveal === true ? value : maskCredential(value, name));
     });
 

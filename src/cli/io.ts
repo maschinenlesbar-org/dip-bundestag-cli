@@ -59,6 +59,12 @@ export interface CliDeps {
    * outlives the run.
    */
   storedKeyPath?: string;
+  /**
+   * Make a value a secret of the run, replaced in every record from now on. Set by
+   * `run()`; the credentials file's values go through it the moment they are read, so a
+   * stored key is kept out of the log like one from `--api-key` or `DIP_API_KEY`.
+   */
+  addSecret?(value: string): void;
 }
 
 /** The deps' logger, or one that writes text records through `io.err`. */

@@ -10,6 +10,7 @@ import { Readable } from "node:stream";
 import { EventEmitter } from "node:events";
 import { run } from "../src/cli/run.js";
 import { DipClient } from "../src/client/client.js";
+import { DipError } from "../src/client/errors.js";
 import type { CliDeps } from "../src/cli/io.js";
 import { readSecretFrom } from "../src/cli/io.js";
 import { CredentialStore, maskCredential, resolveCredentialsPath } from "../src/cli/credentials.js";
@@ -431,6 +432,24 @@ test("a held lock fails config set with exit 1 and the stored value kept (C8)", 
     assert.equal(await run(["config", "set", "api-key"], { ...cli.deps, credentials: () => store }), 1);
     assert.match(cli.err.join("\n"), /ERROR \[dip\.cli\] Another dip config is writing/);
     assert.equal(cli.store.get("api-key"), KEY);
+  } finally {
+    cli.cleanup();
+  }
+});
+
+test("the stored key is a secret of the run the moment it is read: no record shows it (C5)", async () => {
+  const personal = "personal-key-of-another-shape-0123";
+  const cli = makeCli();
+  try {
+    cli.store.set("api-key", personal);
+    for (const format of ["text", "jsonl"]) {
+      cli.err.length = 0;
+      // Whatever path the key takes to a message — here a client that quotes it.
+      const deps: CliDeps = { ...cli.deps, createClient: (opts) => { throw new DipError(`could not use ${String(opts.apiKey)}`); } };
+      assert.equal(await run(["--log-format", format, "vorgang", "list"], deps), 1);
+      assert.match(cli.err.join("\n"), /could not use \*\*\*/, format);
+      assert.ok(!cli.err.join("\n").includes("personal-key"), `${format}: ${cli.err.join("\n")}`);
+    }
   } finally {
     cli.cleanup();
   }

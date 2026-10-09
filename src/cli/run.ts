@@ -80,6 +80,11 @@ export interface Redaction {
   out(text: string): string;
   /** stderr text, a record's message: that, and every secret value replaced (`***`). */
   err(text: string): string;
+  /**
+   * Make `value` a secret of the run from now on (on stderr), like a flag or env value:
+   * for a secret the run learns after argv, such as the key read from the credentials file.
+   */
+  addSecret(value: string): void;
 }
 
 /**
@@ -134,10 +139,18 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
   for (const value of values) if (looksLikeApiKey(value)) addKey(value);
   const urlList = [...userinfo];
   // Longest first, so a key is never left half-replaced by one of its own substrings.
-  const keyList = [...keys].sort((a, b) => b.length - a.length);
+  const sortedKeys = (): string[] => [...keys].sort((a, b) => b.length - a.length);
+  let keyList = sortedKeys();
   const encodedList = [...encodedUserinfo];
   const out = (text: string): string => redactSecrets(redactCredentials(text, urlList), encodedList);
-  return { out, err: (text) => redactSecrets(out(text), keyList) };
+  return {
+    out,
+    err: (text) => redactSecrets(out(text), keyList),
+    addSecret: (value) => {
+      addKey(value);
+      keyList = sortedKeys();
+    },
+  };
 }
 
 /**
@@ -153,6 +166,7 @@ export function withRedactedOutput(deps: CliDeps, argv: readonly string[]): CliD
   return {
     ...deps,
     io: { ...deps.io, out: (text) => out(redaction.out(text)), err: (text) => err(redaction.err(text)) },
+    addSecret: redaction.addSecret,
     log: createLogger({
       format: logFormatFromArgv(argv),
       write: err,
