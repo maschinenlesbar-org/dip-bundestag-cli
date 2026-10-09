@@ -553,6 +553,16 @@ test("dip help <unknown> reports the unknown command like dip <unknown>, at ever
   }
 });
 
+test("dip help <leaf> nope is an unknown command and never runs the leaf (no request)", async () => {
+  for (const argv of [["help", "vorgang", "list", "nope"], ["vorgang", "help", "list", "nope"]]) {
+    const cli = makeCli(() => jsonResponse({ documents: [] }));
+    assert.equal(await run(["--api-key", "KEY123", ...argv], cli.deps), 2, argv.join(" "));
+    assert.equal(untimed(cli.err[0] ?? ""), "ERROR [dip.cli] unknown command 'nope'", cli.err.join("\n"));
+    assert.deepEqual(cli.out, []);
+    assert.equal(cli.mt.calls.length, 0, argv.join(" "));
+  }
+});
+
 test("dip help <command path> shows that command's help on stdout, exit 0", async () => {
   for (const [argv, usage] of [
     [["help"], "Usage: dip [options] [command]"],

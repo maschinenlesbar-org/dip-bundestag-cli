@@ -88,6 +88,8 @@ function addHelpCommand(command: Command): void {
       for (const [i, name] of names.entries()) {
         const sub = target.commands.find((c) => c.name() === name || c.aliases().includes(name));
         if (sub === undefined) {
+          // A command without subcommands would run its action on the rest of the names.
+          if (target.commands.length === 0) target.error(`error: unknown command '${name}'`, { exitCode: 1, code: "commander.unknownCommand" });
           await target.parseAsync(names.slice(i), { from: "user" });
           return;
         }

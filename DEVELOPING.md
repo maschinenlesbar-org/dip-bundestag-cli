@@ -423,7 +423,9 @@ name: `dip help vorgang list` shows the `list` help (exit 0), and an unknown nam
 parsed by the command it was meant for, so `dip help nope` and `dip vorgang help nope`
 fail exactly like `dip nope` and `dip vorgang nope` (`error: unknown command 'nope'`,
 suggestion and help included, redacted, exit 2). The built-in one read only the first
-name and printed the root help with no word about the unknown one.
+name and printed the root help with no word about the unknown one. A command
+without subcommands is never run on the rest of the names: `dip help vorgang list nope` is an
+unknown command `nope` and sends no request.
 
 **Closed pipes.** The bin shim installs `handleOutputErrors()` before `run()`. A
 reader that stops early (`| head`, `| jq` exiting on the first match) closes
