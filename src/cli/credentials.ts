@@ -98,7 +98,11 @@ export class CredentialStore {
     if (!(name in all)) return false;
     delete all[name];
     if (Object.keys(all).length === 0) {
-      rmSync(this.path, { force: true });
+      try {
+        rmSync(this.path, { force: true });
+      } catch (err) {
+        throw this.writeError(err);
+      }
       return true;
     }
     this.write(all);
@@ -145,18 +149,25 @@ export class CredentialStore {
    */
   private write(all: Record<string, string>): void {
     const dir = dirname(this.path);
-    mkdirSync(dir, { recursive: true, mode: 0o700 });
-    if (process.platform !== "win32" && (statSync(dir).mode & 0o077) !== 0) chmodSync(dir, 0o700);
     const temporary = `${this.path}.tmp-${process.pid}`;
     const sorted = Object.fromEntries(Object.entries(all).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
     try {
+      // Inside the try: an unwritable config location (EACCES on mkdir or chmod) is
+      // reported like any other write failure, naming the file.
+      mkdirSync(dir, { recursive: true, mode: 0o700 });
+      if (process.platform !== "win32" && (statSync(dir).mode & 0o077) !== 0) chmodSync(dir, 0o700);
       // Left by a run of the same pid that crashed between the two steps.
       rmSync(temporary, { force: true });
       writeFileSync(temporary, JSON.stringify(sorted, null, 2) + "\n", { mode: 0o600, flag: "wx" });
       renameSync(temporary, this.path);
     } catch (err) {
       rmSync(temporary, { force: true });
-      throw new DipError(`Could not write the credentials file ${this.path}: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
+      throw this.writeError(err);
     }
+  }
+
+  /** "Could not write the credentials file <path>: <reason>", the cause kept. */
+  private writeError(err: unknown): DipError {
+    return new DipError(`Could not write the credentials file ${this.path}: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
   }
 }
