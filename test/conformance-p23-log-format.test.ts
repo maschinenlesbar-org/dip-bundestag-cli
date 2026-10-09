@@ -29,6 +29,13 @@ const VALUE_OPTION = "--timeout";
 function errorAnswer(message: string): HttpResponse {
   return { status: 500, headers: { "content-type": "application/json" }, body: Buffer.from(JSON.stringify({ detail: message })) };
 }
+/**
+ * argv that makes `secret` a secret of the run, which the log must replace. Keyed repos:
+ * the key flag; the others: the password of a base URL (`--base-url http://u:<secret>@host`).
+ */
+function secretArgv(secret: string): string[] {
+  return ["--api-key", secret];
+}
 /** Builds the CliDeps for a run, on a transport that answers `okBody` (or `answer`) and a fixed clock. */
 function makeDeps(out: string[], err: string[], now: () => Date, answer?: HttpResponse): CliDeps {
   const transport = async (): Promise<HttpResponse> => answer ?? {
@@ -168,5 +175,29 @@ test("P23: a record's message is bounded: a long one is cut and says how much is
       assert.ok(msg.length <= MAX_RECORD_MESSAGE + 40, `${format}: ${msg.length} characters`);
     }
     assert.ok(r.err.some((line) => /… \(\d+ more characters\)/.test(line)), `${format}: no cut marked`);
+  }
+});
+
+test("P23: a secret is replaced in the message only: the record's frame stays intact", async () => {
+  // A secret equal to a part of the frame: the year of the timestamp, a topic, a level.
+  for (const secret of [TS.slice(0, 4), `${PROGRAM}.api`, "ERROR"]) {
+    for (const format of ["text", "jsonl"]) {
+      const r = await cli(["--log-format", format, ...secretArgv(secret), ...SIMPLE_COMMAND], errorAnswer(`rejected: ${secret}`));
+      assert.notEqual(r.code, 0, `${secret} ${format}`);
+      assertOneRecordEach(r.err, format, `${secret} ${format}`);
+      if (format === "jsonl") {
+        for (const line of r.err) assert.equal((JSON.parse(line) as Record<string, unknown>)["ts"], TS, line);
+      }
+    }
+  }
+});
+
+test("P23: a secret with DEL, C1 or bidi characters is replaced before the record is escaped", async () => {
+  for (const secret of ["my key\u007fx-Secret1", "my key\u0085x-Secret2", "my key\u202ex-Secret3"]) {
+    for (const format of ["text", "jsonl"]) {
+      const r = await cli(["--log-format", format, ...secretArgv(secret), ...SIMPLE_COMMAND]);
+      const all = r.err.join("\n");
+      assert.ok(!/Secret\d/.test(all), `${format}: ${JSON.stringify(secret)} printed:\n${all}`);
+    }
   }
 });

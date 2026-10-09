@@ -297,9 +297,13 @@ What the library rejects:
   The CLI's `--api-key` parser (after its own blank-flag check) and the
   `DIP_API_KEY` path end up in the same function, so all three send the same
   header or fail the same way (exit 2).
-- **Secrets in the CLI's output** (`withRedactedOutput` in `run.ts`): commander
-  echoes a rejected value in its usage error and names an unknown command or
-  option as typed, so `run()` wraps `deps.io` first. The userinfo of every
+- **Secrets in the CLI's output** (`redactionFor` and `withRedactedOutput` in
+  `run.ts`): commander echoes a rejected value in its usage error and names an
+  unknown command or option as typed, so `run()` wraps `deps.io` and builds the log
+  first. The log replaces the secrets in each record's *message*, before the record
+  is cut and escaped, and writes it to the raw stderr: the frame (time, level, topic)
+  is never touched, and a secret with DEL, C1 or bidi characters is matched in its
+  raw form. The userinfo of every
   URL-like argument (`credentialsIn`, which finds it whether the value parses or
   not, then `redactCredentials`) becomes `***@` on stdout and stderr; the
   `--api-key` value, the `DIP_API_KEY` value and any argument shaped like a DIP
@@ -518,8 +522,9 @@ code point and ends in `… (N more characters)`. The areas are `cli` (usage err
 `api` (the API's answers), `http` (the connection, the cleartext warning), `config`,
 `obtain-key` and `output`. Code logs through `logOf(deps)` and never writes diagnostics
 with `io.err` directly. `run()` builds the logger from argv before commander parses it,
-so commander's own usage errors are records too, and on top of the redacted `io.err`, so
-a secret is kept out of the log in either format. `CliDeps.now` makes the timestamps
+so commander's own usage errors are records too, and with the run's redaction
+(`withRedactedOutput`), which replaces a secret in the message only, before it is
+escaped: the frame is never touched, and a secret is kept out of the log in either format. `CliDeps.now` makes the timestamps
 testable. stdout carries data only. Conformance test P23 checks all of this, and its
 body is shared across the *-cli repos.
 
