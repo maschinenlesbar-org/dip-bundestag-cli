@@ -187,7 +187,8 @@ exceeded. The client retries **429** and **503**, and a connection reset mid-req
 automatically (`--max-retries`, 0–10, default 2), backing off linearly, or waiting
 the response's `Retry-After` when that is longer (never shorter, so `Retry-After: 0`
 causes no burst). A `Retry-After` over 30 s is not retried, and the error names the
-requested wait. The library holds the same bound
+requested wait. Each retry is a WARN record of `dip.http` (`HTTP 503 from host: retry 1 of 3
+in 2 s`); the library offers it as `onRetry`. The library holds the same bound
 (`MAX_RETRIES`, `maxRetries`) and rejects a value outside it with
 `DipValidationError`, as it does a negative or fractional timeout or size cap.
 
@@ -211,7 +212,7 @@ any other runtime error (including `401` when the key is missing/expired).
 `--log-format jsonl` as one JSON object per line. The areas: `cli` (usage errors,
 commander's messages, unexpected errors), `api` (the API's answers: an error status, and
 a malformed answer — bad JSON, the wrong shape, an empty body), `http` (the connection,
-the cleartext warning), `config`, `obtain-key` and `output` (the `-o` file, stdout
+the cleartext warning, and one WARN per retry before it waits), `config`, `obtain-key` and `output` (the `-o` file, stdout
 failures). A record is always one line; control characters in it are escaped.
 
 ---

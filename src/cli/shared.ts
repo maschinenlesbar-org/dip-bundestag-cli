@@ -4,7 +4,7 @@
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import { OutputError, logOf, type CliDeps } from "./io.js";
-import type { RawResponse } from "../client/engine.js";
+import type { RawResponse, RetryEvent } from "../client/engine.js";
 import { apiKeyProblem, normaliseApiKey, type DipClientOptions } from "../client/client.js";
 
 /** The name the API key is stored under in the credentials file (`dip config set api-key`). */
@@ -234,6 +234,19 @@ export function warnIfCleartext(deps: CliDeps, baseUrl: string | undefined, send
   if (problem !== undefined) logOf(deps).warn("http", problem);
 }
 
+/** `HTTP 503 from host: retry 1 of 3 in 2 s` (host only; whole seconds, ms under 1 s). */
+export function retryMessage(event: RetryEvent): string {
+  let host: string;
+  try {
+    host = new URL(event.url).host;
+  } catch {
+    host = "the server";
+  }
+  const why = event.status === undefined ? "connection reset" : `HTTP ${event.status}`;
+  const wait = event.delayMs < 1000 ? `${event.delayMs} ms` : `${Math.round(event.delayMs / 1000)} s`;
+  return `${why} from ${host}: retry ${event.retry} of ${event.maxRetries} in ${wait}`;
+}
+
 export interface ActionContext {
   client: ReturnType<CliDeps["createClient"]>;
   global: GlobalOptions;
@@ -272,6 +285,7 @@ export function action(
         deps.storedKeyPath = store.path;
       }
     }
+    options.onRetry = (event) => logOf(deps).warn("http", retryMessage(event));
     const client = deps.createClient(options);
     // Built first, so a key the client rejects is a usage error before any warning.
     warnIfCleartext(deps, options.baseUrl, options.apiKey !== undefined);

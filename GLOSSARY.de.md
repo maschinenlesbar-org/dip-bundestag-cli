@@ -196,7 +196,8 @@ Anfrage abgebrochene Verbindung automatisch
 (`--max-retries`, 0–10, Standard 2) mit linearem Backoff, oder wartet das `Retry-After`
 der Antwort ab, wenn es länger ist (nie kürzer, sodass `Retry-After: 0` keine Salve
 auslöst). Ein `Retry-After` über 30 s wird nicht wiederholt, und die Fehlermeldung
-nennt die verlangte Wartezeit. Die
+nennt die verlangte Wartezeit. Jede Wiederholung ist ein Log-Eintrag `WARN` von `dip.http`
+(`HTTP 503 from host: retry 1 of 3 in 2 s`); die Bibliothek bietet sie als `onRetry` an. Die
 Bibliothek hat dieselbe Grenze (`MAX_RETRIES`, `maxRetries`) und lehnt einen Wert
 außerhalb mit `DipValidationError` ab, ebenso ein negatives oder gebrochenes Timeout oder
 Größenlimit.
@@ -223,7 +224,7 @@ Zeitstempel, eine Stufe (`ERROR`, `WARN`, `INFO`) und ein Thema `dip.<Bereich>`,
 (im Stil von log4j) oder mit `--log-format jsonl` als ein JSON-Objekt pro Zeile. Die
 Bereiche: `cli` (Bedienfehler, Meldungen von commander, unerwartete Fehler), `api` (die
 Antworten der API: ein Fehlerstatus und eine fehlerhafte Antwort — ungültiges JSON, die
-falsche Form, ein leerer Body), `http` (die Verbindung, die Klartext-Warnung), `config`,
+falsche Form, ein leerer Body), `http` (die Verbindung, die Klartext-Warnung und je Wiederholung eine WARN-Zeile vor dem Warten), `config`,
 `obtain-key` und `output` (die `-o`-Datei, Schreibfehler auf stdout). Ein Eintrag ist
 immer eine Zeile; Steuerzeichen darin werden maskiert.
 

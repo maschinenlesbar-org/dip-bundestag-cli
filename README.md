@@ -276,6 +276,7 @@ characters is cut and ends in `… (N more characters)`:
 
 ```text
 2026-10-09T14:03:12.481Z WARN  [dip.http] requests to mirror.test are sent unencrypted (http:, not https:)
+2026-10-09T14:03:12.700Z WARN  [dip.http] HTTP 503 from search.dip.bundestag.de: retry 1 of 2 in 200 ms
 2026-10-09T14:03:12.902Z ERROR [dip.api] HTTP 404 for GET https://search.dip.bundestag.de/api/v1/vorgang/1: Not found
 ```
 
@@ -374,7 +375,7 @@ These may be given **before or after** the command, e.g.
 | `--base-url <url>` | API base URL: the host, **without** `/api/v1`, which the CLI adds (default `https://search.dip.bundestag.de`). `http:`/`https:` only; a query (`?`), fragment (`#`), whitespace (surrounding or inside), a trailing `/api/v1` or a `%` in the user name or password that is not an escape (write a literal `%` as `%25`) is a usage error (exit `2`). A `user:password@` part is sent as HTTP Basic auth (unless an API key takes the `Authorization` header) but shown as `***@` in everything the CLI prints, usage errors included. Credentials go to this origin only: a redirect to another host, port or scheme (http→https included) drops them, so use `https://`. A plain-`http:` base URL to any host other than the loopback interface (`localhost`, `127.0.0.0/8`, `::1`) logs one WARN record of `dip.http` on stderr before the first request (naming the host and whether the API key or the URL's credentials go with it, never their values); stdout and the exit code are unchanged |
 | `--timeout <ms>` | Time limit per request, reading the whole response included (default `30000`; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value. A blank value, control characters or characters above U+00FF are a usage error (exit `2`) |
-| `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections (`0`–`10`, default `2`). Each retry backs off linearly from 200 ms, or waits the server's `Retry-After` when that is longer (never shorter, so `Retry-After: 0` causes no burst). A `Retry-After` over 30 s is not retried; the error names the requested wait |
+| `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections (`0`–`10`, default `2`). Each retry backs off linearly from 200 ms, or waits the server's `Retry-After` when that is longer (never shorter, so `Retry-After: 0` causes no burst). A `Retry-After` over 30 s is not retried; the error names the requested wait. Each retry logs one WARN record of `dip.http` before it waits (`HTTP 503 from host: retry 1 of 3 in 2 s`) |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 
 ## Learn more

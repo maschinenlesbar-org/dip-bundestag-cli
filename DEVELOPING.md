@@ -383,6 +383,12 @@ retried — retrying sooner would only land inside the window — and the
 `DipApiError` names the requested wait.
 `test/conformance-p6-retry-policy.test.ts` is the shared check (`OVER_CAP: "fail"`). `DipApiError`
 exposes `isRetryable` (true for `429`/`503`).
+Each retry is announced: the engine option `onRetry(event: RetryEvent)` (exported type:
+`{ retry` (1-based), `maxRetries`, `delayMs`, `status?` (absent for a reset), `url` (userinfo
+redacted) `}`) is called once per retry right before the sleep, never when there is none, and
+a throw in it is swallowed. The CLI's `action()` sets it to log one `WARN` record of
+`dip.http`, `HTTP 503 from <host>: retry 1 of 3 in 2 s` (`retryMessage`; host only, whole
+seconds, ms under 1 s). Tests: `test/engine.test.ts`, `test/retry-log.test.ts`.
 
 **Cross-origin credential stripping.** The engine attaches the credentials per
 hop and only to the base URL's origin; a redirect to a different scheme, host or

@@ -241,7 +241,7 @@ and `dip vorgang list --compact` are the same):
 | `--api-key <key>` | DIP API key (env `DIP_API_KEY`). Surrounding whitespace is trimmed, as for `DIP_API_KEY`. A blank value, control characters or characters above U+00FF are a usage error (exit `2`), from the flag or the env var; the error never repeats the key |
 | `--timeout <ms>` | Time limit per request in milliseconds, reading the whole response included (at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value. A blank value, control characters or characters above U+00FF are a usage error (exit `2`) |
-| `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections (`0`–`10`, default `2`); each backs off linearly from 200 ms, or waits the server's `Retry-After` when that is longer (never shorter). A `Retry-After` over 30 s is not retried; the error names the requested wait |
+| `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections (`0`–`10`, default `2`); each backs off linearly from 200 ms, or waits the server's `Retry-After` when that is longer (never shorter). A `Retry-After` over 30 s is not retried; the error names the requested wait. Each retry logs one WARN record of `dip.http` before it waits (`HTTP 503 from host: retry 1 of 3 in 2 s`) |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
 | `--log-format <format>` | How errors, warnings and notes are written to stderr: `text` (default; log4j style, `2026-10-09T14:03:12.481Z WARN  [dip.http] …`) or `jsonl` (one JSON object per line: `ts`, `level`, `topic`, `msg`). stdout is not affected |
