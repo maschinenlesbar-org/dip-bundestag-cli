@@ -5,7 +5,7 @@
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import { logOf, type CliDeps } from "./io.js";
-import { createLogger, logFormatFromArgv } from "./log.js";
+import { DEFAULT_LOG_FORMAT, createLogger, logFormatFromArgv, type LogFormat } from "./log.js";
 import {
   DipApiError,
   DipError,
@@ -230,6 +230,15 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
   deps = withRedactedOutput(deps, argv);
   const program = buildProgram(deps);
   configureTree(program, deps);
+  // One source for the format once commander has parsed argv: its value, not the scan
+  // of argv (an option's value can look like --log-format; `--` ends the scan, not
+  // commander's parse of a value). Ancestors' hooks run first, so this precedes every
+  // other preAction check.
+  const log = deps.log;
+  program.hook("preAction", (_program, actionCommand) => {
+    const format = (actionCommand.optsWithGlobals() as { logFormat?: LogFormat }).logFormat;
+    if (log !== undefined) log.format = format ?? DEFAULT_LOG_FORMAT;
+  });
 
   try {
     await program.parseAsync(argv, { from: "user" });

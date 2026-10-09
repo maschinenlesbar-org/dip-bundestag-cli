@@ -529,7 +529,9 @@ and a message longer than `MAX_RECORD_MESSAGE` (4000 characters, exported) is cu
 code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, unexpected errors),
 `api` (the API's answers), `http` (the connection, the cleartext warning), `config`,
 `obtain-key` and `output`. Code logs through `logOf(deps)` and never writes diagnostics
-with `io.err` directly. `run()` builds the logger from argv before commander parses it,
+with `io.err` directly. `run()` builds the logger from argv before commander parses it
+(`logFormatFromArgv`, used only for the records of a parse error; a `preAction` hook then
+sets the format commander parsed, so `--user-agent --log-format=jsonl` logs text),
 so commander's own usage errors are records too: its `error: …` an ERROR of `cli` (a
 `(Did you mean …?)` line joined to it), the help it shows after one an INFO record per
 line, and a command group run without its subcommand an ERROR "missing command:

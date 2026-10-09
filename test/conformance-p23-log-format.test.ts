@@ -253,3 +253,14 @@ test("P23: every failed run has an ERROR record, a missing command included", as
     assertOneRecordEach(r.err, "text", JSON.stringify(argv));
   }
 });
+
+test("P23: the log format is the one commander parsed, also where an option's value looks like --log-format", async () => {
+  // commander takes "--log-format=jsonl" as the User-Agent: the log stays text.
+  const ua = await cli(["--user-agent", "--log-format=jsonl", ...SIMPLE_COMMAND], errorAnswer("boom"));
+  assert.notEqual(ua.code, 0);
+  assertOneRecordEach(ua.err, "text", "--user-agent --log-format=jsonl");
+  // commander takes "--" as the User-Agent and then parses --log-format jsonl.
+  const dashes = await cli(["--user-agent", "--", "--log-format", "jsonl", ...SIMPLE_COMMAND], errorAnswer("boom"));
+  assert.notEqual(dashes.code, 0);
+  assertOneRecordEach(dashes.err, "jsonl", "--user-agent -- --log-format jsonl");
+});
