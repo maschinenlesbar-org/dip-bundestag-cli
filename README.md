@@ -80,7 +80,9 @@ The value is never taken from the command line, so it reaches neither shell hist
 nor `ps`. The file is `$XDG_CONFIG_HOME/dip-bundestag/credentials` (else
 `~/.config/dip-bundestag/credentials`): mode 0600 in a directory of mode 0700, replaced
 atomically, and not read at all while anyone else could read it. It is consulted only
-when neither `--api-key` nor `DIP_API_KEY` gives a key.
+when neither `--api-key` nor `DIP_API_KEY` gives a key. `dip config` prints to stdout
+only: `-o` is refused (redirect stdout instead), so a key never lands on the terminal
+when a file was asked for.
 
 Precedence is `--api-key` > `DIP_API_KEY` env var > the credentials file > none. A blank `--api-key ""` is
 a usage error (exit `2`), not a way to unset the env var; a blank `DIP_API_KEY` counts

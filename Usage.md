@@ -42,7 +42,7 @@ keeps the key in `$XDG_CONFIG_HOME/dip-bundestag/credentials` (else
 `~/.config/dip-bundestag/credentials`), mode 0600, written atomically; `config set` reads
 the value from a prompt without echo or from stdin, never from the command line;
 `config get` shows it masked (`--reveal` prints it whole); `config list` and `config
-unset` do what they say. A file that others can read is refused, and only when it is
+unset` do what they say. `dip config` prints to stdout only and refuses `-o`. A file that others can read is refused, and only when it is
 needed; a blank `--api-key ""` is a usage
 error (exit `2`). **No key is bundled** — when
 neither is supplied the `Authorization` header is omitted and requests return

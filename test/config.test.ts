@@ -192,3 +192,31 @@ test("an unwritable config location names the credentials file, for set and for 
     cli.cleanup();
   }
 });
+
+test("config refuses -o: the value goes to stdout only, never silently to the terminal instead of a file (C10)", async () => {
+  const cli = makeCli({ secret: KEY });
+  try {
+    cli.store.set("api-key", KEY);
+    for (const argv of [
+      ["-o", "key.txt", "config", "get", "api-key", "--reveal"],
+      ["config", "get", "api-key", "--reveal", "-o", "key.txt"],
+      ["--output=key.txt", "config", "get", "api-key"],
+      ["-o", "key.txt", "config", "list"],
+      ["-o", "key.txt", "config", "set", "api-key"],
+      ["-o", "key.txt", "config", "unset", "api-key"],
+    ]) {
+      cli.out.length = 0;
+      cli.err.length = 0;
+      assert.equal(await run(argv, cli.deps), 2, argv.join(" "));
+      assert.deepEqual(cli.out, [], argv.join(" "));
+      assert.match(cli.err.join("\n"), /ERROR \[dip\.cli\] dip config prints to stdout only/, argv.join(" "));
+    }
+    assert.equal(cli.store.get("api-key"), KEY, "unset did not run");
+    // `-o -` is stdout, as everywhere.
+    cli.out.length = 0;
+    assert.equal(await run(["-o", "-", "config", "get", "api-key", "--reveal"], cli.deps), 0);
+    assert.deepEqual(cli.out, [KEY]);
+  } finally {
+    cli.cleanup();
+  }
+});

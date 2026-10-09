@@ -9,7 +9,7 @@ import { DipError, DipUsageError } from "../../client/errors.js";
 import { apiKeyProblem } from "../../client/client.js";
 import { CONFIG_DIR_NAME, credentialValueProblem, maskCredential, type CredentialStore } from "../credentials.js";
 import { logOf, type CliDeps } from "../io.js";
-import { API_KEY_CREDENTIAL } from "../shared.js";
+import { API_KEY_CREDENTIAL, type GlobalOptions } from "../shared.js";
 
 /** The credentials this program knows. */
 export const CREDENTIAL_NAMES = [API_KEY_CREDENTIAL] as const;
@@ -36,7 +36,15 @@ export function registerConfigCommands(program: Command, deps: CliDeps): void {
   const names = CREDENTIAL_NAMES.join(", ");
   const config = program
     .command("config")
-    .description(`the API key, kept in a credentials file of its own: $XDG_CONFIG_HOME/${CONFIG_DIR_NAME}/credentials, else ~/.config/${CONFIG_DIR_NAME}/credentials (${names})`);
+    .description(`the API key, kept in a credentials file of its own: $XDG_CONFIG_HOME/${CONFIG_DIR_NAME}/credentials, else ~/.config/${CONFIG_DIR_NAME}/credentials (${names})`)
+    // `config get --reveal -o key.txt` used to print the key on the terminal and write no
+    // file. A secret written to a file is a job for `> file` and the user's own umask.
+    .hook("preAction", (_config, command) => {
+      const output = (command.optsWithGlobals() as GlobalOptions).output;
+      if (output !== undefined && output !== "-") {
+        throw new DipUsageError("dip config prints to stdout only: --output is refused; redirect stdout instead.");
+      }
+    });
 
   config
     .command("set")
