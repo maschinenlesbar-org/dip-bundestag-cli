@@ -12,8 +12,8 @@
 // line and every failure has an ERROR (L5); the format is commander's (L6); a malformed
 // answer is `api` (L9); echoed credentials are replaced (L13); an `a:b@c` value that is no
 // URL is left alone (L14). Adapter switches added with them: VALUE_OPTION, OUTPUT_OPTION,
-// errorAnswer, MALFORMED_ANSWERS, secretArgv, HELP_AFTER_ERROR, and the import of
-// MAX_RECORD_MESSAGE.
+// errorAnswer, MALFORMED_ANSWERS, secretArgv, HELP_AFTER_ERROR, BASE_URL_USERINFO, and the
+// import of MAX_RECORD_MESSAGE.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -34,6 +34,8 @@ const okBody = { numFound: 0, documents: [] };
 const USAGE_EXIT = 2;
 /** Whether commander shows the command's whole help after a usage error (autobahn-cli: a one-line pointer). */
 const HELP_AFTER_ERROR = true;
+/** Whether --base-url accepts userinfo (destatis-genesis/regionalstatistik refuse it: nothing a server could echo). */
+const BASE_URL_USERINFO = true;
 /** The option that writes the output to a file and logs where, or undefined if the CLI has none. */
 const OUTPUT_OPTION: string | undefined = "-o";
 /** An option that takes a value and validates it: a rejected value is echoed in the record. */
@@ -220,7 +222,8 @@ test("P23: a secret with DEL, C1 or bidi characters is replaced before the recor
   }
 });
 
-test("P23: credentials a server echoes back are replaced in the record (Basic, user:password, password)", async () => {
+test("P23: credentials a server echoes back are replaced in the record (Basic, user:password, password)", async (t) => {
+  if (!BASE_URL_USERINFO) return t.skip("--base-url refuses userinfo: nothing is sent that a server could echo");
   const basic = `Basic ${Buffer.from("alice:s3cret-pw", "latin1").toString("base64")}`;
   const echo = `denied: Authorization: ${basic}; user alice:s3cret-pw; password s3cret-pw`;
   for (const format of ["text", "jsonl"]) {
