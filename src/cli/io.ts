@@ -19,6 +19,11 @@ export interface CliIO {
   /** Write raw bytes to stdout (binary-safe). */
   outBinary(data: Buffer): void;
   /**
+   * stdout without the run's redaction, for the one value the user asked for in full:
+   * `dip config get --reveal`. Set by `run()` (`withRedactedOutput`); unset, `out` is used.
+   */
+  outRaw?(text: string): void;
+  /**
    * Read a secret for `dip config set`: typed at a prompt without echo, or piped in.
    * Optional: without it, `config set` refuses rather than reading the command line.
    */

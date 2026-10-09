@@ -165,7 +165,7 @@ export function withRedactedOutput(deps: CliDeps, argv: readonly string[]): CliD
   const { out, err } = deps.io;
   return {
     ...deps,
-    io: { ...deps.io, out: (text) => out(redaction.out(text)), err: (text) => err(redaction.err(text)) },
+    io: { ...deps.io, out: (text) => out(redaction.out(text)), outRaw: deps.io.outRaw ?? out, err: (text) => err(redaction.err(text)) },
     addSecret: redaction.addSecret,
     log: createLogger({
       format: logFormatFromArgv(argv),
