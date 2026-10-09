@@ -45,7 +45,7 @@ jobs:
               exit 1
               ;;
           esac
-          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
             echo "::error::Tag v$version is not a release version (vX.Y.Z)."
             exit 1
           fi
