@@ -59,19 +59,19 @@ export function registerConfigCommands(program: Command, deps: CliDeps): void {
       if (reason !== undefined) throw new DipUsageError(`${reason} Nothing was stored.`);
       const store = storeOf(deps);
       store.set(name, value);
-      logOf(deps).info("config", `Stored ${name} (${maskCredential(value)}) in ${store.path}.`);
+      logOf(deps).info("config", `Stored ${name} (${maskCredential(value, name)}) in ${store.path}.`);
     });
 
   config
     .command("get")
-    .description("show a stored credential, masked (abcd…wxyz) unless --reveal")
+    .description("show a stored credential, masked (abcd…wxyz, or **** below 20 characters) unless --reveal")
     .argument("<name>", names, parseCredentialName)
     .option("--reveal", "print the whole value, for a script that passes it on — it then is on your screen or in its log")
     .action(async (name: string, options: { reveal?: boolean }) => {
       const store = storeOf(deps);
       const value = store.usable(name);
       if (value === undefined) throw new DipError(`No ${name} is stored in ${store.path}; dip config set ${name} stores one.`);
-      deps.io.out(options.reveal === true ? value : maskCredential(value));
+      deps.io.out(options.reveal === true ? value : maskCredential(value, name));
     });
 
   config
@@ -90,7 +90,7 @@ export function registerConfigCommands(program: Command, deps: CliDeps): void {
     .action(async () => {
       const store = storeOf(deps);
       // Checked first, so a bad entry prints nothing rather than half a list.
-      const lines = store.usableNames().map((name) => `${name}  ${maskCredential(store.usable(name) as string)}`);
+      const lines = store.usableNames().map((name) => `${name}  ${maskCredential(store.usable(name) as string, name)}`);
       for (const line of lines) deps.io.out(line);
       logOf(deps).info("config", `Credentials file: ${store.path}`);
     });

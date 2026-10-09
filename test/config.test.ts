@@ -297,3 +297,11 @@ test("a 401 with the stored key says the key came from the credentials file, and
     cli.cleanup();
   }
 });
+
+test("maskCredential: a key shows its ends only from 20 characters, a password never (C7)", () => {
+  assert.equal(maskCredential("Somm3r2026!x"), "****");
+  assert.equal(maskCredential("a".repeat(19)), "****");
+  assert.equal(maskCredential("abcd0123456789ab wxyz".replace(" ", "")), "abcd…wxyz");
+  assert.equal(maskCredential(KEY, "api-key"), "R2bz…QyNa");
+  assert.equal(maskCredential("a-very-long-password-of-40-characters!!!", "password"), "****");
+});

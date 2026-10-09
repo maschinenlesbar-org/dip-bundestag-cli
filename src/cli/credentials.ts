@@ -62,12 +62,21 @@ export function resolveCredentialsPath(env: Record<string, string | undefined>):
   return join(home, ".config", CONFIG_DIR_NAME, "credentials");
 }
 
+/** Below this length a key shows nothing of itself: eight of twelve characters is most of it. */
+const MASK_MIN_LENGTH = 20;
+
+/** True for a credential name whose value is a password: never partly shown. */
+function isPasswordName(name: string | undefined): boolean {
+  return name !== undefined && /(^|-)password$/.test(name);
+}
+
 /**
- * `abcd…wxyz`: enough to tell two keys apart, never enough to use one. A value too
- * short for that shows nothing of itself, not even its length.
+ * `abcd…wxyz`: enough to tell two keys apart, never enough to use one. A value shorter
+ * than 20 characters, and a password whatever its length, shows nothing of itself, not
+ * even its length: `****`.
  */
-export function maskCredential(value: string): string {
-  return value.length >= 12 ? `${value.slice(0, 4)}…${value.slice(-4)}` : "****";
+export function maskCredential(value: string, name?: string): string {
+  return !isPasswordName(name) && value.length >= MASK_MIN_LENGTH ? `${value.slice(0, 4)}…${value.slice(-4)}` : "****";
 }
 
 /**
