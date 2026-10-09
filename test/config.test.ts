@@ -305,3 +305,31 @@ test("maskCredential: a key shows its ends only from 20 characters, a password n
   assert.equal(maskCredential(KEY, "api-key"), "R2bz…QyNa");
   assert.equal(maskCredential("a-very-long-password-of-40-characters!!!", "password"), "****");
 });
+
+test("a key typed in place of the name is never echoed, by any config command (C2)", async () => {
+  const cli = makeCli({ secret: KEY });
+  try {
+    const typed = "abcSECRET-personal-key-123";
+    for (const argv of [
+      ["config", "set", typed],
+      ["config", "get", typed],
+      ["config", "get", typed, "--reveal"],
+      ["config", "unset", typed],
+      ["config", "get", "api-key", typed],
+      ["config", "unset", "api-key", typed],
+      ["config", "list", typed],
+      ["--log-format", "jsonl", "config", "set", typed],
+    ]) {
+      cli.err.length = 0;
+      assert.equal(await run(argv, cli.deps), 2, argv.join(" "));
+      const err = cli.err.join("\n");
+      assert.ok(!err.includes("SECRET"), `${argv.join(" ")}:\n${err}`);
+      assert.match(err, /ERROR.*dip\.cli/, argv.join(" "));
+    }
+    cli.err.length = 0;
+    assert.equal(await run(["config", "get", typed], cli.deps), 2);
+    assert.match(cli.err.join("\n"), /Not a credential name this program knows: expected api-key\./);
+  } finally {
+    cli.cleanup();
+  }
+});
