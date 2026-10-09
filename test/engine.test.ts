@@ -14,6 +14,8 @@ import {
   DipParseError,
   DipValidationError,
   redactUrl,
+  cutText,
+  toWellFormed,
 } from "../src/client/errors.js";
 import type { HttpResponse } from "../src/client/http.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
@@ -472,6 +474,23 @@ test("a server detail is cut at 500 characters in the message, kept in full in b
     assert.ok(err.message.length < 700, `message has ${err.message.length} characters`);
     assert.ok(err.message.endsWith("…"));
     assert.ok(err.body.includes(long));
+    return true;
+  });
+});
+
+test("cutText never cuts inside a surrogate pair; toWellFormed replaces half a character", () => {
+  assert.equal(cutText("ab\u{1f600}cd", 3), "ab");
+  assert.equal(cutText("ab\u{1f600}cd", 4), "ab\u{1f600}");
+  assert.equal(cutText("short", 10), "short");
+  assert.equal(toWellFormed("a\ud83d b\ude00 \u{1f600}"), "a� b� \u{1f600}");
+});
+
+test("a server detail cut at 500 characters keeps the message well-formed", async () => {
+  const detail = "a" + "\u{1f600}".repeat(400);
+  const engine = new RequestEngine({ transport: async () => ({ status: 500, headers: { "content-type": "application/json" }, body: Buffer.from(JSON.stringify({ detail })) }) });
+  await assert.rejects(engine.getJson("/api/v1/vorgang"), (err: Error) => {
+    assert.equal(toWellFormed(err.message), err.message);
+    assert.match(err.message, /…$/);
     return true;
   });
 });

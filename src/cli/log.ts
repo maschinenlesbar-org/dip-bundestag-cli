@@ -10,6 +10,8 @@
 // comes from (`dip.cli`, `dip.api`, `dip.http`, `dip.config`, …). stdout carries data
 // only and is not touched; neither is `--help`/`--version`, nor the no-echo prompt.
 
+import { toWellFormed } from "../client/errors.js";
+
 /** The log formats `--log-format` takes. */
 export const LOG_FORMATS = ["text", "jsonl"] as const;
 export type LogFormat = (typeof LOG_FORMATS)[number];
@@ -71,8 +73,11 @@ export function escapeForRecord(text: string): string {
  * record can split it, forge another one, or reach the terminal as a control sequence.
  */
 export function formatLogRecord(record: LogRecord, format: LogFormat): string {
-  if (format === "jsonl") return escapeForRecord(JSON.stringify({ ts: record.ts, level: record.level, topic: record.topic, msg: record.msg }));
-  return `${record.ts} ${record.level.padEnd(5)} [${record.topic}] ${escapeForRecord(record.msg)}`;
+  // Well-formed first: half a character would be `\ud83d` in jsonl, which jq rejects,
+  // stopping the whole stream.
+  const msg = toWellFormed(record.msg);
+  if (format === "jsonl") return escapeForRecord(JSON.stringify({ ts: record.ts, level: record.level, topic: record.topic, msg }));
+  return `${record.ts} ${record.level.padEnd(5)} [${record.topic}] ${escapeForRecord(msg)}`;
 }
 
 export interface Logger {

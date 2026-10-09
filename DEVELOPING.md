@@ -239,7 +239,8 @@ What the library rejects:
   for `obtainKey` that is not an absolute http(s) URL.
   `test/conformance-p8-p9-p13-responses-and-errors.test.ts` is the shared check
   (its bad calls use an offline transport, so a call that slipped through could never
-  reach the live API). A server `detail` is cut at 500 characters in a message.
+  reach the live API). A server `detail` is cut at 500 characters in a message, never inside a surrogate
+  pair (`cutText`), so the message stays well-formed.
 - **Blank list parameters** (`assertNonBlankParams`, called first in every
   `list()`): a blank parameter name, a blank string value, an empty array or a
   blank array element, `cursor` included. DIP treats an empty parameter as no
@@ -507,7 +508,9 @@ and `msg`. A record is always one line: `formatLogRecord` runs `escapeForRecord`
 the message (text) or the whole JSON object (jsonl), which writes CR and LF as `\r`/`\n`,
 every other C0 control but TAB, DEL and C1 as `\u00XX`, and U+2028, U+2029 and the bidi
 controls as `\uXXXX`, so no text that reaches a record, by whatever path, can split it,
-forge another one or steer the terminal. The areas are `cli` (usage errors, commander's messages, unexpected errors),
+forge another one or steer the terminal. Before that a lone surrogate (half a
+character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`).
+The areas are `cli` (usage errors, commander's messages, unexpected errors),
 `api` (the API's answers), `http` (the connection, the cleartext warning), `config`,
 `obtain-key` and `output`. Code logs through `logOf(deps)` and never writes diagnostics
 with `io.err` directly. `run()` builds the logger from argv before commander parses it,

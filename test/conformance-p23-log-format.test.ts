@@ -55,18 +55,23 @@ async function cli(argv: string[], answer?: HttpResponse) {
 }
 
 /** A message built to break a record: line breaks, a forged record, escapes, C1, bidi, DEL. */
-const HOSTILE = `one\ntwo\r${TS} ERROR [${PROGRAM}.cli] forged\u001b[31m red\u0085nel\u2028ls\u2029ps\u202eevil\u2066iso\u007fdel\u009bcsi`;
+const HOSTILE = `one\ntwo\r${TS} ERROR [${PROGRAM}.cli] forged\u001b[31m red\u0085nel\u2028ls\u2029ps\u202eevil\u2066iso\u007fdel\u009bcsi half\ud83d`;
 /** Characters a record never carries raw: C0 but TAB, DEL, C1, the line and paragraph separators, bidi controls. */
 const RAW = /[\u0000-\u0008\u000a-\u001f\u007f-\u009f\u2028\u2029\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/;
 
-/** Every stderr chunk is one record: one line, nothing raw, in text or (parsed) jsonl. */
+/** A lone surrogate: half of a character, which jq and other strict readers reject. */
+const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
+
+/** Every stderr chunk is one record: one line, nothing raw, well-formed, in text or (parsed) jsonl. */
 function assertOneRecordEach(err: string[], format: string, context: string): void {
   assert.ok(err.length > 0, context);
   for (const line of err) {
     assert.ok(!RAW.test(line), `${context}: raw control or bidi character in ${JSON.stringify(line)}`);
+    assert.ok(!LONE_SURROGATE.test(line), `${context}: lone surrogate in ${JSON.stringify(line)}`);
     if (format === "jsonl") {
       const record = JSON.parse(line) as Record<string, unknown>;
       assert.deepEqual(Object.keys(record), ["ts", "level", "topic", "msg"], context);
+      assert.ok(!LONE_SURROGATE.test(record["msg"] as string), `${context}: a \\ud800-style escape of half a character in ${line}`);
     } else {
       assert.match(line, new RegExp(`^${TS} (ERROR|WARN |INFO ) \\[${PROGRAM}\\.[a-z0-9-]+\\] `), `${context}: ${JSON.stringify(line)}`);
     }
@@ -139,4 +144,14 @@ test("P23: a hostile message is one record, one line, with nothing raw (server t
   // The text form keeps the message readable: a line break is shown as \n.
   const text = await cli([VALUE_OPTION, "a\nb", ...SIMPLE_COMMAND]);
   assert.ok(text.err.some((line) => line.includes("a\\nb")), text.err.join("\n"));
+});
+
+test("P23: server text cut to a length limit never leaves half a character", async () => {
+  // One of the two splits a surrogate pair at any cut length, odd or even.
+  for (const message of ["\u{1f600}".repeat(5000), "a" + "\u{1f600}".repeat(5000)]) {
+    for (const format of ["text", "jsonl"]) {
+      const r = await cli(["--log-format", format, ...SIMPLE_COMMAND], errorAnswer(message));
+      assertOneRecordEach(r.err, format, `${format}, ${message.length} units`);
+    }
+  }
 });
