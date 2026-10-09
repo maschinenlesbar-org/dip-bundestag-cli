@@ -466,3 +466,31 @@ test("config get --reveal prints the value as stored, untouched by the run's red
     cli.cleanup();
   }
 });
+
+test("config set refuses a key given with --api-key instead of silently storing stdin", async () => {
+  const flagKey = "flagvalue12345-abcdefgh";
+  for (const argv of [
+    ["config", "set", "api-key", "--api-key", flagKey],
+    ["--api-key", flagKey, "config", "set", "api-key"],
+    ["config", "set", "api-key", `--api-key=${flagKey}`],
+  ]) {
+    const cli = makeCli({ secret: "stdinvalue12345-abcdefgh" });
+    try {
+      assert.equal(await run(argv, cli.deps), 2, argv.join(" "));
+      assert.equal(cli.store.get("api-key"), undefined, `${argv.join(" ")}: nothing stored`);
+      const err = cli.err.join("\n");
+      assert.match(err, /takes the name only.*--api-key is not read here.*shell history/, argv.join(" "));
+      assert.ok(!err.includes(flagKey), "the flag's value is not repeated");
+    } finally {
+      cli.cleanup();
+    }
+  }
+  // DIP_API_KEY is not a value given on the command line: config set reads stdin as before.
+  const env = makeCli({ secret: KEY, env: { DIP_API_KEY: "envkey-1234567" } });
+  try {
+    assert.equal(await run(["config", "set", "api-key"], env.deps), 0);
+    assert.equal(env.store.get("api-key"), KEY);
+  } finally {
+    env.cleanup();
+  }
+});

@@ -60,6 +60,14 @@ export function registerConfigCommands(program: Command, deps: CliDeps): void {
             "The one given is now in your shell history; if it is a secret, replace it there.",
         );
       }
+      // The global --api-key is not read here either: a user who knows it will try
+      // `config set api-key --api-key KEY`, which used to store stdin without a word.
+      if (command.optsWithGlobals<{ apiKey?: string }>().apiKey !== undefined && command.getOptionValueSourceWithGlobals("apiKey") === "cli") {
+        throw new DipUsageError(
+          "dip config set takes the name only: the value is read from a prompt or from stdin, never from the command line, " +
+            "and --api-key is not read here. The one given is now in your shell history; if it is a secret, replace it there.",
+        );
+      }
       const name = credentialNameArg(command, "dip config set");
       if (deps.io.readSecret === undefined) throw new DipUsageError("No way to read a secret here: pipe it in, or run dip config set on a terminal.");
       const value = (await deps.io.readSecret(`${name}: `)).trim();
