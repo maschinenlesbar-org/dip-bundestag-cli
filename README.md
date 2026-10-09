@@ -259,6 +259,21 @@ dip --output aktivitaeten.json aktivitaet list \
 Every command prints **pretty JSON to stdout**. Errors and diagnostics go to
 stderr, so piping stdout into `jq` stays clean.
 
+Each line on stderr is a **log record**: a timestamp (UTC), a level (`ERROR`, `WARN`,
+`INFO`) and a topic, the program and the area it comes from (`dip.cli` for usage
+errors, `dip.api` for the API's answers, `dip.http` for the connection, `dip.config`,
+`dip.obtain-key`, `dip.output`). By default it is written log4j style; `--log-format
+jsonl` writes one JSON object per line instead:
+
+```text
+2026-10-09T14:03:12.481Z WARN  [dip.http] requests to mirror.test are sent unencrypted (http:, not https:)
+2026-10-09T14:03:12.902Z ERROR [dip.api] HTTP 404 for GET https://search.dip.bundestag.de/api/v1/vorgang/1: Not found
+```
+
+```bash
+dip --log-format jsonl vorgang get 1 2>log.jsonl   # {"ts":"…","level":"ERROR","topic":"dip.api","msg":"HTTP 404 …"}
+```
+
 ```bash
 # Total result count for a query
 dip vorgang list --filter f.titel=Klimaschutz | jq '.numFound'
@@ -344,9 +359,10 @@ These may be given **before or after** the command, e.g.
 | `-h, --help` | Show help for the program or a command |
 | `--api-key <key>` | DIP API key (env `DIP_API_KEY`). Surrounding whitespace is trimmed, as for `DIP_API_KEY`. A blank value, control characters or characters above U+00FF are a usage error (exit `2`), from the flag or the env var; the error never repeats the key |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
+| `--log-format <format>` | How errors, warnings and notes are written to stderr: `text` (default; log4j style, `2026-10-09T14:03:12.481Z WARN  [dip.http] …`) or `jsonl` (one JSON object per line: `ts`, `level`, `topic`, `msg`). stdout is not affected |
 | `-o, --output <file>` | Write output to this file instead of stdout (refuses to overwrite an existing file; `-` = stdout; a blank path is a usage error, exit `2`) |
 | `--force` | With `-o`, overwrite the output file if it already exists |
-| `--base-url <url>` | API base URL: the host, **without** `/api/v1`, which the CLI adds (default `https://search.dip.bundestag.de`). `http:`/`https:` only; a query (`?`), fragment (`#`), whitespace (surrounding or inside), a trailing `/api/v1` or a `%` in the user name or password that is not an escape (write a literal `%` as `%25`) is a usage error (exit `2`). A `user:password@` part is sent as HTTP Basic auth (unless an API key takes the `Authorization` header) but shown as `***@` in everything the CLI prints, usage errors included. Credentials go to this origin only: a redirect to another host, port or scheme (http→https included) drops them, so use `https://`. A plain-`http:` base URL to any host other than the loopback interface (`localhost`, `127.0.0.0/8`, `::1`) prints one `warning: …` line on stderr before the first request (naming the host and whether the API key or the URL's credentials go with it, never their values); stdout and the exit code are unchanged |
+| `--base-url <url>` | API base URL: the host, **without** `/api/v1`, which the CLI adds (default `https://search.dip.bundestag.de`). `http:`/`https:` only; a query (`?`), fragment (`#`), whitespace (surrounding or inside), a trailing `/api/v1` or a `%` in the user name or password that is not an escape (write a literal `%` as `%25`) is a usage error (exit `2`). A `user:password@` part is sent as HTTP Basic auth (unless an API key takes the `Authorization` header) but shown as `***@` in everything the CLI prints, usage errors included. Credentials go to this origin only: a redirect to another host, port or scheme (http→https included) drops them, so use `https://`. A plain-`http:` base URL to any host other than the loopback interface (`localhost`, `127.0.0.0/8`, `::1`) logs one WARN record of `dip.http` on stderr before the first request (naming the host and whether the API key or the URL's credentials go with it, never their values); stdout and the exit code are unchanged |
 | `--timeout <ms>` | Time limit per request, reading the whole response included (default `30000`; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value. A blank value, control characters or characters above U+00FF are a usage error (exit `2`) |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections (`0`–`10`, default `2`). Each retry backs off linearly from 200 ms, or waits the server's `Retry-After` when that is longer (never shorter, so `Retry-After: 0` causes no burst). A `Retry-After` over 30 s is not retried; the error names the requested wait |

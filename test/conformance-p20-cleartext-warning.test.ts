@@ -1,5 +1,5 @@
 // Conformance test P20 (follow-up round 2026-10-06): a base URL on plain `http:` gets one
-// warning line on stderr — always naming the host, and naming what secret travels with it
+// warning record on stderr (a WARN record of `<program>.http`, P23) — always naming the host, and naming what secret travels with it
 // (the base URL's credentials, an API key, a login) without printing it. Loopback hosts are
 // exempt; https: never warns; `--help` never warns; stdout is never touched. Shared across the
 // *-cli repos; only the adapter block below differs per repo.
@@ -41,7 +41,8 @@ function makeDeps(out: string[], err: string[], env: Record<string, string>): Cl
 }
 // --------------------------------------------------------------------------------------
 
-const WARNING = /^warning: .*unencrypted.*\(http:, not https:\)$/;
+// A log record (P23): text format, level WARN, topic `<program>.http`.
+const WARNING = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z WARN  \[[a-z0-9-]+\.http\] .*unencrypted.*\(http:, not https:\)$/;
 
 async function cli(argv: string[], env: Record<string, string> = {}) {
   const out: string[] = [];

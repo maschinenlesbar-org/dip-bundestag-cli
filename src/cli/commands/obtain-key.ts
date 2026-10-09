@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import type { CliDeps } from "../io.js";
+import { logOf, type CliDeps } from "../io.js";
 import {
   API_KEY_ENV_VAR,
   HELP_PAGE_URL,
@@ -52,7 +52,8 @@ export function registerObtainKeyCommands(program: Command, deps: CliDeps): void
         ...(deps.transport !== undefined ? { transport: deps.transport } : {}),
         verify: opts["verify"] !== false,
       });
-      deps.io.err(
+      logOf(deps).info(
+        "obtain-key",
         verified
           ? baseUrl === DEFAULT_BASE_URL
             ? `Obtained the key from ${sourceUrl} and verified it against the live API.`

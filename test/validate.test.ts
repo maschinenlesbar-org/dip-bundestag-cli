@@ -46,7 +46,7 @@ test("the package root exports the validation layer and both usage classes", () 
   assert.equal(lib.DipUsageError, DipUsageError);
 });
 
-test("run() maps a DipValidationError from an action to exit 2 and `Error: <message>`", async () => {
+test("run() maps a DipValidationError from an action to exit 2 and an ERROR record", async () => {
   const r = await parity({
     argv: ["vorgang", "list"],
     lib: () => undefined,
@@ -55,7 +55,7 @@ test("run() maps a DipValidationError from an action to exit 2 and `Error: <mess
     },
   });
   assert.equal(r.cli.code, 2);
-  assert.equal(r.cli.err, "Error: Invalid thing: Expected a non-empty value.");
+  assert.equal(r.cli.err, "ERROR [dip.cli] Invalid thing: Expected a non-empty value.");
 });
 
 test("parity() runs the CLI and the library on one recording transport", async () => {

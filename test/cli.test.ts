@@ -5,7 +5,7 @@ import { readEnvApiKey } from "../src/cli/program.js";
 import { DipClient } from "../src/client/client.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
-import { makeMockTransport, jsonResponse } from "./helpers.js";
+import { makeMockTransport, jsonResponse, untimed } from "./helpers.js";
 import { DipError, DipNetworkError } from "../src/client/errors.js";
 import { cleartextCredentialsProblem, cleartextProblem } from "../src/index.js";
 
@@ -124,7 +124,7 @@ test("a network failure maps to exit code 1", async () => {
   });
   const code = await run(["vorgang", "list"], cli.deps);
   assert.equal(code, 1);
-  assert.match(cli.err.join("\n"), /Error: connect ECONNREFUSED/);
+  assert.match(untimed(cli.err.join("\n")), /^ERROR \[dip\.http\] connect ECONNREFUSED/);
 });
 
 test("DIP_API_KEY from the env populates the Authorization header", async () => {
@@ -234,7 +234,7 @@ test("get . / get .. is a usage error without a request instead of fetching the 
     assert.equal(code, 2);
     assert.equal(cli.mt.calls.length, 0);
     assert.deepEqual(cli.out, []);
-    assert.equal(cli.err.join("\n"), 'Error: Invalid vorgang id: "." and ".." cannot be used as an id.');
+    assert.equal(untimed(cli.err.join("\n")), 'ERROR [dip.cli] Invalid vorgang id: "." and ".." cannot be used as an id.');
   }
 });
 
@@ -323,7 +323,7 @@ test("a password in --base-url never reaches an error message", async () => {
   assert.equal(code, 4);
   const err = cli.err.join("\n");
   assert.doesNotMatch(err, /secret|user:/);
-  assert.match(err, /^Error: HTTP 404 for GET http:\/\/localhost:18110\/api\/v1\/vorgang: Not found/);
+  assert.match(untimed(err), /^ERROR \[dip\.api\] HTTP 404 for GET http:\/\/localhost:18110\/api\/v1\/vorgang: Not found/);
   // The userinfo goes out as Basic auth (a basic-auth mirror still works), attached by
   // the engine per hop; the transport never sees it in the URL.
   assert.equal(cli.mt.last().url, "http://localhost:18110/api/v1/vorgang");
@@ -378,7 +378,7 @@ test("a DIP_API_KEY with control characters is a usage error, not an unexpected 
   const code = await run(["vorgang", "list"], cli.deps);
   assert.equal(code, 2);
   assert.equal(cli.mt.calls.length, 0);
-  assert.match(cli.err.join("\n"), /^Error: Invalid apiKey: Value contains control characters\./);
+  assert.match(untimed(cli.err.join("\n")), /^ERROR \[dip\.cli\] Invalid apiKey: Value contains control characters\./);
 });
 
 test("an empty list response exits 1 instead of printing null", async () => {
@@ -386,7 +386,7 @@ test("an empty list response exits 1 instead of printing null", async () => {
   const code = await run(["--compact", "vorgang", "list"], cli.deps);
   assert.equal(code, 1);
   assert.deepEqual(cli.out, []);
-  assert.match(cli.err.join("\n"), /^Error: Empty response body from \/api\/v1\/vorgang/);
+  assert.match(untimed(cli.err.join("\n")), /^ERROR \[dip\.cli\] Empty response body from \/api\/v1\/vorgang/);
 });
 
 test("a blank -o is a usage error before any request", async () => {
@@ -416,7 +416,7 @@ test("an overwrite refusal is a clear error, not an unexpected one", async () =>
   };
   const code = await run(["-o", "out.json", "vorgang", "list"], cli.deps);
   assert.equal(code, 1);
-  assert.match(cli.err.join("\n"), /^Error: Refusing to overwrite existing file "out\.json"; pass --force to overwrite\./);
+  assert.match(untimed(cli.err.join("\n")), /^ERROR \[dip\.cli\] Refusing to overwrite existing file "out\.json"; pass --force to overwrite\./);
 });
 
 test("a response nested too deeply to pretty-print is a clear error, not a stack overflow", async () => {
@@ -427,20 +427,20 @@ test("a response nested too deeply to pretty-print is a clear error, not a stack
   const pretty = makeCli(deep);
   assert.equal(await run(["vorgang", "list"], pretty.deps), 1);
   assert.deepEqual(pretty.out, []);
-  assert.match(pretty.err.join("\n"), /^Error: The response is nested too deeply to pretty-print; try --compact\./);
+  assert.match(untimed(pretty.err.join("\n")), /^ERROR \[dip\.cli\] The response is nested too deeply to pretty-print; try --compact\./);
   // Compact output needs far less stack: it either prints or fails with the compact message.
   const compact = makeCli(deep);
   const code = await run(["--compact", "vorgang", "list"], compact.deps);
-  if (code !== 0) assert.match(compact.err.join("\n"), /^Error: The response is nested too deeply to print\./);
+  if (code !== 0) assert.match(untimed(compact.err.join("\n")), /^ERROR \[dip\.cli\] The response is nested too deeply to print\./);
 });
 
 test("a plain-http base URL is warned about, naming a key or userinfo; loopback and https are not", async () => {
   const cases: Array<[string[], Record<string, string>, RegExp | undefined]> = [
-    [["--base-url", "http://search.dip.bundestag.de", "--api-key", "k3y-value"], {}, /^warning: the API key is sent unencrypted to search\.dip\.bundestag\.de \(http:, not https:\)$/],
+    [["--base-url", "http://search.dip.bundestag.de", "--api-key", "k3y-value"], {}, /^WARN  \[dip\.http\] the API key is sent unencrypted to search\.dip\.bundestag\.de \(http:, not https:\)$/],
     [["--base-url", "http://search.dip.bundestag.de"], { DIP_API_KEY: "k3y-value" }, /the API key is sent unencrypted/],
-    [["--base-url", "http://u:pw@mirror.test"], {}, /^warning: the base URL's credentials are sent unencrypted to mirror\.test \(http:, not https:\)$/],
-    [["--base-url", "http://u:pw@mirror.test", "--api-key", "k3y-value"], {}, /^warning: the API key and the base URL's credentials are sent unencrypted to mirror\.test/],
-    [["--base-url", "http://mirror.test:8080"], {}, /^warning: requests to mirror\.test:8080 are sent unencrypted \(http:, not https:\)$/],
+    [["--base-url", "http://u:pw@mirror.test"], {}, /^WARN  \[dip\.http\] the base URL's credentials are sent unencrypted to mirror\.test \(http:, not https:\)$/],
+    [["--base-url", "http://u:pw@mirror.test", "--api-key", "k3y-value"], {}, /^WARN  \[dip\.http\] the API key and the base URL's credentials are sent unencrypted to mirror\.test/],
+    [["--base-url", "http://mirror.test:8080"], {}, /^WARN  \[dip\.http\] requests to mirror\.test:8080 are sent unencrypted \(http:, not https:\)$/],
     [["--base-url", "http://127.0.0.1:20180", "--api-key", "k3y-value"], {}, undefined],
     [["--base-url", "http://localhost:20180", "--api-key", "k3y-value"], {}, undefined],
     [["--api-key", "k3y-value"], {}, undefined],
@@ -448,7 +448,7 @@ test("a plain-http base URL is warned about, naming a key or userinfo; loopback 
   for (const [args, env, expected] of cases) {
     const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }), env);
     assert.equal(await run([...args, "vorgang", "list"], cli.deps), 0, args.join(" "));
-    const warnings = cli.err.filter((l) => l.startsWith("warning:"));
+    const warnings = cli.err.map(untimed).filter((l) => l.startsWith("WARN "));
     if (expected === undefined) assert.deepEqual(warnings, [], args.join(" "));
     else {
       assert.equal(warnings.length, 1, args.join(" "));
@@ -491,7 +491,7 @@ test("a 2xx body that is not a DIP list or document exits 1 instead of printing 
     assert.equal(await run(["-o", "out.json", ...argv], cli.deps), 1, `${argv.join(" ")} ${JSON.stringify(body)}`);
     assert.deepEqual(cli.out, []);
     assert.equal(cli.files.size, 0, "no file is written");
-    assert.match(cli.err.join("\n"), /^Error: Unexpected response from \/api\/v1\//);
+    assert.match(untimed(cli.err.join("\n")), /^ERROR \[dip\.cli\] Unexpected response from \/api\/v1\//);
   }
   const ok = makeCli(() => jsonResponse({ id: "14", nachname: "Merkel" }));
   assert.equal(await run(["person", "get", "14"], ok.deps), 0);
@@ -503,8 +503,8 @@ test("a --cursor without any filter is a usage error before any request; with it
   const bare = makeCli(() => jsonResponse(page));
   assert.equal(await run(["--base-url", "http://mirror.test", "vorgangsposition", "list", "--cursor", "AoJ"], bare.deps), 2);
   assert.deepEqual(bare.out, []);
-  assert.deepEqual(bare.err, [
-    "Error: --cursor needs the filters of the page it came from: DIP does not keep them in the cursor, so a " +
+  assert.deepEqual(bare.err.map(untimed), [
+    "ERROR [dip.cli] --cursor needs the filters of the page it came from: DIP does not keep them in the cursor, so a " +
       "cursor alone pages through the whole unfiltered vorgangsposition list. Repeat every --filter and --id " +
       "of that page together with --cursor.",
   ]);
@@ -533,8 +533,8 @@ test("dip help <unknown> reports the unknown command like dip <unknown>, at ever
     const plain = makeCli(() => jsonResponse({}));
     assert.equal(await run(helpArgv, viaHelp.deps), 2, helpArgv.join(" "));
     assert.equal(await run(plainArgv, plain.deps), 2, plainArgv.join(" "));
-    assert.match(viaHelp.err[0] ?? "", /^error: unknown command '/, helpArgv.join(" "));
-    assert.deepEqual(viaHelp.err, plain.err, helpArgv.join(" "));
+    assert.match(untimed(viaHelp.err[0] ?? ""), /^ERROR \[dip\.cli\] unknown command '/, helpArgv.join(" "));
+    assert.deepEqual(viaHelp.err.map(untimed), plain.err.map(untimed), helpArgv.join(" "));
     assert.deepEqual(viaHelp.out, []);
     assert.ok(!viaHelp.err.join("\n").includes("s3cret"));
     assert.equal(viaHelp.mt.calls.length, 0);

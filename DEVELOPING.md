@@ -154,7 +154,7 @@ CLI then skips its "check your API key" hint). The transport is told
 `redirect: "manual"` (`HttpRequest.redirect`); a transport that follows a redirect
 itself and reports a final `url` on another origin fails the request with a
 `DipNetworkError`. `obtain-key` only counts an answer from the origin that received
-the key as verification. The CLI warns on stderr (`warning: …`, once per run, before the first request;
+the key as verification. The CLI warns on stderr (a `WARN` record of `dip.http`, once per run, before the first request;
 `obtain-key` only when it verifies) whenever the base URL is plain `http:` to a host
 other than the loopback interface, naming the API key or userinfo that goes with it
 (`cleartextProblem`, exported; `cleartextCredentialsProblem` is its deprecated alias). `test/conformance-p3-redirect-credentials.test.ts`
@@ -179,7 +179,8 @@ src/
     errors.ts    # DipError / DipApiError / DipNetworkError / DipParseError / DipUsageError / DipValidationError
     client.ts    # DipClient — one generic ResourceGroup per resource (injects Authorization)
   cli/
-    io.ts        # injectable I/O seam (stdout/stderr/file)
+    io.ts        # injectable I/O seam (stdout/stderr/file), the logger and the clock
+    log.ts       # the stderr log: records with ts, level, topic; --log-format text|jsonl
     shared.ts    # option parsers, global-option resolver (incl. --api-key), JSON renderer
     commands/    # the eight resource command groups (list / get)
     program.ts   # assembles the commander program from injectable deps
@@ -219,7 +220,7 @@ or `undefined`). The client enforces them before any request through
 `assertValid(name, value, problem)` (`src/client/validate.ts`), which throws
 **`DipValidationError`** (`Invalid <name>: <reason>`); a client method rejects
 its promise, a constructor throws. `DipValidationError` extends `DipUsageError`,
-so `run.ts` maps it to exit 2 and prints `Error: <message>`. The CLI's commander
+so `run.ts` maps it to exit 2 and logs it as an `ERROR` record of `dip.cli`. The CLI's commander
 parsers call the same functions and turn a reason into commander's
 `InvalidArgumentError` (exit 2 too).
 
@@ -490,3 +491,19 @@ npm run serve                        # http://127.0.0.1:4000/dip-bundestag-cli/
 Dual-licensed under **[AGPL-3.0-or-later](LICENSE)** or a commercial license —
 see **[LICENSING.md](LICENSING.md)**. This project does **not** accept external
 code contributions; see **[CONTRIBUTING.md](CONTRIBUTING.md)**.
+
+## The log on stderr
+
+Every diagnostic line on stderr is a log record (`src/cli/log.ts`): a timestamp, a level
+(`ERROR`, `WARN`, `INFO`) and a topic, `dip.<area>`. `--log-format text` (the default)
+writes it log4j style, `<ISO 8601 UTC> <LEVEL padded to 5> [<topic>] <message>`;
+`--log-format jsonl` writes one JSON object per line with exactly `ts`, `level`, `topic`
+and `msg`. The areas are `cli` (usage errors, commander's messages, unexpected errors),
+`api` (the API's answers), `http` (the connection, the cleartext warning), `config`,
+`obtain-key` and `output`. Code logs through `logOf(deps)` and never writes diagnostics
+with `io.err` directly. `run()` builds the logger from argv before commander parses it,
+so commander's own usage errors are records too, and on top of the redacted `io.err`, so
+a secret is kept out of the log in either format. `CliDeps.now` makes the timestamps
+testable. stdout carries data only. Conformance test P23 checks all of this, and its
+body is shared across the *-cli repos.
+

@@ -17,7 +17,7 @@ import {
   obtainKey,
 } from "../src/client/obtain-key.js";
 import { DipError, DipNetworkError, DipValidationError } from "../src/client/errors.js";
-import { makeMockTransport, rawResponse, jsonResponse } from "./helpers.js";
+import { makeMockTransport, rawResponse, jsonResponse, untimed } from "./helpers.js";
 
 const KEY = "R2BZaee.DjdCyihKZMf8AOjtScubP2EVydegzjmBIQ";
 const STALE_KEY = "OSOegLs.PR2lwJ1dwCeje9vTj7FPOt3hvpYKtwKkhw";
@@ -308,13 +308,13 @@ test("obtain-key warns when it would verify the key over plain http, not with --
   const cli = makeCli(responder([KEY]));
   assert.equal(await run(["--base-url", "http://mirror.test", "obtain-key"], cli.deps), 0);
   assert.deepEqual(
-    cli.err.filter((l) => l.startsWith("warning:")),
-    ["warning: the API key is sent unencrypted to mirror.test (http:, not https:)"],
+    cli.err.map(untimed).filter((l) => l.startsWith("WARN ")),
+    ["WARN  [dip.http] the API key is sent unencrypted to mirror.test (http:, not https:)"],
   );
   assert.deepEqual(cli.out, [KEY]);
   const unverified = makeCli(responder([KEY]));
   assert.equal(await run(["--base-url", "http://mirror.test", "obtain-key", "--no-verify"], unverified.deps), 0);
-  assert.deepEqual(unverified.err.filter((l) => l.startsWith("warning:")), []);
+  assert.deepEqual(unverified.err.map(untimed).filter((l) => l.startsWith("WARN ")), []);
 });
 
 test("obtain-key refuses -o instead of silently printing the key to the terminal", async () => {
@@ -323,7 +323,7 @@ test("obtain-key refuses -o instead of silently printing the key to the terminal
   assert.equal(code, 2);
   assert.equal(cli.mt.calls.length, 0);
   assert.deepEqual(cli.out, []);
-  assert.match(cli.err.join("\n"), /^Error: obtain-key does not write files/);
+  assert.match(untimed(cli.err.join("\n")), /^ERROR \[dip\.cli\] obtain-key does not write files/);
   // -o - is stdout, which is where the key goes anyway.
   const ok = makeCli(responder([KEY]));
   assert.equal(await run(["-o", "-", "obtain-key"], ok.deps), 0);

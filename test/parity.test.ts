@@ -101,7 +101,7 @@ for (const [command, key] of getResources) {
       });
       assertBothReject(r, new RegExp(`^Invalid ${command} id: An id is required`));
       // The CLI prints the library's message, which names the right resource.
-      assert.equal(r.cli.err, `Error: ${(r.lib as { error: Error }).error.message}`);
+      assert.equal(r.cli.err, `ERROR [dip.cli] ${(r.lib as { error: Error }).error.message}`);
       assert.equal(r.cli.out, "");
     });
   }
@@ -118,7 +118,7 @@ for (const [command, key] of getResources) {
         responder: () => jsonResponse({ numFound: 2, documents: [] }),
       });
       assertBothReject(r, new RegExp(`^Invalid ${command} id: "\\." and "\\.\\." cannot be used as an id\\.$`));
-      assert.equal(r.cli.err, `Error: ${(r.lib as { error: Error }).error.message}`);
+      assert.equal(r.cli.err, `ERROR [dip.cli] ${(r.lib as { error: Error }).error.message}`);
       assert.equal(r.cli.out, "");
     });
   }
@@ -323,7 +323,7 @@ for (const [key, message] of [
       lib: (t) => new DipClient({ apiKey: key, transport: t }).vorgaenge.list(),
     });
     assertBothReject(env, message);
-    assert.match(env.cli.err, /^Error: Invalid apiKey: /);
+    assert.match(env.cli.err, /^ERROR \[dip\.cli\] Invalid apiKey: /);
   });
 }
 

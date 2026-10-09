@@ -3,7 +3,7 @@
 
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
-import type { CliDeps } from "./io.js";
+import { logOf, type CliDeps } from "./io.js";
 import type { RawResponse } from "../client/engine.js";
 import { apiKeyProblem, normaliseApiKey, type DipClientOptions } from "../client/client.js";
 
@@ -188,7 +188,7 @@ export function renderJson(deps: CliDeps, global: GlobalOptions, value: unknown)
   if (global.output) {
     const data = Buffer.from(text + "\n", "utf8");
     deps.io.writeFile(global.output, data, global.force);
-    deps.io.err(`Wrote ${data.length} bytes to ${global.output}`);
+    logOf(deps).info("output", `Wrote ${data.length} bytes to ${global.output}`);
   } else {
     deps.io.out(text);
   }
@@ -203,14 +203,14 @@ export function renderJson(deps: CliDeps, global: GlobalOptions, value: unknown)
 export function renderRaw(deps: CliDeps, global: GlobalOptions, response: RawResponse): void {
   if (global.output) {
     deps.io.writeFile(global.output, response.data, global.force);
-    deps.io.err(`Wrote ${response.data.length} bytes to ${global.output}`);
+    logOf(deps).info("output", `Wrote ${response.data.length} bytes to ${global.output}`);
   } else {
     deps.io.outBinary(response.data);
   }
 }
 
 /**
- * Write `warning: <sentence>` to stderr when the effective base URL (`--base-url`, else
+ * Log a warning (`dip.http`) when the effective base URL (`--base-url`, else
  * the default) is plain `http:` to a host other than the loopback interface
  * (`cleartextProblem`), naming the API key when one is sent. Called once per run,
  * after the options are parsed and before the first request; stdout and the exit code
@@ -218,7 +218,7 @@ export function renderRaw(deps: CliDeps, global: GlobalOptions, response: RawRes
  */
 export function warnIfCleartext(deps: CliDeps, baseUrl: string | undefined, sendsKey: boolean): void {
   const problem = cleartextProblem(baseUrl ?? DEFAULT_BASE_URL, sendsKey ? [API_KEY_PHRASE] : []);
-  if (problem !== undefined) deps.io.err(`warning: ${problem}`);
+  if (problem !== undefined) logOf(deps).warn("http", problem);
 }
 
 export interface ActionContext {

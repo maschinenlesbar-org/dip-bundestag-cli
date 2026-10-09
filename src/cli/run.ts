@@ -4,10 +4,12 @@
 
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
-import type { CliDeps } from "./io.js";
+import { logOf, type CliDeps } from "./io.js";
+import { createLogger, logFormatFromArgv } from "./log.js";
 import {
   DipApiError,
   DipError,
+  DipNetworkError,
   DipUsageError,
   DipValidationError,
   credentialsIn,
@@ -25,7 +27,15 @@ function configureTree(command: Command, deps: CliDeps): void {
   command.exitOverride();
   command.configureOutput({
     writeOut: (str) => deps.io.out(str.replace(/\n$/, "")),
-    writeErr: (str) => deps.io.err(str.replace(/\n$/, "")),
+    // commander's own messages are log records too: its "error: …" an ERROR, the help it
+    // shows after one an INFO.
+    writeErr: (str) => {
+      const text = str.replace(/\n$/, "");
+      // The blank line commander writes between an error and the help it shows after.
+      if (text === "") return;
+      if (text.startsWith("error: ")) logOf(deps).error("cli", text.slice("error: ".length));
+      else logOf(deps).info("cli", text);
+    },
   });
   if (command.commands.length > 0) addHelpCommand(command);
   for (const child of command.commands) configureTree(child, deps);
@@ -130,6 +140,13 @@ export function withRedactedOutput(deps: CliDeps, argv: readonly string[]): CliD
 
 export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<number> {
   deps = withRedactedOutput(deps, argv);
+  // Every record goes through the redacted `io.err`, so a secret is kept out of the
+  // log in either format.
+  const redacted = deps;
+  deps = {
+    ...deps,
+    log: createLogger({ format: logFormatFromArgv(argv), write: (line) => redacted.io.err(line), ...(deps.now === undefined ? {} : { now: deps.now }) }),
+  };
   const program = buildProgram(deps);
   configureTree(program, deps);
 
@@ -143,8 +160,9 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       // from a runtime error (1) or a 404 (4).
       return err.exitCode === 0 ? 0 : 2;
     }
+    const log = logOf(deps);
     if (err instanceof DipApiError) {
-      deps.io.err(`Error: ${err.message}`);
+      log.error("api", err.message);
       // A 401 is almost always a key problem: either no key was supplied (no key
       // is bundled, so the request went out with no Authorization header) or the
       // supplied key is invalid/expired. Point the user at how to supply a valid
@@ -152,7 +170,8 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       // When a redirect to another origin dropped the key, the message already says so
       // (an http: base URL redirected to https: is the usual case): the key is fine.
       if (err.status === 401 && err.credentialsDropped === undefined) {
-        deps.io.err(
+        log.info(
+          "api",
           "Authentication failed (401). Check your API key, or if none was set " +
             "pass --api-key <key>, set DIP_API_KEY, or store it with `dip config set api-key`. The current public key is " +
             "published at https://dip.bundestag.de/über-dip/hilfe/api; a personal " +
@@ -167,14 +186,14 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       // A usage error detected in an action, or the library rejecting an input
       // before any request (DipValidationError extends DipUsageError; named here
       // for clarity): exit 2, matching commander's own usage/parse errors.
-      deps.io.err(`Error: ${err.message}`);
+      log.error("cli", err.message);
       return 2;
     }
     if (err instanceof DipError) {
-      deps.io.err(`Error: ${err.message}`);
+      log.error(err instanceof DipNetworkError ? "http" : "cli", err.message);
       return 1;
     }
-    deps.io.err(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
+    log.error("cli", `Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
     return 1;
   }
 }
