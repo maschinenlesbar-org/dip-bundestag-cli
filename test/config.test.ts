@@ -220,3 +220,58 @@ test("config refuses -o: the value goes to stdout only, never silently to the te
     cli.cleanup();
   }
 });
+
+/** Write the credentials file by hand, as a user editing it would. */
+function handEdit(store: CredentialStore, content: Record<string, string>): void {
+  mkdirSync(join(store.path, ".."), { recursive: true, mode: 0o700 });
+  writeFileSync(store.path, JSON.stringify(content), { mode: 0o600 });
+}
+
+test("a hand-edited value config set would refuse is refused on read, naming the file (01-3, 02-1, 02-2)", async () => {
+  for (const value of ["", "   ", "abc\u001b[31mRED-ghijklmnop", "AbCdEfG.line1\nline2-abcdefghijkl", "AbCdEfG.euro€-abcdefghijkl"]) {
+    const cli = makeCli();
+    try {
+      handEdit(cli.store, { "api-key": value });
+      const label = JSON.stringify(value);
+      // A request: no key sent, no "the API key is sent" warning, no usage error.
+      assert.equal(await run(["--base-url", "http://mirror.example", "vorgang", "list"], cli.deps), 1, label);
+      assert.equal(cli.mt.calls.length, 0, `${label}: no request`);
+      const err = cli.err.join("\n");
+      assert.match(err, /ERROR \[dip\.cli\] The api-key stored in .*credentials cannot be used: .* dip config set api-key replaces it\./, label);
+      assert.doesNotMatch(err, /Invalid apiKey|sent unencrypted/, label);
+      // config get and config list: the same refusal, nothing raw on stdout.
+      for (const argv of [["config", "get", "api-key"], ["config", "get", "api-key", "--reveal"], ["config", "list"]]) {
+        cli.out.length = 0;
+        assert.equal(await run(argv, cli.deps), 1, `${label} ${argv.join(" ")}`);
+        assert.deepEqual(cli.out, [], `${label} ${argv.join(" ")}`);
+      }
+      // set and unset still repair it.
+      assert.equal(await run(["config", "unset", "api-key"], cli.deps), 0, label);
+    } finally {
+      cli.cleanup();
+    }
+  }
+});
+
+test("a hand-edited value with surrounding spaces is used trimmed", async () => {
+  const cli = makeCli();
+  try {
+    handEdit(cli.store, { "api-key": `  ${KEY}  ` });
+    assert.equal(await run(["vorgang", "list"], cli.deps), 0);
+    assert.equal(cli.mt.last().headers?.["Authorization"], `ApiKey ${KEY}`);
+  } finally {
+    cli.cleanup();
+  }
+});
+
+test("config list refuses a hand-edited name that is not a credential name", async () => {
+  const cli = makeCli();
+  try {
+    handEdit(cli.store, { "api-key": KEY, "x\u001b[31m": "abcdefghijklmnop" });
+    assert.equal(await run(["config", "list"], cli.deps), 1);
+    assert.deepEqual(cli.out, []);
+    assert.match(cli.err.join("\n"), /holds "x\\u001b\[31m", which is not a credential name/);
+  } finally {
+    cli.cleanup();
+  }
+});

@@ -251,7 +251,7 @@ export function action(
     // file is read only here, when no key came from the first two, so a problem with
     // it never stands in the way of a key given another way.
     if (options.apiKey === undefined) {
-      const stored = deps.credentials?.().get(API_KEY_CREDENTIAL);
+      const stored = deps.credentials?.().usable(API_KEY_CREDENTIAL);
       if (stored !== undefined) options.apiKey = stored;
     }
     const client = deps.createClient(options);

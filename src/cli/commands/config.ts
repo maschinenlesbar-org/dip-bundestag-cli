@@ -6,8 +6,7 @@
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import { DipError, DipUsageError } from "../../client/errors.js";
-import { apiKeyProblem } from "../../client/client.js";
-import { CONFIG_DIR_NAME, credentialValueProblem, maskCredential, type CredentialStore } from "../credentials.js";
+import { CONFIG_DIR_NAME, credentialProblem, maskCredential, type CredentialStore } from "../credentials.js";
 import { logOf, type CliDeps } from "../io.js";
 import { API_KEY_CREDENTIAL, type GlobalOptions } from "../shared.js";
 
@@ -20,11 +19,6 @@ function parseCredentialName(value: string): string {
     throw new InvalidArgumentError(`Not a credential: expected ${CREDENTIAL_NAMES.join(", ")}.`);
   }
   return value;
-}
-
-/** Why `value` cannot be stored under `name`, or undefined. */
-function valueProblem(name: string, value: string): string | undefined {
-  return credentialValueProblem(value) ?? (name === API_KEY_CREDENTIAL ? apiKeyProblem(value) : undefined);
 }
 
 function storeOf(deps: CliDeps): CredentialStore {
@@ -61,7 +55,7 @@ export function registerConfigCommands(program: Command, deps: CliDeps): void {
       }
       if (deps.io.readSecret === undefined) throw new DipUsageError("No way to read a secret here: pipe it in, or run dip config set on a terminal.");
       const value = (await deps.io.readSecret(`${name}: `)).trim();
-      const reason = valueProblem(name, value);
+      const reason = credentialProblem(name, value);
       if (reason !== undefined) throw new DipUsageError(`${reason} Nothing was stored.`);
       const store = storeOf(deps);
       store.set(name, value);
@@ -75,7 +69,7 @@ export function registerConfigCommands(program: Command, deps: CliDeps): void {
     .option("--reveal", "print the whole value, for a script that passes it on — it then is on your screen or in its log")
     .action(async (name: string, options: { reveal?: boolean }) => {
       const store = storeOf(deps);
-      const value = store.get(name);
+      const value = store.usable(name);
       if (value === undefined) throw new DipError(`No ${name} is stored in ${store.path}; dip config set ${name} stores one.`);
       deps.io.out(options.reveal === true ? value : maskCredential(value));
     });
@@ -95,7 +89,9 @@ export function registerConfigCommands(program: Command, deps: CliDeps): void {
     .description("every stored credential, masked, and where the file is")
     .action(async () => {
       const store = storeOf(deps);
-      for (const name of store.names()) deps.io.out(`${name}  ${maskCredential(store.get(name) as string)}`);
+      // Checked first, so a bad entry prints nothing rather than half a list.
+      const lines = store.usableNames().map((name) => `${name}  ${maskCredential(store.usable(name) as string)}`);
+      for (const line of lines) deps.io.out(line);
       logOf(deps).info("config", `Credentials file: ${store.path}`);
     });
 }
