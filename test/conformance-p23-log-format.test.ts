@@ -227,3 +227,29 @@ test("P23: a value shaped like a:b@c that is no URL is not taken for a credentia
     assert.ok(written.err.some((line) => line.includes("run:2026-10-09@x.json")), written.err.join("\n"));
   }
 });
+
+test("P23: commander's help after an error is one record per line, its suggestion part of the error", async () => {
+  for (const format of ["text", "jsonl"]) {
+    const r = await cli(["--log-format", format, ...SIMPLE_COMMAND, "--no-such-option"]);
+    assert.equal(r.code, USAGE_EXIT);
+    assertOneRecordEach(r.err, format, format);
+    const msgs = r.err.map((line) => (format === "jsonl" ? ((JSON.parse(line) as Record<string, unknown>)["msg"] as string) : line.slice(line.indexOf("] ") + 2)));
+    assert.ok(msgs.length > 2, `${format}: the help is several records:\n${r.err.join("\n")}`);
+    assert.ok(msgs.every((msg) => !msg.includes("\\n") && !msg.includes("\n") && msg.trim() !== ""), `${format}:\n${r.err.join("\n")}`);
+    assert.ok(msgs.some((msg) => /^Usage: /.test(msg)), `${format}:\n${r.err.join("\n")}`);
+
+    const typo = await cli(["--log-format", format, `${SIMPLE_COMMAND[0]}x`]);
+    assert.equal(typo.code, USAGE_EXIT);
+    const first = format === "jsonl" ? ((JSON.parse(typo.err[0] as string) as Record<string, unknown>)["msg"] as string) : (typo.err[0] as string);
+    assert.match(first, new RegExp(`unknown command '${SIMPLE_COMMAND[0]}x' \\(Did you mean ${SIMPLE_COMMAND[0]}\\?\\)`), typo.err.join("\n"));
+  }
+});
+
+test("P23: every failed run has an ERROR record, a missing command included", async () => {
+  for (const argv of [[], [SIMPLE_COMMAND[0] as string]]) {
+    const r = await cli(argv);
+    if (r.code === 0) continue; // a command that runs on its own
+    assert.match(r.err[0] ?? "", new RegExp(`^${TS} ERROR \\[${PROGRAM}\\.cli\\] missing command: \``), `${JSON.stringify(argv)}:\n${r.err.join("\n")}`);
+    assertOneRecordEach(r.err, "text", JSON.stringify(argv));
+  }
+});
