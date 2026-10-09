@@ -92,18 +92,21 @@ export interface OutputStreams {
  * with EPIPE (ENOTCONN when stdout is a socket whose peer has gone, as when a Node
  * parent spawns the CLI with piped stdio on macOS). That is ordinary use, so the
  * process exits 0 at once, quietly. Any
- * other stdout error prints one `Output error: <message>` line to stderr and exits
- * 1. On stderr an EPIPE (or ENOTCONN) is ignored, so a failed run keeps its exit code; any other
- * stderr error exits 1 silently (there is nowhere left to report it).
- * The bin shim installs this once, before `run()`.
+ * other stdout error is an ERROR record of `dip.output` (`Could not write to stdout:
+ * <message>`, through `log`, in the run's format) and exits 1. On stderr an EPIPE (or
+ * ENOTCONN) is ignored, so a failed run keeps its exit code; any other stderr error
+ * exits 1 silently (there is nowhere left to report it).
+ * The bin shim installs this once, before `run()`, with a logger for the format argv
+ * asks for (`processLogger`).
  */
 export function handleOutputErrors(
   streams: OutputStreams = process,
   exit: (code: number) => void = (code) => process.exit(code),
+  log: Pick<Logger, "error"> = createLogger({ format: "text", write: (line) => process.stderr.write(line + "\n") }),
 ): void {
   streams.stdout.on("error", (err: NodeJS.ErrnoException) => {
     if (readerGone(err)) return exit(0);
-    process.stderr.write(`Output error: ${err.message}\n`);
+    log.error("output", `Could not write to stdout: ${err.message}`);
     exit(1);
   });
   // stderr's reader going away doesn't make a failed run a success: ignore EPIPE there and

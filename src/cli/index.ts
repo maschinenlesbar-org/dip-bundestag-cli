@@ -2,8 +2,9 @@
 // Binary entry point. Thin shim around run(); all logic lives in run.ts/program.ts.
 
 import { handleOutputErrors } from "./io.js";
-import { run } from "./run.js";
+import { processLogger, run } from "./run.js";
 
-handleOutputErrors();
-const exitCode = await run(process.argv.slice(2));
+const argv = process.argv.slice(2);
+handleOutputErrors(process, undefined, processLogger(argv));
+const exitCode = await run(argv);
 process.exitCode = exitCode;
