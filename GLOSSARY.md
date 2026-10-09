@@ -206,6 +206,14 @@ carries `status`/`detail`/`url`/`method`/`body`, with `isRetryable` for 429/503)
 `Invalid <name>: <reason>`), all extending `DipError`. Exit codes: `0` success, `2` usage errors, `4` on a `404`, `1` for
 any other runtime error (including `401` when the key is missing/expired).
 
+**Log record.** Every diagnostic line the CLI writes to stderr: a timestamp, a level
+(`ERROR`, `WARN`, `INFO`) and a topic `dip.<area>`, as text (log4j style) or with
+`--log-format jsonl` as one JSON object per line. The areas: `cli` (usage errors,
+commander's messages, unexpected errors), `api` (the API's answers: an error status, and
+a malformed answer — bad JSON, the wrong shape, an empty body), `http` (the connection,
+the cleartext warning), `config`, `obtain-key` and `output` (the `-o` file, stdout
+failures). A record is always one line; control characters in it are escaped.
+
 ---
 
 > **Library & internals.** Terms for the TypeScript client and its internals —

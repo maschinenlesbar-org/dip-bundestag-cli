@@ -266,7 +266,7 @@ stderr, so piping stdout into `jq` stays clean.
 
 Each line on stderr is a **log record**: a timestamp (UTC), a level (`ERROR`, `WARN`,
 `INFO`) and a topic, the program and the area it comes from (`dip.cli` for usage
-errors, `dip.api` for the API's answers, `dip.http` for the connection, `dip.config`,
+errors, `dip.api` for the API's answers, a malformed one included, `dip.http` for the connection, `dip.config`,
 `dip.obtain-key`, `dip.output`). By default it is written log4j style; `--log-format
 jsonl` writes one JSON object per line instead. A record is always one line: a line
 break, a control character or a bidi control in a message (a server's text, a value you

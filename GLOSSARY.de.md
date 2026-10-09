@@ -218,6 +218,15 @@ enthält `status`/`detail`/`url`/`method`/`body` sowie `isRetryable` für 429/50
 jedem anderen Laufzeitfehler (auch bei `401`, wenn der Schlüssel fehlt oder abgelaufen
 ist).
 
+**Log-Eintrag (log record).** Jede Diagnosezeile, die die CLI nach stderr schreibt: ein
+Zeitstempel, eine Stufe (`ERROR`, `WARN`, `INFO`) und ein Thema `dip.<Bereich>`, als Text
+(im Stil von log4j) oder mit `--log-format jsonl` als ein JSON-Objekt pro Zeile. Die
+Bereiche: `cli` (Bedienfehler, Meldungen von commander, unerwartete Fehler), `api` (die
+Antworten der API: ein Fehlerstatus und eine fehlerhafte Antwort — ungültiges JSON, die
+falsche Form, ein leerer Body), `http` (die Verbindung, die Klartext-Warnung), `config`,
+`obtain-key` und `output` (die `-o`-Datei, Schreibfehler auf stdout). Ein Eintrag ist
+immer eine Zeile; Steuerzeichen darin werden maskiert.
+
 ---
 
 > **Bibliothek & Interna.** Begriffe zum TypeScript-Client und seinen Interna –
