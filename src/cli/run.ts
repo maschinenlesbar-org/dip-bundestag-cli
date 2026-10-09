@@ -169,7 +169,17 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       // one rather than leaving them with a bare 401.
       // When a redirect to another origin dropped the key, the message already says so
       // (an http: base URL redirected to https: is the usual case): the key is fine.
-      if (err.status === 401 && err.credentialsDropped === undefined) {
+      if (err.status === 401 && err.credentialsDropped === undefined && deps.storedKeyPath !== undefined) {
+        // The key came from the credentials file: most likely a stored public key that
+        // DIP has since rotated. Say where it came from and how to replace it.
+        log.info(
+          "api",
+          `Authentication failed (401) with the API key stored in ${deps.storedKeyPath}. DIP rotates ` +
+            "its public key: `dip obtain-key | dip config set api-key` stores the current one " +
+            "(--api-key and DIP_API_KEY take precedence over the file). A personal key can be " +
+            "requested from parlamentsdokumentation@bundestag.de.",
+        );
+      } else if (err.status === 401 && err.credentialsDropped === undefined) {
         log.info(
           "api",
           "Authentication failed (401). Check your API key, or if none was set " +

@@ -91,7 +91,8 @@ a usage error (exit `2`), not a way to unset the env var; a blank `DIP_API_KEY` 
 as unset. **No key is bundled**:
 when neither is supplied the `Authorization` header is omitted entirely and the
 API returns `401`. On a `401` the CLI prints a plain-language hint with the
-address to request a key.
+address to request a key; when the key came from the credentials file, the hint names
+the file and says how to store the current one (`dip obtain-key | dip config set api-key`).
 
 ## Obtain key
 

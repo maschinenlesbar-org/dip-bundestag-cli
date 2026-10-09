@@ -91,7 +91,7 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     )
     .option(
       "--api-key <key>",
-      "DIP API key (prefer the DIP_API_KEY env var; a flag is visible in ps/history)",
+      "DIP API key (prefer `dip config set api-key` or the DIP_API_KEY env var; a flag is visible in ps/history)",
       // A blank flag would replace the DIP_API_KEY value seeded below and send no
       // key at all, so it is a usage error rather than "unset"; the key is
       // trimmed and checked like the library's apiKey.

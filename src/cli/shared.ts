@@ -250,9 +250,13 @@ export function action(
     // flag > DIP_API_KEY > the credentials file (`dip config set api-key`) > none. The
     // file is read only here, when no key came from the first two, so a problem with
     // it never stands in the way of a key given another way.
-    if (options.apiKey === undefined) {
-      const stored = deps.credentials?.().usable(API_KEY_CREDENTIAL);
-      if (stored !== undefined) options.apiKey = stored;
+    if (options.apiKey === undefined && deps.credentials !== undefined) {
+      const store = deps.credentials();
+      const stored = store.usable(API_KEY_CREDENTIAL);
+      if (stored !== undefined) {
+        options.apiKey = stored;
+        deps.storedKeyPath = store.path;
+      }
     }
     const client = deps.createClient(options);
     // Built first, so a key the client rejects is a usage error before any warning.

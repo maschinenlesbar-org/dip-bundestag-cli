@@ -53,6 +53,12 @@ export interface CliDeps {
   log?: Logger;
   /** The clock the log's timestamps come from. Unset, the real one. */
   now?: () => Date;
+  /**
+   * Set by `action()` when the API key came from the credentials file: the file's path,
+   * so the 401 hint can name it. `run()` gives every run deps of its own, so it never
+   * outlives the run.
+   */
+  storedKeyPath?: string;
 }
 
 /** The deps' logger, or one that writes text records through `io.err`. */

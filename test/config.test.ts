@@ -275,3 +275,25 @@ test("config list refuses a hand-edited name that is not a credential name", asy
     cli.cleanup();
   }
 });
+
+test("a 401 with the stored key says the key came from the credentials file, and how to replace it (02-3)", async () => {
+  const cli = makeCli();
+  try {
+    cli.store.set("api-key", KEY);
+    const deps: CliDeps = {
+      ...cli.deps,
+      createClient: (opts) => new DipClient({ ...opts, transport: async () => jsonResponse({ message: "Unauthorized" }, 401) }),
+    };
+    assert.equal(await run(["vorgang", "list"], deps), 1);
+    const hint = cli.err.join("\n");
+    assert.match(hint, /INFO  \[dip\.api\] Authentication failed \(401\) with the API key stored in .*credentials\./);
+    assert.match(hint, /dip obtain-key \| dip config set api-key/);
+    // A key from the flag gets the general hint, without the file.
+    cli.err.length = 0;
+    assert.equal(await run(["--api-key", "FLAGKEY1234", "vorgang", "list"], deps), 1);
+    assert.doesNotMatch(cli.err.join("\n"), /stored in/);
+    assert.match(cli.err.join("\n"), /Check your API key/);
+  } finally {
+    cli.cleanup();
+  }
+});
