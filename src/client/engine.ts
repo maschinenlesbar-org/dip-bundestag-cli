@@ -343,8 +343,9 @@ const USERINFO_PHRASE = "the base URL's credentials";
  * requests: `secrets` are noun phrases such as `"the API key"`, and a `user:password@`
  * in the URL adds "the base URL's credentials". The secrets themselves are never in
  * the sentence. Not an error (a mirror on a trusted network is a legitimate setup),
- * so the CLI prints it as a warning; a missing "s" is an easy slip, and DIP itself
- * only answers plain http with a redirect to https.
+ * so the CLI logs it as a `WARN` record of `dip.http` (once per run, before the first
+ * request); a missing "s" is an easy slip, and DIP itself only answers plain http
+ * with a redirect to https.
  *
  * - `requests to <host> are sent unencrypted (http:, not https:)`
  * - `the API key is sent unencrypted to <host> (http:, not https:)`
