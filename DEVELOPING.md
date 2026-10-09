@@ -93,7 +93,10 @@ The credentials file is the CLI's, not the library's: `src/cli/credentials.ts`
 only `defaultDeps` sets, so a test that does not ask for one never reads the user's
 file; `action()` (`src/cli/shared.ts`) reads it only when neither the flag nor the env
 var gave a key. `config set` reads through `CliIO.readSecret` (`readSecretFrom`: raw
-mode without echo on a terminal, the whole input from a pipe), never from argv.
+mode without echo on a terminal, the whole input from a pipe, at most 64 KiB either way),
+never from argv. On a terminal it drops escape sequences (arrow keys, bracketed-paste
+markers), keeps every other character (so a tab is refused, as from a pipe) and refuses
+a paste with more after its first line break.
 
 The Bundestag publishes a **public** key on its
 [DIP API help page](https://dip.bundestag.de/über-dip/hilfe/api) (stated there in

@@ -152,6 +152,18 @@ export const defaultIO: CliIO = {
  */
 export const MAX_SECRET_BYTES = 64 * 1024;
 
+/**
+ * True when `rest`, what followed a line break `brk` in the same read, holds more than
+ * the LF of a CR LF and escape sequences (a bracketed-paste end marker).
+ */
+function moreAfterLineBreak(rest: string, brk: string): boolean {
+  const tail = brk === "\r" && rest.startsWith("\n") ? rest.slice(1) : rest;
+  // Built from char codes, so the source stays free of control bytes.
+  const esc = String.fromCharCode(0x1b);
+  const sequences = new RegExp(`${esc}\\[[0-?]*[ -/]*[@-~]|${esc}O.|${esc}`, "g");
+  return tail.replace(sequences, "") !== "";
+}
+
 /** The refusal of a secret longer than `MAX_SECRET_BYTES`. */
 function secretTooLong(): DipUsageError {
   return new DipUsageError("The value is longer than 64 KiB; nothing was stored.");
@@ -162,7 +174,9 @@ function secretTooLong(): DipUsageError {
  * `dip obtain-key | dip config set api-key`) the whole input, one trailing newline
  * dropped. On a terminal the input is read in raw mode, so nothing is echoed: Enter
  * ends it, Backspace takes a character back, Ctrl-C stops (nothing stored) and Ctrl-D
- * ends it like Enter. Either way a value longer than `MAX_SECRET_BYTES` is refused
+ * ends it like Enter. Escape sequences (arrow keys, bracketed-paste markers) are dropped;
+ * any other character, a tab included, is kept, so `config set` refuses what it would
+ * refuse from a pipe; a paste with more after its first line break is refused. Either way a value longer than `MAX_SECRET_BYTES` is refused
  * (`DipUsageError`), and reading stops there.
  */
 export async function readSecretFrom(
@@ -188,6 +202,9 @@ export async function readSecretFrom(
   stderr.write(prompt);
   return new Promise((resolve, reject) => {
     let value = "";
+    // Where an escape sequence stands, across reads: after ESC, inside a CSI (`ESC [`
+    // parameters… final, bracketed-paste markers included), before SS3's final (`ESC O x`).
+    let escape: "none" | "esc" | "csi" | "ss3" = "none";
     const finish = (error?: Error): void => {
       tty.removeListener("data", onData);
       tty.setRawMode(false);
@@ -197,11 +214,39 @@ export async function readSecretFrom(
       else reject(error);
     };
     const onData = (chunk: Buffer | string): void => {
-      for (const ch of chunk.toString()) {
-        if (ch === "\r" || ch === "\n" || ch === "\u0004") return finish();
+      const chars = [...chunk.toString()];
+      for (const [i, ch] of chars.entries()) {
+        // An arrow key or a paste marker is a keystroke, not part of the value.
+        if (escape === "csi") {
+          if (ch >= "@" && ch <= "~") escape = "none";
+          continue;
+        }
+        if (escape === "ss3") {
+          escape = "none";
+          continue;
+        }
+        if (escape === "esc") {
+          escape = ch === "[" ? "csi" : ch === "O" ? "ss3" : "none";
+          if (escape !== "none") continue;
+        }
+        if (ch === "\u001b") {
+          escape = "esc";
+          continue;
+        }
+        if (ch === "\r" || ch === "\n") {
+          // A paste with more after its first line break: storing the first line alone
+          // would keep a value the user did not mean, and leave the rest to the shell.
+          if (moreAfterLineBreak(chars.slice(i + 1).join(""), ch)) {
+            return finish(new DipUsageError("The value holds a line break; nothing was stored."));
+          }
+          return finish();
+        }
+        if (ch === "\u0004") return finish();
         if (ch === "\u0003") return finish(new DipError("Interrupted; nothing was stored."));
-        if (ch === "\u007f" || ch === "\b") value = value.slice(0, -1);
-        else if (ch >= " ") value += ch;
+        if (ch === "\u007f" || ch === "\b") value = [...value].slice(0, -1).join("");
+        // Any other character is kept, a tab or a control character included, so the
+        // value is refused as the same input from a pipe is, not silently changed.
+        else value += ch;
         if (value.length > MAX_SECRET_BYTES) return finish(secretTooLong());
       }
     };
