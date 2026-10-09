@@ -53,6 +53,33 @@ export function credentialsIn(value: string): string[] {
 }
 
 /**
+ * The forms in which a server may echo the credentials of a userinfo (`user:password`,
+ * as `credentialsIn` returns it) back in an error body: the `Authorization: Basic` value
+ * (base64 of the decoded `user:password`, Latin-1 as the engine sends it), the decoded
+ * `user:password` itself, and the password alone when it is at least 4 characters long.
+ * `[]` for a userinfo without a password. None of them has an `@` to anchor on, so they
+ * are replaced as exact strings (`redactSecrets`).
+ */
+export function echoedCredentialForms(userinfo: string): string[] {
+  const colon = userinfo.indexOf(":");
+  if (colon < 0) return [];
+  const decode = (part: string): string => {
+    try {
+      return decodeURIComponent(part);
+    } catch {
+      return part;
+    }
+  };
+  const user = decode(userinfo.slice(0, colon));
+  const password = decode(userinfo.slice(colon + 1));
+  if (password === "") return [];
+  const pair = `${user}:${password}`;
+  const forms = [Buffer.from(pair, "latin1").toString("base64"), pair];
+  if (password.length >= 4) forms.push(password);
+  return forms;
+}
+
+/**
  * `text` with every occurrence of each credential (as `credentialsIn` returns them)
  * that is followed by `@` replaced by `***`. Matching the exact strings, not a
  * pattern, covers passwords with spaces, quotes, `#`, `?` or `/` that no URL

@@ -13,6 +13,7 @@ import {
   DipUsageError,
   DipValidationError,
   credentialsIn,
+  echoedCredentialForms,
   redactCredentials,
   redactSecrets,
 } from "../client/errors.js";
@@ -113,6 +114,7 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
   const userinfo = new Set<string>();
   const keys = new Set<string>();
   const encodedUserinfo = new Set<string>();
+  const passwords = new Set<string>();
   for (const source of [...argv, ...values, envKey]) {
     for (const secret of credentialsIn(source)) {
       userinfo.add(secret);
@@ -121,6 +123,12 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
       // (`/vorgang/https%3A%2F%2Falice%3Apw%40host`): no "@" to anchor on there.
       const encoded = encodeURIComponent(secret);
       if (encoded !== secret) encodedUserinfo.add(encoded);
+      // What a server echoes back: the Basic value and the decoded user:password on
+      // stdout and stderr, the password alone (it may well occur in the data) on stderr.
+      const [basic, pair, password] = echoedCredentialForms(secret);
+      if (basic !== undefined) encodedUserinfo.add(basic);
+      if (pair !== undefined) encodedUserinfo.add(pair);
+      if (password !== undefined) passwords.add(password);
     }
   }
   const addKey = (value: string | undefined): void => {
@@ -131,6 +139,7 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
     }
   };
   addKey(envKey);
+  for (const password of passwords) addKey(password);
   argv.forEach((token, i) => {
     if (SECRET_FLAGS.includes(token)) addKey(argv[i + 1]);
     const eq = token.indexOf("=");
@@ -141,7 +150,7 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
   // Longest first, so a key is never left half-replaced by one of its own substrings.
   const sortedKeys = (): string[] => [...keys].sort((a, b) => b.length - a.length);
   let keyList = sortedKeys();
-  const encodedList = [...encodedUserinfo];
+  const encodedList = [...encodedUserinfo].sort((a, b) => b.length - a.length);
   const out = (text: string): string => redactSecrets(redactCredentials(text, urlList), encodedList);
   return {
     out,

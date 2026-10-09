@@ -503,3 +503,17 @@ test("own messages quote a server or user value at most 200 characters long (L3)
   const client = new DipClient({ transport: async () => ({ status: 200, headers: {}, body: Buffer.from("{}") }) });
   await assert.rejects(client.vorgaenge.list({ [`f.${long}`]: "1" }), (err: Error) => err.message.length < 2000 && /Unknown filter "f\.x+…"/.test(err.message));
 });
+
+test("credentials a server echoes are scrubbed from the error: Basic, user:password, password (L13)", async () => {
+  const basic = Buffer.from("alice:pa ss-pw", "latin1").toString("base64");
+  const body = JSON.stringify({ detail: `no: Basic ${basic} / alice:pa ss-pw / pa ss-pw` });
+  const engine = new RequestEngine({
+    baseUrl: "https://alice:pa%20ss-pw@mirror.example",
+    transport: async () => ({ status: 401, headers: { "content-type": "application/json" }, body: Buffer.from(body) }),
+  });
+  await assert.rejects(engine.getJson("/api/v1/vorgang"), (err: DipApiError) => {
+    for (const form of [basic, "alice:pa ss-pw", "pa ss-pw"]) assert.ok(!err.message.includes(form), err.message);
+    assert.match(err.message, /no: Basic \*\*\* \/ \*\*\* \/ \*\*\*/);
+    return true;
+  });
+});

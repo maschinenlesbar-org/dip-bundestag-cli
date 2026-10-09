@@ -309,13 +309,18 @@ What the library rejects:
   not, then `redactCredentials`) becomes `***@` on stdout and stderr; the
   `--api-key` value, the `DIP_API_KEY` value and any argument shaped like a DIP
   key (`looksLikeApiKey`) become `***` on stderr (`redactSecrets`). Not on stdout,
-  where `obtain-key` prints the key. `test/conformance-p1-cli-redaction.test.ts`
+  where `obtain-key` prints the key. The forms a server echoes a userinfo back in
+  are replaced too: the `Basic` value and the decoded `user:password` on stdout and
+  stderr, the password alone (4 characters or more) on stderr only, since it may
+  well occur in the data. `test/conformance-p1-cli-redaction.test.ts`
   is the shared check (ten passwords, seven URL shapes, every echo path, plus the
   key by flag, by environment and typed without its flag).
 - **Secrets in the library's objects and errors.** The engine keeps the base URL
   and the default headers (with the API key) in real `#private` fields, so
   `console.log(client)`, `util.inspect` and `JSON.stringify` never show them. The
-  base URL's userinfo (raw and percent-decoded) and the key are scrubbed from
+  base URL's userinfo (raw and percent-decoded), the forms a server echoes it back
+  in (the `Basic` value, the decoded `user:password`, the password alone from 4
+  characters: `echoedCredentialForms`) and the key are scrubbed from
   error bodies and details, from transport error text and from the `cause` chain
   (`scrub`/`scrubCause`). `obtainKey` names a source URL without its userinfo, in
   its errors and in `ObtainedKey.sourceUrl`.

@@ -23,6 +23,7 @@ import {
   redactSecrets,
   redactUrl,
   cutForMessage,
+  echoedCredentialForms,
 } from "./errors.js";
 import {
   assertHeaderValue,
@@ -610,9 +611,14 @@ export class RequestEngine {
       assertHeaderValue(`${name} header`, value);
     }
     // The secret part of a credential header (`ApiKey <key>` → the key), never echoed.
+    // And the forms a server echoes a base URL's userinfo in: the Basic value, the
+    // decoded `user:password`, the password alone.
     this.#secrets = Object.entries(this.#defaultHeaders)
       .filter(([name]) => CREDENTIAL_HEADERS.has(name.toLowerCase()))
-      .map(([, value]) => value.replace(/^\S+\s+/, "").trim());
+      .map(([, value]) => value.replace(/^\S+\s+/, "").trim())
+      .concat(credentialsIn(this.#baseUrl).flatMap(echoedCredentialForms))
+      // Longest first, so a password never leaves half of the user:password around it.
+      .sort((a, b) => b.length - a.length);
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.maxRetries = options.maxRetries ?? 2;
     this.retryDelayMs = options.retryDelayMs ?? 200;
