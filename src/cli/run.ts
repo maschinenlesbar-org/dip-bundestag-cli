@@ -75,6 +75,24 @@ function addHelpCommand(command: Command): void {
 /** The options whose value is a secret on its own (no `@` to anchor a redaction on). */
 const SECRET_FLAGS = ["--api-key"];
 
+/**
+ * The options whose value is the base URL: a `user:password@host` given there without
+ * its scheme is still a credential (anywhere else a bare `a:b@c` is not).
+ */
+const BASE_URL_FLAGS = ["--base-url"];
+
+/** The values of the `flags` in `argv`, in both forms (`--flag value`, `--flag=value`). */
+function flagValues(argv: readonly string[], flags: readonly string[]): string[] {
+  const found: string[] = [];
+  argv.forEach((token, i) => {
+    const next = argv[i + 1];
+    if (flags.includes(token) && next !== undefined) found.push(next);
+    const eq = token.indexOf("=");
+    if (eq > 0 && flags.includes(token.slice(0, eq))) found.push(token.slice(eq + 1));
+  });
+  return found;
+}
+
 /** The secrets of a run, and the two ways they are replaced. */
 export interface Redaction {
   /** stdout text: the userinfo of every URL-like argument replaced (`***@`). */
@@ -115,7 +133,9 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
   const keys = new Set<string>();
   const encodedUserinfo = new Set<string>();
   const passwords = new Set<string>();
-  for (const source of [...argv, ...values, envKey]) {
+  // A base URL typed without its scheme is read as if it had one.
+  const baseUrls = flagValues(argv, BASE_URL_FLAGS).map((value) => (/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value) ? value : `http://${value}`));
+  for (const source of [...values, envKey, ...baseUrls]) {
     for (const secret of credentialsIn(source)) {
       userinfo.add(secret);
       userinfo.add(JSON.stringify(secret).slice(1, -1));
@@ -140,11 +160,7 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
   };
   addKey(envKey);
   for (const password of passwords) addKey(password);
-  argv.forEach((token, i) => {
-    if (SECRET_FLAGS.includes(token)) addKey(argv[i + 1]);
-    const eq = token.indexOf("=");
-    if (eq > 0 && SECRET_FLAGS.includes(token.slice(0, eq))) addKey(token.slice(eq + 1));
-  });
+  for (const value of flagValues(argv, SECRET_FLAGS)) addKey(value);
   for (const value of values) if (looksLikeApiKey(value)) addKey(value);
   const urlList = [...userinfo];
   // Longest first, so a key is never left half-replaced by one of its own substrings.

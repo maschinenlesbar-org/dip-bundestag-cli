@@ -15,7 +15,8 @@ export function redactUrl(url: string): string {
   } catch {
     return redactCredentials(url, credentialsIn(url));
   }
-  // `user:pw@host` without a scheme parses as a URL with the scheme "user:": no userinfo.
+  // A URL without userinfo, or `user:pw@host` without a scheme (it parses as a URL with
+  // the scheme "user:"), which is no URL with credentials at all.
   if (parsed.username === "" && parsed.password === "") return redactCredentials(url, credentialsIn(url));
   parsed.username = "***";
   parsed.password = "";
@@ -23,24 +24,22 @@ export function redactUrl(url: string): string {
 }
 
 /**
- * The userinfo a URL-like value carries, exactly as written — `["alice:pa#ss"]` for
- * `https://alice:pa#ss@host` — or `[]` when it carries none. It works on values that
- * don't parse as a URL too, and on values with a prefix (`--base-url=https://u:p@h`):
- * the userinfo is everything between `://` and the last `@` before the host. A value
- * without a scheme counts when it reads `user:password@host`. Used to redact those
- * exact strings from text that echoes the value (usage errors, help), whatever
+ * The userinfo a URL carries, exactly as written — `["alice:pa#ss"]` for
+ * `https://alice:pa#ss@host` — or `[]` when it carries none. Only a value that starts
+ * with a scheme (`^[A-Za-z][A-Za-z0-9+.-]*://`) counts: a bare `a:b@c` is a file name
+ * (`-o run:2026-10-09@x.json`), a search text or a User-Agent as often as a credential,
+ * and the base URL always has a scheme. It works on URLs that don't parse too: the
+ * userinfo is everything between `://` and the last `@` before the host. Used to redact
+ * those exact strings from text that echoes the value (usage errors, help), whatever
  * characters the password contains.
  */
 export function credentialsIn(value: string): string[] {
-  const schemeAt = value.indexOf("://");
-  const rest = schemeAt >= 0 ? value.slice(schemeAt + 3) : value;
-  // Without a scheme only the unmistakable `user:password@host` form counts.
-  if (schemeAt < 0 && !/^[^\s/@:]+:[^@]*@[^@\s/]/.test(rest)) return [];
-  // The URL itself starts at its scheme (`--base-url=https://…` has a prefix).
-  const scheme = schemeAt >= 0 ? /[a-z][a-z0-9+.-]*$/i.exec(value.slice(0, schemeAt)) : null;
+  const scheme = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.exec(value);
+  if (scheme === null) return [];
+  const rest = value.slice(scheme[0].length);
   let parses = false;
   try {
-    new URL(schemeAt >= 0 ? value.slice(scheme?.index ?? schemeAt) : `http://${rest}`);
+    new URL(value);
     parses = true;
   } catch {
     // Doesn't parse: the password may hold "/", "?", "#" or spaces.

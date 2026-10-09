@@ -6,7 +6,7 @@ import { DipClient } from "../src/client/client.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
 import { makeMockTransport, jsonResponse, untimed } from "./helpers.js";
-import { DipError, DipNetworkError } from "../src/client/errors.js";
+import { DipError, DipNetworkError, credentialsIn } from "../src/client/errors.js";
 import { cleartextCredentialsProblem, cleartextProblem } from "../src/index.js";
 
 const API = "/api/v1";
@@ -564,4 +564,12 @@ test("a rejected --filter value is quoted at most 200 characters long (L3)", asy
   const own = record.slice(record.indexOf("Invalid --filter"));
   assert.match(own, /^Invalid --filter "f\.id=(9x)+9?…": f\.id: /);
   assert.ok(own.length < 400, `${own.length}`);
+});
+
+test("an a:b@c argument (here a User-Agent) is neither a credential in the log nor rewritten in the JSON on stdout (L14)", async () => {
+  const cli = makeCli(() => jsonResponse({ numFound: 1, documents: [{ id: "1", titel: "run:2026-10-09@x" }] }));
+  assert.equal(await run(["--user-agent", "run:2026-10-09@x", "vorgang", "list"], cli.deps), 0);
+  assert.match(cli.out.join("\n"), /"titel": "run:2026-10-09@x"/);
+  assert.deepEqual(credentialsIn("run:2026-10-09@x"), []);
+  assert.deepEqual(credentialsIn("https://alice:pw@host"), ["alice:pw"]);
 });

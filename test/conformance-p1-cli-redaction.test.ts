@@ -31,7 +31,12 @@ const KEYLESS_COMMAND = ["obtain-key"];
 /** Passwords that defeated a pattern-based redaction in the 2026-10-05 sweep. */
 const PASSWORDS = ["s3cret-pw", "pa#ss-pw", "pa?ss-pw", "pa/ss-pw", "pa ss-pw", "o'brien-pw", 'pa"ss-pw', "päss-pw", "p@ss-pw", "tab\tpw"];
 
-/** Base-URL shapes per password: valid, rejected (query, fragment, port, scheme, space), schemeless. */
+/**
+ * Base-URL shapes per password: valid, rejected (query, fragment, port, scheme, space),
+ * schemeless. Only a value with a scheme is taken for a URL anywhere in argv (a bare
+ * `a:b@c` may be a file name or a search text, fix plan 2026-10-09 L14); a schemeless one
+ * is still a credential as the base URL's value.
+ */
 function urls(pw: string): string[] {
   return [
     `https://alice:${pw}@mirror.example`,
@@ -71,9 +76,13 @@ function assertNoSecret(text: string, pw: string, context: string): void {
 for (const pw of PASSWORDS) {
   test(`P1: no output path prints the password ${JSON.stringify(pw)}`, async () => {
     for (const url of urls(pw)) {
-      const argvs: string[][] = [
+      const asBaseUrl: string[][] = [
         ["--base-url", url, ...SIMPLE_COMMAND],
         [`--base-url=${url}`, ...SIMPLE_COMMAND],
+      ];
+      const schemeless = !/^[a-z][a-z0-9+.-]*:\/\//i.test(url);
+      const argvs: string[][] = schemeless ? asBaseUrl : [
+        ...asBaseUrl,
         [url, ...SIMPLE_COMMAND], // forgot --base-url: unknown command
         [...SIMPLE_COMMAND, url], // surplus argument
         [...ARG_COMMAND, url], // as a positional value

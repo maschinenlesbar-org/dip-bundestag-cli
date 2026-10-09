@@ -305,8 +305,10 @@ What the library rejects:
   is cut and escaped, and writes it to the raw stderr: the frame (time, level, topic)
   is never touched, and a secret with DEL, C1 or bidi characters is matched in its
   raw form. The userinfo of every
-  URL-like argument (`credentialsIn`, which finds it whether the value parses or
-  not, then `redactCredentials`) becomes `***@` on stdout and stderr; the
+  URL argument (`credentialsIn`, which finds it whether the value parses or
+  not, then `redactCredentials`) becomes `***@` on stdout and stderr. Only a value
+  that starts with a scheme counts (a bare `a:b@c` is a file name, a search text or a
+  User-Agent as often as a credential), except as the `--base-url` value; the
   `--api-key` value, the `DIP_API_KEY` value and any argument shaped like a DIP
   key (`looksLikeApiKey`) become `***` on stderr (`redactSecrets`). Not on stdout,
   where `obtain-key` prints the key. The forms a server echoes a userinfo back in
