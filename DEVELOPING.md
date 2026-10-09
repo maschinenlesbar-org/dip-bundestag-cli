@@ -545,7 +545,9 @@ line, and a command group run without its subcommand an ERROR "missing command:
 escaped: the frame is never touched, and a secret is kept out of the log in either format. Node's own process warnings (`NODE_TLS_REJECT_UNAUTHORIZED=0`) are WARN records of
 `dip.cli` too: the bin shim installs `installWarningLog`, which removes Node's default
 `warning` listener and logs `(node) <name>: <message>` through `processLogger(argv)`.
-`CliDeps.now` makes the timestamps
+In `defaultDeps` a record waits for stdout (`stderrAfterStdout`): it is held while stdout
+has a backlog and written, in order, once it is gone, so with `2>&1 |` and a slow reader
+it never lands inside the data. `CliDeps.now` makes the timestamps
 testable. stdout carries data only. Conformance test P23 checks all of this, and its
 body is shared across the *-cli repos.
 

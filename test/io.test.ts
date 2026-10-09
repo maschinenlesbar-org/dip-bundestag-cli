@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EventEmitter } from "node:events";
-import { defaultIO, handleOutputErrors } from "../src/cli/io.js";
+import { defaultIO, handleOutputErrors, stderrAfterStdout } from "../src/cli/io.js";
 import { DipError } from "../src/client/errors.js";
 import { createLogger } from "../src/cli/log.js";
 
@@ -125,4 +125,32 @@ test("writeFile turns other fs errors into a DipError naming the path", () => {
       (err) => err instanceof DipError && err.message.startsWith(`Could not write to "${path}": ENOENT`),
     );
   });
+});
+
+/** A stdout as far as the hold needs one: a backlog, and the events that end it. */
+class FakeStdout extends EventEmitter {
+  writableLength = 0;
+}
+
+test("stderr waits for stdout: a record is held while stdout has a backlog, and flushed in order (L11)", () => {
+  const stdout = new FakeStdout();
+  const written: string[] = [];
+  const err = stderrAfterStdout(stdout, (text: string) => written.push(text));
+  err("first");
+  assert.deepEqual(written, ["first"], "no backlog: written at once");
+  stdout.writableLength = 65536;
+  err("second");
+  err("third");
+  assert.deepEqual(written, ["first"], "held while stdout has a backlog");
+  stdout.writableLength = 0;
+  stdout.emit("drain");
+  assert.deepEqual(written, ["first", "second", "third"]);
+  // Flushed on close and on error too, never lost.
+  stdout.writableLength = 10;
+  err("fourth");
+  stdout.emit("close");
+  stdout.writableLength = 10;
+  err("fifth");
+  stdout.emit("error", new Error("EPIPE"));
+  assert.deepEqual(written, ["first", "second", "third", "fourth", "fifth"]);
 });

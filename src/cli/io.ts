@@ -135,10 +135,53 @@ function isDirectory(path: string): boolean {
   }
 }
 
+/** What `stderrAfterStdout` needs of stdout: its backlog, and the events that end one. */
+export interface StdoutBacklog {
+  readonly writableLength: number;
+  on(event: "drain" | "close" | "error", listener: () => void): unknown;
+}
+
+/** How often a held record checks whether stdout's backlog is gone (ms). */
+const BACKLOG_POLL_MS = 10;
+
+/**
+ * A stderr writer that waits for stdout. With both streams on one pipe (`2>&1 |`) and a
+ * slow reader, stdout's data is still queued in the process while a record is written
+ * to stderr at once, so the record landed inside the JSON (at 64 KiB). Here a text is
+ * held while `stdout.writableLength > 0` and written, in order, once the backlog is
+ * gone: on stdout's `drain`, `close` or `error`, or at the latest when a short poll sees
+ * it empty (`drain` only follows a write that returned false). The poll keeps the
+ * process alive until then, so a held record is never lost at exit.
+ */
+export function stderrAfterStdout(stdout: StdoutBacklog, write: (text: string) => void): (text: string) => void {
+  const held: string[] = [];
+  let poll: ReturnType<typeof setInterval> | undefined;
+  const flush = (): void => {
+    if (poll !== undefined) clearInterval(poll);
+    poll = undefined;
+    for (const text of held.splice(0)) write(text);
+  };
+  let listening = false;
+  return (text) => {
+    if (held.length === 0 && stdout.writableLength === 0) return write(text);
+    held.push(text);
+    if (!listening) {
+      listening = true;
+      for (const event of ["drain", "close", "error"] as const) stdout.on(event, flush);
+    }
+    poll ??= setInterval(() => {
+      if (stdout.writableLength === 0) flush();
+    }, BACKLOG_POLL_MS);
+  };
+}
+
+const stderrLine = stderrAfterStdout(process.stdout, (text) => process.stderr.write(text + "\n"));
+
 export const defaultIO: CliIO = {
   readSecret: (prompt) => readSecretFrom(process.stdin, process.stderr, prompt),
   out: (text) => process.stdout.write(text + "\n"),
-  err: (text) => process.stderr.write(text + "\n"),
+  // A record never lands inside the data when both streams share a pipe.
+  err: stderrLine,
   // "wx" fails if the path already exists (a dangling symlink included, since an
   // exclusive create never follows one), turning an accidental overwrite into a
   // clean error instead of silent data loss. With --force we fall back to the
