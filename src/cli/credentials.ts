@@ -84,11 +84,35 @@ export function maskCredential(value: string, name?: string): string {
  * file, owned by this user, readable by nobody else — anything else is a `DipError`
  * naming the fix, rather than a key quietly used from a file others can read.
  */
+/** How long `set`/`unset` wait for another writer's lock before giving up (ms). */
+export const LOCK_WAIT_MS = 2_000;
+/** A lock older than this (ms) is left over from a crash and taken over. */
+export const LOCK_STALE_MS = 30_000;
+/** The wait between two attempts at the lock (ms). */
+const LOCK_RETRY_MS = 50;
+
+/** The clock and the (synchronous) wait of the lock, injectable for tests. */
+export interface CredentialStoreOptions {
+  /** Milliseconds since the epoch. Unset, `Date.now`. */
+  now?: () => number;
+  /** Block for `ms` milliseconds. Unset, a real wait. */
+  sleep?: (ms: number) => void;
+}
+
+/** A synchronous wait: `set`/`unset` stay synchronous, and the wait is short. */
+function blockFor(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
 export class CredentialStore {
   readonly path: string;
+  readonly #now: () => number;
+  readonly #sleep: (ms: number) => void;
 
-  constructor(path: string) {
+  constructor(path: string, options: CredentialStoreOptions = {}) {
     this.path = resolve(path);
+    this.#now = options.now ?? Date.now;
+    this.#sleep = options.sleep ?? blockFor;
   }
 
   /** The store at `resolveCredentialsPath(env)`. */
@@ -143,24 +167,80 @@ export class CredentialStore {
     if (nameReason !== undefined) throw new DipUsageError(nameReason);
     const valueReason = credentialValueProblem(value);
     if (valueReason !== undefined) throw new DipUsageError(valueReason);
-    this.write({ ...this.read(), [name]: value });
+    this.locked(() => this.write({ ...this.read(), [name]: value }));
   }
 
   /** Remove `name`; false when it was not stored. The file goes when nothing is left in it. */
   unset(name: string): boolean {
-    const all = this.read();
-    if (!(name in all)) return false;
-    delete all[name];
-    if (Object.keys(all).length === 0) {
-      try {
-        rmSync(this.path, { force: true });
-      } catch (err) {
-        throw this.writeError(err);
+    // Nothing to remove: no lock, and no directory created for it.
+    if (!(name in this.read())) return false;
+    return this.locked(() => {
+      const all = this.read();
+      if (!(name in all)) return false;
+      delete all[name];
+      if (Object.keys(all).length === 0) {
+        try {
+          rmSync(this.path, { force: true });
+        } catch (err) {
+          throw this.writeError(err);
+        }
+        return true;
       }
+      this.write(all);
       return true;
+    });
+  }
+
+  /**
+   * Run `fn` (a read-modify-write) holding `credentials.lock` beside the file, so two
+   * `config set` at the same time cannot both log "Stored" while one value is lost. The
+   * lock is created exclusively; a held one is retried for `LOCK_WAIT_MS`, then the
+   * call fails ("Another dip config is writing …; try again") and nothing is changed. A
+   * lock older than `LOCK_STALE_MS` was left by a crash and is taken over.
+   */
+  private locked<T>(fn: () => T): T {
+    const lock = `${this.path}.lock`;
+    try {
+      // Inside the try: an unwritable config location is named like any write failure.
+      this.ensureDirectory();
+    } catch (err) {
+      throw this.writeError(err);
     }
-    this.write(all);
-    return true;
+    const start = this.#now();
+    for (;;) {
+      try {
+        writeFileSync(lock, `${process.pid}\n`, { mode: 0o600, flag: "wx" });
+        break;
+      } catch (err) {
+        if ((err as { code?: unknown }).code !== "EEXIST") throw this.writeError(err);
+      }
+      let age: number | undefined;
+      try {
+        age = this.#now() - statSync(lock).mtimeMs;
+      } catch {
+        continue; // released in the meantime: try again at once
+      }
+      if (age > LOCK_STALE_MS) {
+        rmSync(lock, { force: true });
+        continue;
+      }
+      if (this.#now() - start >= LOCK_WAIT_MS) {
+        throw new DipError(`Another dip config is writing ${this.path}; try again.`);
+      }
+      this.#sleep(LOCK_RETRY_MS);
+    }
+    try {
+      return fn();
+    } finally {
+      rmSync(lock, { force: true });
+    }
+  }
+
+  /** The file's directory, created with mode 0700, and tightened to it when others could read it. */
+  private ensureDirectory(): void {
+    const dir = dirname(this.path);
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    if (process.platform !== "win32" && (statSync(dir).mode & 0o077) !== 0) chmodSync(dir, 0o700);
   }
 
   private read(): Record<string, string> {
@@ -202,14 +282,12 @@ export class CredentialStore {
    * never half of either, and at no moment is the key in a file others can read.
    */
   private write(all: Record<string, string>): void {
-    const dir = dirname(this.path);
     const temporary = `${this.path}.tmp-${process.pid}`;
     const sorted = Object.fromEntries(Object.entries(all).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
     try {
       // Inside the try: an unwritable config location (EACCES on mkdir or chmod) is
       // reported like any other write failure, naming the file.
-      mkdirSync(dir, { recursive: true, mode: 0o700 });
-      if (process.platform !== "win32" && (statSync(dir).mode & 0o077) !== 0) chmodSync(dir, 0o700);
+      this.ensureDirectory();
       // Left by a run of the same pid that crashed between the two steps.
       rmSync(temporary, { force: true });
       writeFileSync(temporary, JSON.stringify(sorted, null, 2) + "\n", { mode: 0o600, flag: "wx" });
