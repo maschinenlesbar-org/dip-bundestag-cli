@@ -22,13 +22,19 @@ const SIMPLE_COMMAND = ["vorgang", "list"];
 const okBody = { numFound: 0, documents: [] };
 /** The exit code of a usage error. */
 const USAGE_EXIT = 2;
-/** Builds the CliDeps for a run, on a transport that answers `okBody` and a fixed clock. */
-function makeDeps(out: string[], err: string[], now: () => Date): CliDeps {
-  const transport = async (): Promise<HttpResponse> => ({
+/** An option that takes a value and validates it: a rejected value is echoed in the record. */
+const VALUE_OPTION = "--timeout";
+/** An error answer whose ERROR record quotes `message` (as far as the repo keeps it). */
+function errorAnswer(message: string): HttpResponse {
+  return { status: 500, headers: { "content-type": "application/json" }, body: Buffer.from(JSON.stringify({ detail: message })) };
+}
+/** Builds the CliDeps for a run, on a transport that answers `okBody` (or `answer`) and a fixed clock. */
+function makeDeps(out: string[], err: string[], now: () => Date, answer?: HttpResponse): CliDeps {
+  const transport = async (): Promise<HttpResponse> => answer ?? {
     status: 200,
     headers: { "content-type": "application/json" },
     body: Buffer.from(JSON.stringify(okBody)),
-  });
+  };
   return {
     io: { out: (s) => out.push(s), err: (s) => err.push(s), writeFile: () => {}, outBinary: () => {} },
     env: {},
@@ -41,11 +47,30 @@ function makeDeps(out: string[], err: string[], now: () => Date): CliDeps {
 const TS = "2026-01-02T03:04:05.678Z";
 const TOPIC = new RegExp(`^${PROGRAM}\\.[a-z0-9-]+$`);
 
-async function cli(argv: string[]) {
+async function cli(argv: string[], answer?: HttpResponse) {
   const out: string[] = [];
   const err: string[] = [];
-  const code = await run(argv, makeDeps(out, err, () => new Date(TS)));
+  const code = await run(argv, makeDeps(out, err, () => new Date(TS), answer));
   return { code, out, err };
+}
+
+/** A message built to break a record: line breaks, a forged record, escapes, C1, bidi, DEL. */
+const HOSTILE = `one\ntwo\r${TS} ERROR [${PROGRAM}.cli] forged\u001b[31m red\u0085nel\u2028ls\u2029ps\u202eevil\u2066iso\u007fdel\u009bcsi`;
+/** Characters a record never carries raw: C0 but TAB, DEL, C1, the line and paragraph separators, bidi controls. */
+const RAW = /[\u0000-\u0008\u000a-\u001f\u007f-\u009f\u2028\u2029\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/;
+
+/** Every stderr chunk is one record: one line, nothing raw, in text or (parsed) jsonl. */
+function assertOneRecordEach(err: string[], format: string, context: string): void {
+  assert.ok(err.length > 0, context);
+  for (const line of err) {
+    assert.ok(!RAW.test(line), `${context}: raw control or bidi character in ${JSON.stringify(line)}`);
+    if (format === "jsonl") {
+      const record = JSON.parse(line) as Record<string, unknown>;
+      assert.deepEqual(Object.keys(record), ["ts", "level", "topic", "msg"], context);
+    } else {
+      assert.match(line, new RegExp(`^${TS} (ERROR|WARN |INFO ) \\[${PROGRAM}\\.[a-z0-9-]+\\] `), `${context}: ${JSON.stringify(line)}`);
+    }
+  }
 }
 
 test("P23: a usage error is a log4j-style ERROR record by default", async () => {
@@ -97,4 +122,21 @@ test("P23: a secret is kept out of the log in either format", async () => {
     const r = await cli(["--log-format", format, "--base-url", "http://alice:s3cr3t-pw@mirror.example", ...SIMPLE_COMMAND]);
     assert.ok(!r.err.join("\n").includes("s3cr3t-pw"), `${format}: ${r.err.join("\n")}`);
   }
+});
+
+test("P23: a hostile message is one record, one line, with nothing raw (server text and user input)", async () => {
+  for (const format of ["text", "jsonl"]) {
+    const server = await cli(["--log-format", format, ...SIMPLE_COMMAND], errorAnswer(HOSTILE));
+    assert.notEqual(server.code, 0);
+    assertOneRecordEach(server.err, format, `${format}, server`);
+    assert.equal(server.err.filter((line) => line.includes("forged")).length, 1, `${format}: ${server.err.join("\n")}`);
+
+    const typed = await cli(["--log-format", format, VALUE_OPTION, HOSTILE, ...SIMPLE_COMMAND]);
+    assert.equal(typed.code, USAGE_EXIT);
+    assertOneRecordEach(typed.err, format, `${format}, typed`);
+    assert.equal(typed.err.filter((line) => line.includes("forged")).length, 1, `${format}: ${typed.err.join("\n")}`);
+  }
+  // The text form keeps the message readable: a line break is shown as \n.
+  const text = await cli([VALUE_OPTION, "a\nb", ...SIMPLE_COMMAND]);
+  assert.ok(text.err.some((line) => line.includes("a\\nb")), text.err.join("\n"));
 });

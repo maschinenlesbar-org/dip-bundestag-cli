@@ -10,8 +10,6 @@
 // comes from (`dip.cli`, `dip.api`, `dip.http`, `dip.config`, …). stdout carries data
 // only and is not touched; neither is `--help`/`--version`, nor the no-echo prompt.
 
-import { escapeControlChars } from "./shared.js";
-
 /** The log formats `--log-format` takes. */
 export const LOG_FORMATS = ["text", "jsonl"] as const;
 export type LogFormat = (typeof LOG_FORMATS)[number];
@@ -33,10 +31,48 @@ export interface LogRecord {
   msg: string;
 }
 
-/** One record as one line (text: the message's own line breaks stay; jsonl: one line always). */
+/** True for a character a record never carries raw (see `escapeForRecord`). */
+function escapedInRecords(c: number): boolean {
+  return (
+    (c < 0x20 && c !== 0x09) || // C0 but TAB
+    (c >= 0x7f && c <= 0x9f) || // DEL and C1 (NEL, the 8-bit CSI)
+    c === 0x2028 || c === 0x2029 || // line and paragraph separator
+    c === 0x061c || c === 0x200e || c === 0x200f || // bidi marks
+    (c >= 0x202a && c <= 0x202e) || // bidi embeddings and overrides
+    (c >= 0x2066 && c <= 0x2069) // bidi isolates
+  );
+}
+
+/**
+ * `text` with every character that could split a record, forge a second one or steer
+ * the terminal written as an escape: CR as `\r`, LF as `\n`, any other C0 control but
+ * TAB, DEL and C1 as `\u00XX`, U+2028, U+2029 and the bidi controls (U+061C, U+200E,
+ * U+200F, U+202A–U+202E, U+2066–U+2069) as `\uXXXX`. Backslashes stay as they are. On
+ * the output of `JSON.stringify` (no raw C0 left) every escape it adds is valid JSON,
+ * so the same helper serves both formats. Checked by char code, so the source stays
+ * free of those characters.
+ */
+export function escapeForRecord(text: string): string {
+  let out = "";
+  let from = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if (!escapedInRecords(c)) continue;
+    const escaped = c === 0x0d ? "\\r" : c === 0x0a ? "\\n" : "\\u" + c.toString(16).padStart(4, "0");
+    out += text.slice(from, i) + escaped;
+    from = i + 1;
+  }
+  return from === 0 ? text : out + text.slice(from);
+}
+
+/**
+ * One record as one line, whatever the message holds: `escapeForRecord` runs over the
+ * message (text) or over the whole JSON object (jsonl), so no text that reaches a
+ * record can split it, forge another one, or reach the terminal as a control sequence.
+ */
 export function formatLogRecord(record: LogRecord, format: LogFormat): string {
-  if (format === "jsonl") return escapeControlChars(JSON.stringify({ ts: record.ts, level: record.level, topic: record.topic, msg: record.msg }));
-  return `${record.ts} ${record.level.padEnd(5)} [${record.topic}] ${record.msg}`;
+  if (format === "jsonl") return escapeForRecord(JSON.stringify({ ts: record.ts, level: record.level, topic: record.topic, msg: record.msg }));
+  return `${record.ts} ${record.level.padEnd(5)} [${record.topic}] ${escapeForRecord(record.msg)}`;
 }
 
 export interface Logger {

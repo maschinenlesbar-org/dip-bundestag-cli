@@ -439,6 +439,8 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`cli.test.ts`** — command parsing, `--api-key`/`--filter`/`--id`, and exit
   codes — mocked client.
 - **`validate.test.ts`** — `assertValid`, `DipValidationError` and its exit code.
+- **`log.test.ts`** — the record helpers of `src/cli/log.ts` on their own
+  (`escapeForRecord`, `formatLogRecord`); the CLI-level checks are P23's.
 - **`conformance-p*.test.ts`** — the checks shared across the `*-cli` repos (only
   each file's adapter block differs): P1/P2 redaction, P3 redirect credentials,
   P4/P19 configuration validation, P5 transport contract, P6 retry policy, P7 pipes
@@ -501,7 +503,11 @@ Every diagnostic line on stderr is a log record (`src/cli/log.ts`): a timestamp,
 (`ERROR`, `WARN`, `INFO`) and a topic, `dip.<area>`. `--log-format text` (the default)
 writes it log4j style, `<ISO 8601 UTC> <LEVEL padded to 5> [<topic>] <message>`;
 `--log-format jsonl` writes one JSON object per line with exactly `ts`, `level`, `topic`
-and `msg`. The areas are `cli` (usage errors, commander's messages, unexpected errors),
+and `msg`. A record is always one line: `formatLogRecord` runs `escapeForRecord` over
+the message (text) or the whole JSON object (jsonl), which writes CR and LF as `\r`/`\n`,
+every other C0 control but TAB, DEL and C1 as `\u00XX`, and U+2028, U+2029 and the bidi
+controls as `\uXXXX`, so no text that reaches a record, by whatever path, can split it,
+forge another one or steer the terminal. The areas are `cli` (usage errors, commander's messages, unexpected errors),
 `api` (the API's answers), `http` (the connection, the cleartext warning), `config`,
 `obtain-key` and `output`. Code logs through `logOf(deps)` and never writes diagnostics
 with `io.err` directly. `run()` builds the logger from argv before commander parses it,
