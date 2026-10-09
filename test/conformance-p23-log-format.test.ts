@@ -262,7 +262,8 @@ test("P23: every failed run has an ERROR record, a missing command included", as
   for (const argv of [[], [SIMPLE_COMMAND[0] as string]]) {
     const r = await cli(argv);
     if (r.code === 0) continue; // a command that runs on its own
-    assert.match(r.err[0] ?? "", new RegExp(`^${TS} ERROR \\[${PROGRAM}\\.cli\\] missing command: \``), `${JSON.stringify(argv)}:\n${r.err.join("\n")}`);
+    // A group without its subcommand: "missing command"; a command without its arguments: commander's own error.
+    assert.match(r.err[0] ?? "", new RegExp(`^${TS} ERROR \\[${PROGRAM}\\.cli\\] missing (command: \`|required argument )`), `${JSON.stringify(argv)}:\n${r.err.join("\n")}`);
     assertOneRecordEach(r.err, "text", JSON.stringify(argv));
   }
 });
