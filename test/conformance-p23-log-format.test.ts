@@ -5,6 +5,14 @@
 // usage errors are records too; stdout carries data only; a secret is kept out of the log
 // in either format. Shared across the *-cli repos; only the adapter block below differs
 // per repo.
+//
+// The fix plan of the 2026-10-09 sweep (.reviews/2026-10-09-exploratory/fix-plan.md) added:
+// a hostile message is one line with nothing raw, well-formed and bounded (L1-L3); a secret
+// is replaced in the message only, before escaping (L4); commander's help is one record per
+// line and every failure has an ERROR (L5); the format is commander's (L6); a malformed
+// answer is `api` (L9); echoed credentials are replaced (L13); an `a:b@c` value that is no
+// URL is left alone (L14). Adapter switches added with them: VALUE_OPTION, OUTPUT_OPTION,
+// errorAnswer, MALFORMED_ANSWERS, secretArgv, and the import of MAX_RECORD_MESSAGE.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
