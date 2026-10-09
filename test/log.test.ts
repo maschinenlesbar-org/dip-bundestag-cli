@@ -3,7 +3,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MAX_RECORD_MESSAGE, escapeForRecord, formatLogRecord } from "../src/cli/log.js";
+import { EventEmitter } from "node:events";
+import { MAX_RECORD_MESSAGE, createLogger, escapeForRecord, formatLogRecord, installWarningLog } from "../src/cli/log.js";
 
 const TS = "2026-01-02T03:04:05.678Z";
 
@@ -42,4 +43,24 @@ test("formatLogRecord: a message over MAX_RECORD_MESSAGE is cut at a code point 
   assert.doesNotMatch(kept, /�/, "no half character at the cut");
   const short = "b".repeat(MAX_RECORD_MESSAGE);
   assert.equal(formatLogRecord({ ts: TS, level: "INFO", topic: "dip.cli", msg: short }, "text"), `${TS} INFO  [dip.cli] ${short}`);
+});
+
+test("installWarningLog: Node's process warnings become WARN records of dip.cli, Node's own line removed (L10)", () => {
+  const target = new EventEmitter();
+  const nodeOwn: string[] = [];
+  target.on("warning", (w: Error) => nodeOwn.push(w.message));
+  const records: string[] = [];
+  const log = createLogger({ format: "jsonl", write: (line) => records.push(line), now: () => new Date(TS) });
+  installWarningLog(target, log);
+  const warning = new Error("Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections insecure.\nsecond line");
+  warning.name = "Warning";
+  target.emit("warning", warning);
+  assert.deepEqual(nodeOwn, [], "Node's default listener is gone");
+  assert.equal(records.length, 1);
+  assert.deepEqual(JSON.parse(records[0] as string), {
+    ts: TS,
+    level: "WARN",
+    topic: "dip.cli",
+    msg: `(node) Warning: ${warning.message}`,
+  });
 });

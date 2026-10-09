@@ -167,3 +167,22 @@ export function logFormatFromArgv(argv: readonly string[]): LogFormat {
   }
   return format !== undefined && logFormatProblem(format) === undefined ? (format as LogFormat) : DEFAULT_LOG_FORMAT;
 }
+
+/** What `installWarningLog` needs of the process. */
+export interface WarningSource {
+  removeAllListeners(event: "warning"): unknown;
+  on(event: "warning", listener: (warning: Error) => void): unknown;
+}
+
+/**
+ * Node's own process warnings (`(node:PID) Warning: …`, e.g. for
+ * `NODE_TLS_REJECT_UNAUTHORIZED=0`) as WARN records of `dip.cli`:
+ * `(node) <name>: <message>`, in the log's format and with its redaction. Node's default
+ * listener, which prints the plain line, is removed (checked on Node 22, 24 and 26: that
+ * silences it; `--no-warnings` is not needed). The bin shim installs it once, before
+ * `run()`; a warning Node emits while it starts up, before any code runs, stays Node's.
+ */
+export function installWarningLog(source: WarningSource, log: Pick<Logger, "warn">): void {
+  source.removeAllListeners("warning");
+  source.on("warning", (warning) => log.warn("cli", `(node) ${warning.name}: ${warning.message}`));
+}
