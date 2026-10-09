@@ -40,7 +40,7 @@ dip obtain-key | dip config set api-key
 Precedence is `--api-key` > `DIP_API_KEY` > the credentials file > none. `dip config`
 keeps the key in `$XDG_CONFIG_HOME/dip-bundestag/credentials` (else
 `~/.config/dip-bundestag/credentials`), mode 0600, written atomically; `config set` reads
-the value from a prompt without echo or from stdin, never from the command line;
+the value from a prompt without echo or from stdin (at most 64 KiB), never from the command line;
 `config get` shows it masked (`abcd…wxyz`; `****` below 20 characters; `--reveal` prints it whole); `config list` and `config
 unset` do what they say. `dip config` prints to stdout only and refuses `-o`. A file that others can read is refused, and only when it is
 needed, and so is a hand-edited value `config set` would refuse (naming the file, exit

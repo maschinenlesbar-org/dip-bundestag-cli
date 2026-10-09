@@ -2,7 +2,7 @@
 // tests can capture output instead of hitting the real stdout/stderr/filesystem.
 
 import { statSync, writeFileSync } from "node:fs";
-import { DipError } from "../client/errors.js";
+import { DipError, DipUsageError } from "../client/errors.js";
 import type { DipClient, DipClientOptions } from "../client/client.js";
 import type { Transport } from "../client/http.js";
 import type { CredentialStore } from "./credentials.js";
@@ -146,11 +146,24 @@ export const defaultIO: CliIO = {
 };
 
 /**
+ * The longest secret `readSecretFrom` takes (64 KiB). Reading stops beyond it, so an
+ * endless input (`< /dev/zero`) cannot grow memory without bound, and a value that
+ * could never be sent as a header is not stored.
+ */
+export const MAX_SECRET_BYTES = 64 * 1024;
+
+/** The refusal of a secret longer than `MAX_SECRET_BYTES`. */
+function secretTooLong(): DipUsageError {
+  return new DipUsageError("The value is longer than 64 KiB; nothing was stored.");
+}
+
+/**
  * `CliIO.readSecret` over real streams. From a pipe or a file (`< key.txt`,
  * `dip obtain-key | dip config set api-key`) the whole input, one trailing newline
  * dropped. On a terminal the input is read in raw mode, so nothing is echoed: Enter
  * ends it, Backspace takes a character back, Ctrl-C stops (nothing stored) and Ctrl-D
- * ends it like Enter.
+ * ends it like Enter. Either way a value longer than `MAX_SECRET_BYTES` is refused
+ * (`DipUsageError`), and reading stops there.
  */
 export async function readSecretFrom(
   stdin: NodeJS.ReadStream | NodeJS.ReadableStream,
@@ -160,8 +173,17 @@ export async function readSecretFrom(
   const tty = stdin as NodeJS.ReadStream;
   if (tty.isTTY !== true || typeof tty.setRawMode !== "function") {
     const chunks: Buffer[] = [];
-    for await (const chunk of stdin) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
-    return Buffer.concat(chunks).toString("utf8").replace(/\r?\n$/, "");
+    let bytes = 0;
+    for await (const chunk of stdin) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
+      chunks.push(buffer);
+      bytes += buffer.length;
+      // Room for the line break that is dropped below; leaving the loop destroys the stream.
+      if (bytes > MAX_SECRET_BYTES + 2) throw secretTooLong();
+    }
+    const value = Buffer.concat(chunks).toString("utf8").replace(/\r?\n$/, "");
+    if (Buffer.byteLength(value) > MAX_SECRET_BYTES) throw secretTooLong();
+    return value;
   }
   stderr.write(prompt);
   return new Promise((resolve, reject) => {
@@ -180,6 +202,7 @@ export async function readSecretFrom(
         if (ch === "\u0003") return finish(new DipError("Interrupted; nothing was stored."));
         if (ch === "\u007f" || ch === "\b") value = value.slice(0, -1);
         else if (ch >= " ") value += ch;
+        if (value.length > MAX_SECRET_BYTES) return finish(secretTooLong());
       }
     };
     tty.setRawMode(true);

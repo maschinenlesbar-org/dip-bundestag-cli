@@ -333,3 +333,18 @@ test("a key typed in place of the name is never echoed, by any config command (C
     cli.cleanup();
   }
 });
+
+test("a secret read from stdin stops at 64 KiB and is refused, an endless input included (C3)", async () => {
+  await assert.rejects(readSecretFrom(Readable.from([Buffer.alloc(70 * 1024, "a")]), { write: () => true }, "api-key: "), /longer than 64 KiB; nothing was stored/);
+  let chunks = 0;
+  async function* zero() {
+    for (;;) {
+      chunks++;
+      yield Buffer.alloc(16 * 1024);
+    }
+  }
+  await assert.rejects(readSecretFrom(Readable.from(zero()), { write: () => true }, "api-key: "), /longer than 64 KiB/);
+  assert.ok(chunks < 10, `read ${chunks} chunks`);
+  const exact = "a".repeat(64 * 1024);
+  assert.equal(await readSecretFrom(Readable.from([exact + "\n"]), { write: () => true }, "api-key: "), exact);
+});
