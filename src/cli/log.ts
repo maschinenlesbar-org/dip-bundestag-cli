@@ -10,7 +10,7 @@
 // comes from (`dip.cli`, `dip.api`, `dip.http`, `dip.config`, …). stdout carries data
 // only and is not touched; neither is `--help`/`--version`, nor the no-echo prompt.
 
-import { toWellFormed } from "../client/errors.js";
+import { cutText, toWellFormed } from "../client/errors.js";
 
 /** The log formats `--log-format` takes. */
 export const LOG_FORMATS = ["text", "jsonl"] as const;
@@ -68,6 +68,34 @@ export function escapeForRecord(text: string): string {
 }
 
 /**
+ * The longest message (in characters) a record carries. A longer one is cut at a
+ * code-point boundary and ends in `… (N more characters)`: one huge server text or typed
+ * value cannot flood stderr or a log store with a line of megabytes. Own messages that
+ * quote server or user data are bounded at their source too (`cutForMessage`); this
+ * is the backstop for every path.
+ */
+export const MAX_RECORD_MESSAGE = 4000;
+
+/** `msg` within `MAX_RECORD_MESSAGE`, the cut marked with the number of characters left out. */
+function boundRecordMessage(msg: string): string {
+  if (msg.length <= MAX_RECORD_MESSAGE) return msg;
+  const kept = cutText(msg, MAX_RECORD_MESSAGE);
+  return `${kept}… (${codePoints(msg, kept.length)} more characters)`;
+}
+
+/** The number of characters (code points) in `text` from `from` on. */
+function codePoints(text: string, from: number): number {
+  let n = 0;
+  for (let i = from; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    // The low half of a pair is not a character of its own.
+    if (c >= 0xdc00 && c <= 0xdfff && i > from && text.charCodeAt(i - 1) >= 0xd800 && text.charCodeAt(i - 1) <= 0xdbff) continue;
+    n++;
+  }
+  return n;
+}
+
+/**
  * One record as one line, whatever the message holds: `escapeForRecord` runs over the
  * message (text) or over the whole JSON object (jsonl), so no text that reaches a
  * record can split it, forge another one, or reach the terminal as a control sequence.
@@ -75,7 +103,7 @@ export function escapeForRecord(text: string): string {
 export function formatLogRecord(record: LogRecord, format: LogFormat): string {
   // Well-formed first: half a character would be `\ud83d` in jsonl, which jq rejects,
   // stopping the whole stream.
-  const msg = toWellFormed(record.msg);
+  const msg = toWellFormed(boundRecordMessage(record.msg));
   if (format === "jsonl") return escapeForRecord(JSON.stringify({ ts: record.ts, level: record.level, topic: record.topic, msg }));
   return `${record.ts} ${record.level.padEnd(5)} [${record.topic}] ${escapeForRecord(msg)}`;
 }

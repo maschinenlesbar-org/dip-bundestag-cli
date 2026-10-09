@@ -3,7 +3,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { escapeForRecord, formatLogRecord } from "../src/cli/log.js";
+import { MAX_RECORD_MESSAGE, escapeForRecord, formatLogRecord } from "../src/cli/log.js";
 
 const TS = "2026-01-02T03:04:05.678Z";
 
@@ -31,4 +31,15 @@ test("formatLogRecord: one line in either format, and jsonl parses back to the m
   const jsonl = formatLogRecord({ ts: TS, level: "WARN", topic: "dip.http", msg }, "jsonl");
   assert.doesNotMatch(jsonl, /[\u0000-\u001f\u007f-\u009f\u2028\u202e]/);
   assert.deepEqual(JSON.parse(jsonl), { ts: TS, level: "WARN", topic: "dip.http", msg });
+});
+
+test("formatLogRecord: a message over MAX_RECORD_MESSAGE is cut at a code point and says how much is missing", () => {
+  const msg = "a" + "\u{1f600}".repeat(MAX_RECORD_MESSAGE);
+  const line = formatLogRecord({ ts: TS, level: "INFO", topic: "dip.cli", msg }, "text");
+  const kept = line.slice(line.indexOf("] ") + 2);
+  assert.match(kept, /… \(2001 more characters\)$/);
+  assert.ok(kept.length <= MAX_RECORD_MESSAGE + 30, `${kept.length}`);
+  assert.doesNotMatch(kept, /�/, "no half character at the cut");
+  const short = "b".repeat(MAX_RECORD_MESSAGE);
+  assert.equal(formatLogRecord({ ts: TS, level: "INFO", topic: "dip.cli", msg: short }, "text"), `${TS} INFO  [dip.cli] ${short}`);
 });

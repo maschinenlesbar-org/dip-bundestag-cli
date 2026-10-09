@@ -25,7 +25,7 @@ import {
   type EngineOptions,
   type RawResponse,
 } from "./engine.js";
-import { DipApiError, DipError, DipValidationError, credentialsIn, redactCredentials, redactUrl } from "./errors.js";
+import { DipApiError, DipError, DipValidationError, credentialsIn, cutForMessage, redactCredentials, redactUrl } from "./errors.js";
 import { assertValid, isPlainObject, listResultProblem, type Problem } from "./validate.js";
 
 /** Why a pinned key source cannot be read, or undefined: it must be an absolute http(s) URL. */
@@ -298,7 +298,7 @@ function verificationBodyProblem(response: RawResponse): string | undefined {
     value = JSON.parse(decodeBody(response.data, response.contentType, "the verification answer"));
   } catch {
     const type = response.contentType.split(";")[0]?.trim() || "no Content-Type";
-    return `not JSON (${type})`;
+    return `not JSON (${cutForMessage(type)})`;
   }
   return listResultProblem(value);
 }

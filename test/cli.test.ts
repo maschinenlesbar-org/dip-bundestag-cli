@@ -554,3 +554,14 @@ test("dip help <command path> shows that command's help on stdout, exit 0", asyn
     assert.deepEqual(cli.err, []);
   }
 });
+
+test("a rejected --filter value is quoted at most 200 characters long (L3)", async () => {
+  const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+  // commander echoes the whole value itself (the record's cap bounds that); dip's own
+  // message quotes it cut.
+  assert.equal(await run(["vorgang", "list", "--filter", `f.id=${"9x".repeat(500)}`], cli.deps), 2);
+  const record = cli.err.find((line) => line.includes("Invalid --filter")) ?? "";
+  const own = record.slice(record.indexOf("Invalid --filter"));
+  assert.match(own, /^Invalid --filter "f\.id=(9x)+9?…": f\.id: /);
+  assert.ok(own.length < 400, `${own.length}`);
+});

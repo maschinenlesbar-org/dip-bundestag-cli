@@ -14,6 +14,7 @@ import type { HttpResponse } from "../src/client/http.js";
 // ---- adapter (per repo) -------------------------------------------------------------
 import { run } from "../src/cli/run.js";
 import { DipClient as Client } from "../src/client/client.js";
+import { MAX_RECORD_MESSAGE } from "../src/cli/log.js";
 /** The program's name, the first part of every topic. */
 const PROGRAM = "dip";
 /** A command that needs no arguments and makes one request. */
@@ -153,5 +154,19 @@ test("P23: server text cut to a length limit never leaves half a character", asy
       const r = await cli(["--log-format", format, ...SIMPLE_COMMAND], errorAnswer(message));
       assertOneRecordEach(r.err, format, `${format}, ${message.length} units`);
     }
+  }
+});
+
+test("P23: a record's message is bounded: a long one is cut and says how much is missing", async () => {
+  const long = "x".repeat(MAX_RECORD_MESSAGE * 3);
+  for (const format of ["text", "jsonl"]) {
+    const r = await cli(["--log-format", format, VALUE_OPTION, long, ...SIMPLE_COMMAND]);
+    assert.equal(r.code, USAGE_EXIT);
+    assertOneRecordEach(r.err, format, format);
+    for (const line of r.err) {
+      const msg = format === "jsonl" ? ((JSON.parse(line) as Record<string, unknown>)["msg"] as string) : line.slice(line.indexOf("] ") + 2);
+      assert.ok(msg.length <= MAX_RECORD_MESSAGE + 40, `${format}: ${msg.length} characters`);
+    }
+    assert.ok(r.err.some((line) => /… \(\d+ more characters\)/.test(line)), `${format}: no cut marked`);
   }
 });

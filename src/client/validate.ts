@@ -8,7 +8,7 @@
 //   - `assertValid` turns a reason into a `DipValidationError` with the message
 //     `Invalid <name>: <reason>`.
 
-import { DipValidationError } from "./errors.js";
+import { DipValidationError, cutForMessage } from "./errors.js";
 import type { QueryParams } from "./query.js";
 
 /** Returns why `value` is invalid, or `undefined` when it is valid. */
@@ -160,7 +160,7 @@ export function assertHeaderValue(name: string, value: string): string {
 function kindOf(value: unknown): string {
   if (value === null) return "null";
   if (Array.isArray(value)) return "an array";
-  if (typeof value === "object") return `an object with ${Object.keys(value as object).slice(0, 5).map((k) => JSON.stringify(k)).join(", ") || "no keys"}`;
+  if (typeof value === "object") return `an object with ${Object.keys(value as object).slice(0, 5).map((k) => JSON.stringify(cutForMessage(k))).join(", ") || "no keys"}`;
   return `a ${typeof value}`;
 }
 

@@ -18,6 +18,7 @@ import {
   toWellFormed,
 } from "../src/client/errors.js";
 import type { HttpResponse } from "../src/client/http.js";
+import { DipClient } from "../src/client/client.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 
 test("buildUrl normalises the path and appends the query", () => {
@@ -493,4 +494,12 @@ test("a server detail cut at 500 characters keeps the message well-formed", asyn
     assert.match(err.message, /…$/);
     return true;
   });
+});
+
+test("own messages quote a server or user value at most 200 characters long (L3)", async () => {
+  const long = "x".repeat(5000);
+  const redirect = new RequestEngine({ maxRedirects: 0, transport: async () => ({ status: 302, headers: { location: `https://other.example/${long}` }, body: Buffer.alloc(0) }) });
+  await assert.rejects(redirect.getJson("/api/v1/vorgang"), (err: Error) => err.message.length < 400 && /redirect to https:\/\/other\.example\/x+… not followed/.test(err.message));
+  const client = new DipClient({ transport: async () => ({ status: 200, headers: {}, body: Buffer.from("{}") }) });
+  await assert.rejects(client.vorgaenge.list({ [`f.${long}`]: "1" }), (err: Error) => err.message.length < 2000 && /Unknown filter "f\.x+…"/.test(err.message));
 });
