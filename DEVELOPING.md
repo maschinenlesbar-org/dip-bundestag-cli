@@ -23,14 +23,14 @@ the [Bundestag DIP API](https://dip.bundestag.de/über-dip/hilfe/api)
 
 ```bash
 npm install
-npm run build        # compiles TypeScript to dist/
+npm run build        # compiles every workspace (tsc -b) to its dist/
 ```
 
 Run the locally built CLI without a global install:
 
 ```bash
-node dist/src/cli/index.js --help
-# or, after `npm link`:
+node apps/cli/dist/src/cli/index.js --help    # or: npm start -- --help
+# or, after `npm link --workspace apps/cli`:
 dip --help
 ```
 
@@ -87,11 +87,11 @@ returns `401`. Precedence is **`--api-key` > `DIP_API_KEY` > the credentials
 file > none**; no key is bundled, so without one supplied the `Authorization` header
 is omitted entirely and requests return `401`.
 
-The credentials file is the CLI's, not the library's: `src/cli/credentials.ts`
+The credentials file is the CLI's, not the library's: `apps/cli/src/cli/credentials.ts`
 (`CredentialStore`, the same mechanism as openka-cli's `ka config`) and `dip config`
-(`src/cli/commands/config.ts`). It reaches the CLI through `CliDeps.credentials`, which
+(`apps/cli/src/cli/commands/config.ts`). It reaches the CLI through `CliDeps.credentials`, which
 only `defaultDeps` sets, so a test that does not ask for one never reads the user's
-file; `action()` (`src/cli/shared.ts`) reads it only when neither the flag nor the env
+file; `action()` (`apps/cli/src/cli/shared.ts`) reads it only when neither the flag nor the env
 var gave a key, and makes the value a secret of the run the moment it is read
 (`deps.addSecret`, set by `run()`), so the log replaces it like a flag or env key. `config set` reads through `CliIO.readSecret` (`readSecretFrom`: raw
 mode without echo on a terminal, the whole input from a pipe, at most 64 KiB either way),
@@ -105,7 +105,7 @@ The Bundestag publishes a **public** key on its
 personal key can be requested from `parlamentsdokumentation@bundestag.de`. For CI or
 local live testing, take the key from that page and pass it in via `DIP_API_KEY`.
 
-`obtain-key` (`src/client/obtain-key.ts`, exposed as `dip obtain-key` and
+`obtain-key` (`packages/client/src/obtain-key.ts`, exposed as `dip obtain-key` and
 `npm run obtain-key`) reads the published key and **verifies it against the live API
 before printing it**. Unlike the old `scripts/fetch-api-key.mjs`, this ships with
 the package.
@@ -161,7 +161,7 @@ itself and reports a final `url` on another origin fails the request with a
 the key as verification. The CLI warns on stderr (a `WARN` record of `dip.http`, once per run, before the first request;
 `obtain-key` only when it verifies) whenever the base URL is plain `http:` to a host
 other than the loopback interface, naming the API key or userinfo that goes with it
-(`cleartextProblem`, exported; `cleartextCredentialsProblem` is its deprecated alias). `test/conformance-p3-redirect-credentials.test.ts`
+(`cleartextProblem`, exported; `cleartextCredentialsProblem` is its deprecated alias). `apps/cli/test/conformance-p3-redirect-credentials.test.ts`
 is the shared check (two local origins, a fetch transport, the http→https hint and
 the verification rule). Only 301/302/303/307/308 with a parseable
 `Location` are followed, up to `maxRedirects` (5); anything else — another 3xx, a
@@ -171,9 +171,48 @@ redirects)` when the limit ended a loop.
 
 ## Architecture
 
+The repository is an **npm workspace** with two folders: `apps/` holds the programs it
+publishes, `packages/` the libraries they are built from.
+
 ```
-src/
-  client/
+package.json         # private workspace manifest: no version, never packed
+apps/cli/            # @maschinenlesbar.org/dip-bundestag-cli — the published package
+  package.json       # its version, bin, files, bundleDependencies
+  src/index.ts       # library entry: re-exports @maschinenlesbar.org/dip-bundestag-client
+  src/cli/           # the CLI (below)
+  test/              # CLI tests and every conformance-*.test.ts
+packages/client/     # @maschinenlesbar.org/dip-bundestag-client — private, bundled into the CLI
+  src/               # the API client (below)
+  test/              # tests that only touch the client, + the transport helpers
+tools/pack/          # prepack/postpack: bundle the client and commander into the tarball
+tools/bump.mjs       # version bump + commit + tag (npm run bump)
+tsconfig.docs.json   # TypeDoc only: the package entry, with the client read from its sources
+```
+
+- **The client is its own package** so a later MCP app can share it with the CLI. It is
+  never published on its own: `apps/cli`'s `prepack` copies it (and commander) into the
+  app's `node_modules`, and `bundleDependencies` ships it inside the tarball. The library
+  entry re-exports the client's `"."`, so `import { DipClient } from
+  "@maschinenlesbar.org/dip-bundestag-cli"` is unchanged.
+- **The client's exports:** `"."` is the public library surface (`src/index.ts`);
+  `"./internal/*"` maps to any module (`…/dip-bundestag-client/internal/engine`) for what
+  the CLI needs beyond that; `"./test/*"` reaches the client's test helpers from the CLI's
+  tests (not bundled). Only `"."` is part of the library.
+- **Dependencies point one way:** the app depends on the client, the client on nothing
+  in the workspace. `obtain-key` is split the same way: reading and verifying the key
+  (`obtainKey`) is the client's, the `dip obtain-key` command, `dip config` and the
+  credentials file are the CLI's.
+- **The version lives in `apps/cli/package.json`.** The root has none; a plain
+  `npm version` at the root is refused. Release with `npm run bump -- <patch|minor|major>`,
+  which bumps the app, commits (the bare version as the message) and tags `vX.Y.Z`.
+- **TypeScript:** `tsconfig.base.json` holds the compiler options; every workspace has a
+  `tsconfig.json` (`src/`) and a `tsconfig.test.json` (`test/`), and the root
+  `tsconfig.json`/`tsconfig.test.json` reference them, built with `tsc -b`.
+
+The client (`packages/client/src/`) and the CLI (`apps/cli/src/`):
+
+```
+packages/client/src/
     types.ts     # ListResult (cursor envelope); documents as JsonObject
     query.ts     # dependency-free query-string builder
     filters.ts   # LIST_FILTERS: the f.* filters each list endpoint accepts (OpenAPI 1.5)
@@ -182,7 +221,8 @@ src/
     engine.ts    # URL building, retry/backoff, redirects, default headers (auth), decoding, errors
     errors.ts    # DipError / DipApiError / DipNetworkError / DipParseError / DipUsageError / DipValidationError
     client.ts    # DipClient — one generic ResourceGroup per resource (injects Authorization)
-  cli/
+    index.ts     # the client's public surface (the library entry re-exports it)
+apps/cli/src/cli/
     io.ts        # injectable I/O seam (stdout/stderr/file), the logger and the clock
     log.ts       # the stderr log: records with ts, level, topic; --log-format text|jsonl
     shared.ts    # option parsers, global-option resolver (incl. --api-key), JSON renderer
@@ -221,7 +261,7 @@ The library owns every rule about what a request may contain; the CLI only turns
 argv strings into typed values and calls the same rules. The rules are pure,
 exported `…Problem(value)` functions (they return the reason a value is invalid,
 or `undefined`). The client enforces them before any request through
-`assertValid(name, value, problem)` (`src/client/validate.ts`), which throws
+`assertValid(name, value, problem)` (`packages/client/src/validate.ts`), which throws
 **`DipValidationError`** (`Invalid <name>: <reason>`); a client method rejects
 its promise, a constructor throws. `DipValidationError` extends `DipUsageError`,
 so `run.ts` maps it to exit 2 and logs it as an `ERROR` record of `dip.cli`. The CLI's commander
@@ -238,7 +278,7 @@ What the library rejects:
   non-string `apiKey`/`userAgent`/`baseUrl`/header value, `defaultHeaders` that are
   not an object, a `transport` or `sleep` that is not a function, and a `sourceUrl`
   for `obtainKey` that is not an absolute http(s) URL.
-  `test/conformance-p8-p9-p13-responses-and-errors.test.ts` is the shared check
+  `apps/cli/test/conformance-p8-p9-p13-responses-and-errors.test.ts` is the shared check
   (its bad calls use an offline transport, so a call that slipped through could never
   reach the live API). A server `detail` is cut at 500 characters in a message, never inside a surrogate
   pair (`cutText`), so the message stays well-formed; any other value an own message
@@ -314,7 +354,7 @@ What the library rejects:
   where `obtain-key` prints the key. The forms a server echoes a userinfo back in
   are replaced too: the `Basic` value and the decoded `user:password` on stdout and
   stderr, the password alone (4 characters or more) on stderr only, since it may
-  well occur in the data. `test/conformance-p1-cli-redaction.test.ts`
+  well occur in the data. `apps/cli/test/conformance-p1-cli-redaction.test.ts`
   is the shared check (ten passwords, seven URL shapes, every echo path, plus the
   key by flag, by environment and typed without its flag).
 - **Secrets in the library's objects and errors.** The engine keeps the base URL
@@ -326,22 +366,22 @@ What the library rejects:
   error bodies and details, from transport error text and from the `cause` chain
   (`scrub`/`scrubCause`). `obtainKey` names a source URL without its userinfo, in
   its errors and in `ObtainedKey.sourceUrl`.
-  `test/conformance-p2-library-redaction.test.ts` is the shared check.
+  `apps/cli/test/conformance-p2-library-redaction.test.ts` is the shared check.
 
 ### Library / technical terms
 
-**API client.** [`DipClient`](src/client/client.ts) — the typed,
+**API client.** [`DipClient`](packages/client/src/client.ts) — the typed,
 resource-grouped wrapper over the API. Usable as a library independently of the
 CLI. Each resource is a generic **ResourceGroup** with `.list(params)` and
 `.get(id)`.
 
 **ListResult.** The cursor-paginated list envelope returned by `list`:
-`{ numFound, documents, cursor? }` ([`types.ts`](src/client/types.ts)).
+`{ numFound, documents, cursor? }` ([`types.ts`](packages/client/src/types.ts)).
 
 **Document.** A single resource document, typed as a faithful raw `JsonObject`.
 
 **Transport.** A single function `(HttpRequest) => Promise<HttpResponse>`
-([`http.ts`](src/client/http.ts)). The default uses Node's built-in
+([`http.ts`](packages/client/src/http.ts)). The default uses Node's built-in
 `http`/`https`; tests inject a mock. This is the only HTTP seam.
 
 **Custom transports.** The engine holds the contract for every transport, not only
@@ -359,7 +399,7 @@ anywhere in the `cause` chain (`isTransientNetworkError`) is retried for a GET l
 503. A redirect to anything but an `http:`/`https:` URL is never handed to the
 transport; it surfaces as a `DipApiError` naming the target.
 
-**Request engine.** [`RequestEngine`](src/client/engine.ts) — builds URLs,
+**Request engine.** [`RequestEngine`](packages/client/src/engine.ts) — builds URLs,
 serialises queries, applies retry/backoff, follows redirects, decodes
 JSON/raw responses and maps errors. Sits between the client's resource methods
 and the transport. `obtainKey` uses one too: `getAbsolute(url)` reads the key
@@ -381,14 +421,14 @@ wait longer, never shorter: `Retry-After: 0` or a past date still waits the
 backoff, so retries never burst. One above `MAX_RETRY_AFTER_MS` (30 s) is not
 retried — retrying sooner would only land inside the window — and the
 `DipApiError` names the requested wait.
-`test/conformance-p6-retry-policy.test.ts` is the shared check (`OVER_CAP: "fail"`). `DipApiError`
+`apps/cli/test/conformance-p6-retry-policy.test.ts` is the shared check (`OVER_CAP: "fail"`). `DipApiError`
 exposes `isRetryable` (true for `429`/`503`).
 Each retry is announced: the engine option `onRetry(event: RetryEvent)` (exported type:
 `{ retry` (1-based), `maxRetries`, `delayMs`, `status?` (absent for a reset), `url` (userinfo
 redacted) `}`) is called once per retry right before the sleep, never when there is none, and
 a throw in it is swallowed. The CLI's `action()` sets it to log one `WARN` record of
 `dip.http`, `HTTP 503 from <host>: retry 1 of 3 in 2 s` (`retryMessage`; host only, whole
-seconds, ms under 1 s). Tests: `test/engine.test.ts`, `test/retry-log.test.ts`.
+seconds, ms under 1 s). Tests: `packages/client/test/engine.test.ts`, `apps/cli/test/retry-log.test.ts`.
 
 **Cross-origin credential stripping.** The engine attaches the credentials per
 hop and only to the base URL's origin; a redirect to a different scheme, host or
@@ -404,7 +444,7 @@ decoded. `getJson` (and `obtainKey` for its source documents) decode them by the
 charset the Content-Type names (`decodeBody`, UTF-8 when none; a BOM is dropped,
 an unknown label is a `DipParseError`).
 
-**Query builder.** [`buildQueryString`](src/client/query.ts) — a
+**Query builder.** [`buildQueryString`](packages/client/src/query.ts) — a
 dependency-free serialiser: omits `undefined`/`null`, repeats keys for arrays,
 renders booleans as `true`/`false`, `Date`s as full ISO-8601 UTC instants (right
 for `f.aktualisiert.*`; DIP rejects them for `f.datum.*`, so pass
@@ -412,7 +452,7 @@ for `f.aktualisiert.*`; DIP rejects them for `f.datum.*`, so pass
 `%20` (not `+`).
 
 **CliDeps / CliIO.** The dependency-injection seam for the CLI
-([`io.ts`](src/cli/io.ts)): a client factory plus an I/O object
+([`io.ts`](apps/cli/src/cli/io.ts)): a client factory plus an I/O object
 (`out`/`err`/`writeFile`/`outBinary`). Lets the whole CLI run in tests with a
 mocked client and captured output — no subprocess.
 
@@ -434,10 +474,10 @@ when a Node parent spawns the CLI with piped stdio on macOS): the process exits 
 once, quietly. Any other stdout write error is an ERROR record of `dip.output`
 (`Could not write to stdout: …`, in the format argv asks for: `processLogger`) and exits
 1. On stderr an EPIPE or ENOTCONN is ignored, so a failed run keeps its exit code (`2>&1 | true`
-no longer turns a usage error into 0). `test/conformance-p7-pipes-exit-codes.test.ts`
+no longer turns a usage error into 0). `apps/cli/test/conformance-p7-pipes-exit-codes.test.ts`
 runs the built bin to check both.
 
-**Error types.** [`errors.ts`](src/client/errors.ts): `DipApiError` (non-2xx,
+**Error types.** [`errors.ts`](packages/client/src/errors.ts): `DipApiError` (non-2xx,
 carries `status`/`detail`/`url`/`method`/`body`, with `isRetryable` for
 `429`/`503`), `DipNetworkError` (transport failure/timeout; never an invalid
 base URL, which is a `DipValidationError`), `DipParseError`
@@ -451,8 +491,13 @@ object is never printed with exit 0), `DipUsageError` (a usage error — no requ
 ## Testing
 
 ```bash
-npm test          # builds, then runs `node --test` over dist/test
+npm test          # builds, then runs `node --test` over each workspace's dist/test
+npm run coverage  # the same tests in one run, with a coverage report
+node --test apps/cli/dist/test/cli.test.js   # one file, after a build
 ```
+
+The client's tests are in `packages/client/test/` (`query`, `http`, `engine`, `client`),
+everything that drives the CLI is in `apps/cli/test/`.
 
 - **`query.test.ts`** — query-string serialisation.
 - **`http.test.ts`** — the default transport against a real loopback
@@ -465,7 +510,7 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`cli.test.ts`** — command parsing, `--api-key`/`--filter`/`--id`, and exit
   codes — mocked client.
 - **`validate.test.ts`** — `assertValid`, `DipValidationError` and its exit code.
-- **`log.test.ts`** — the record helpers of `src/cli/log.ts` on their own
+- **`log.test.ts`** — the record helpers of `apps/cli/src/cli/log.ts` on their own
   (`escapeForRecord`, `formatLogRecord`); the CLI-level checks are P23's.
 - **`conformance-p*.test.ts`** — the checks shared across the `*-cli` repos (only
   each file's adapter block differs): P1/P2 redaction, P3 redirect credentials,
@@ -476,7 +521,7 @@ npm test          # builds, then runs `node --test` over dist/test
   (`conformance-p21-readme-links.test.ts`: README ships to npmjs.com, so a relative
   link may only point at a file `package.json` `files` ships; the rest are absolute
   `https://github.com/maschinenlesbar-org/dip-bundestag-cli/blob/main/…` URLs).
-- **Parity tests** use `parity()` from `test/helpers.ts`: one input goes through
+- **Parity tests** use `parity()` from `apps/cli/test/helpers.ts`: one input goes through
   `run()` and through a library call on one recording mock transport, and the
   test asserts the same outcome (both reject with no request, or both send the
   identical request).
@@ -485,10 +530,13 @@ npm test          # builds, then runs `node --test` over dist/test
 
 GitHub Actions workflows under `.github/workflows/`:
 
-- **ci.yml** — type-check, build and test on Node 22/24 for every push and PR.
-- **release.yml** — on a `v*` tag: verify the tag matches `package.json`, test,
-  `npm pack`, and create a GitHub Release with the tarball.
-- **publish.yml** — manual dispatch from the release tag (`gh workflow run publish.yml --ref vX.Y.Z`; the version is the tag's): publish to npm via OIDC **Trusted
+- **ci.yml** — type-check, build and test on Node 22/24 for every push and PR; then pack the
+  real tarball, check the pack left nothing behind, install it globally with the registry out
+  of reach and run the bin.
+- **release.yml** — on a `v*` tag (made by `npm run bump`): verify the tag matches
+  `apps/cli/package.json`, test, write the SBOMs (scoped to the `apps/cli` workspace), then
+  `npm pack --workspace apps/cli`, and create a GitHub Release with the tarball.
+- **publish.yml** — manual dispatch from the release tag (`gh workflow run publish.yml --ref vX.Y.Z`; the version is the tag's): `npm publish --workspace apps/cli` via OIDC **Trusted
   Publishing** (no stored `NPM_TOKEN`) with provenance.
 - **docs.yml** — build the project website (`site/`, English and German) with the TypeDoc API docs
   under `/api/`, and deploy both to GitHub Pages on each `v*`
@@ -506,7 +554,9 @@ and [Fylgja](https://fylgja.dev/) CSS, and deployed by `docs.yml` together with 
 reference under `/api/`. Its content comes from this repository: the README intro and quick
 start, the command tree of the built CLI (`site/scripts/cli-reference.mjs`), `Usage.md`,
 `GLOSSARY.md` and its German version `GLOSSARY.de.md`, the skills, and the skill examples in
-`EXAMPLE.md` and `EXAMPLE.de.md`. The only repo-specific files are `site/_config.yml` and
+`EXAMPLE.md` and `EXAMPLE.de.md`. The only repo-specific files are `site/_config.yml` (which
+also says where the published manifest and the built program are: `manifest:
+apps/cli/package.json`, `program: apps/cli/dist/src/cli/program.js`) and
 `site/_data/project.yml` (the German intro and the access requirements); the rest of `site/` is
 identical in every maschinenlesbar.org CLI, so change it in all of them together. When the
 README intro changes, update the German intro in `site/_data/project.yml`.
@@ -525,7 +575,7 @@ code contributions; see **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
 ## The log on stderr
 
-Every diagnostic line on stderr is a log record (`src/cli/log.ts`): a timestamp, a level
+Every diagnostic line on stderr is a log record (`apps/cli/src/cli/log.ts`): a timestamp, a level
 (`ERROR`, `WARN`, `INFO`) and a topic, `dip.<area>`. `--log-format text` (the default)
 writes it log4j style, `<ISO 8601 UTC> <LEVEL padded to 5> [<topic>] <message>`;
 `--log-format jsonl` writes one JSON object per line with exactly `ts`, `level`, `topic`

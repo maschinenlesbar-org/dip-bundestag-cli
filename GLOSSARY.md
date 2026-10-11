@@ -199,7 +199,7 @@ the key is never leaked to a host other than the one you targeted. Same-origin
 redirects keep it, with an absolute `Location` too. A 401 after such a redirect is
 not about the key, and the error says so ("use an https base URL" for http→https).
 
-**Error types.** [`errors.ts`](src/client/errors.ts): `DipApiError` (non-2xx,
+**Error types.** [`errors.ts`](packages/client/src/errors.ts): `DipApiError` (non-2xx,
 carries `status`/`detail`/`url`/`method`/`body`, with `isRetryable` for 429/503),
 `DipNetworkError` (transport failure/timeout, never a bad base URL), `DipParseError` (bad JSON, or a 2xx body that is not a DIP list or document: `null`, `[]`, an error object),
 `DipUsageError` (a usage error, no request made) and its subclass

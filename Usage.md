@@ -13,7 +13,7 @@ npm i -g @maschinenlesbar.org/dip-bundestag-cli
 ```
 
 This installs the **`dip`** binary. Without a global install you can run the same
-commands via `node dist/src/cli/index.js …` after `npm run build`.
+commands via `node apps/cli/dist/src/cli/index.js …` after `npm run build`.
 
 ## Authentication
 

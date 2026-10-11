@@ -210,7 +210,7 @@ den angesteuerten gelangt. Weiterleitungen innerhalb desselben Origins behalten 
 auch mit absolutem `Location`. Ein 401 nach einer solchen Weiterleitung sagt nichts über
 den Schlüssel, und die Fehlermeldung sagt das („use an https base URL“ bei http→https).
 
-**Fehlertypen.** [`errors.ts`](src/client/errors.ts): `DipApiError` (Nicht-2xx-Antwort,
+**Fehlertypen.** [`errors.ts`](packages/client/src/errors.ts): `DipApiError` (Nicht-2xx-Antwort,
 enthält `status`/`detail`/`url`/`method`/`body` sowie `isRetryable` für 429/503),
 `DipNetworkError` (Transportfehler/Timeout, nie eine ungültige Basis-URL), `DipParseError` (ungültiges JSON, oder ein 2xx-Body, der keine DIP-Liste und kein DIP-Dokument ist: `null`, `[]`, ein Fehlerobjekt),
 `DipUsageError` (ein Bedienfehler, keine Anfrage gesendet) und dessen Unterklasse
