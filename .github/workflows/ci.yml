@@ -46,3 +46,23 @@ jobs:
       # first, so this also re-validates the build).
       - name: Test
         run: npm test
+
+      # The real tarball, installed the way a user installs it: globally, into a scratch
+      # prefix, with the registry out of reach — the app's prepack bundles the client and
+      # commander, so the tarball must be self-contained (a global install once left
+      # node_modules/commander empty in openka-cli, issue #1). The pack must also leave
+      # nothing behind: prepack's copies in the app's node_modules would shadow the
+      # workspace symlinks.
+      - name: Packed tarball installs globally
+        run: |
+          pack="$RUNNER_TEMP/pack"
+          mkdir -p "$pack"
+          npm pack --workspace apps/cli --pack-destination "$pack"
+          if [ -e apps/cli/node_modules ] || [ -e apps/cli/.prepack-generated.json ]; then
+            echo "::error::the pack left prepack's copies behind in apps/cli"
+            exit 1
+          fi
+          prefix="$RUNNER_TEMP/global"
+          npm install --global --offline --prefix "$prefix" "$pack"/*.tgz
+          bin="$(node -p "Object.keys(require('./apps/cli/package.json').bin)[0]")"
+          "$prefix/bin/$bin" --version

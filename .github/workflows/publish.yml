@@ -5,7 +5,8 @@ name: Publish
 #   gh workflow run publish.yml -R <owner>/<repo> --ref vX.Y.Z
 #
 # The version is the tag's (vX.Y.Z -> X.Y.Z); a run from a branch fails. Running
-# from the tag also means this file is the one the release was cut with.
+# from the tag also means this file is the one the release was cut with. The repository is
+# an npm workspace: the published package is apps/cli, which bundles packages/client.
 #
 # Authentication uses npm Trusted Publishing (OIDC): GitHub mints a short-lived
 # token for this run and npm verifies it against the trusted publisher
@@ -77,11 +78,11 @@ jobs:
             exit 1
           fi
 
-      - name: Verify package.json matches the tag
+      - name: Verify apps/cli/package.json matches the tag
         run: |
-          pkg="$(node -p "require('./package.json').version")"
+          pkg="$(node -p "require('./apps/cli/package.json').version")"
           if [ "$pkg" != "$VERSION" ]; then
-            echo "::error::package.json version ('$pkg') does not match the tag (v$VERSION)."
+            echo "::error::apps/cli/package.json version ('$pkg') does not match the tag (v$VERSION)."
             exit 1
           fi
 
@@ -91,8 +92,8 @@ jobs:
       - name: Test
         run: npm test
 
-      # The `prepack` hook (npm run build) produces dist/ before packing.
+      # The app's `prepack` hook builds and bundles packages/client and commander.
       # No NPM_TOKEN: OIDC provides the short-lived credential, and provenance
       # is generated from this workflow run.
       - name: Publish to npm
-        run: npm publish --provenance --access public
+        run: npm publish --workspace apps/cli --provenance --access public
