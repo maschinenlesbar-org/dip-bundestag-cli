@@ -1,0 +1,15 @@
+{
+  // For TypeDoc only (npm run docs): the published package's entry, with the workspace
+  // client read from its sources rather than from its built .d.ts, so the API reference
+  // documents exactly what the package exports and links to the source files.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "rootDir": ".",
+    "paths": {
+      "@maschinenlesbar.org/*-client": ["./packages/client/src/index.ts"]
+    }
+  },
+  "files": ["apps/cli/src/index.ts"]
+}

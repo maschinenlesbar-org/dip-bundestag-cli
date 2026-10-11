@@ -1,0 +1,32 @@
+{
+  "name": "@maschinenlesbar.org/dip-bundestag-client",
+  "version": "0.0.1",
+  "private": true,
+  "description": "The typed API client of dip-bundestag-cli. Not published on its own: bundled into @maschinenlesbar.org/dip-bundestag-cli, whose library entry re-exports it.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./internal/*": {
+      "types": "./dist/src/*.d.ts",
+      "import": "./dist/src/*.js"
+    },
+    "./test/*": {
+      "types": "./dist/test/*.d.ts",
+      "import": "./dist/test/*.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/src"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "test": "node --test $(node -p \"+process.versions.node.split('.')[0] >= 24 ? '--test-timeout=5000' : ''\") dist/test/*.test.js"
+  },
+  "license": "AGPL-3.0-or-later"
+}

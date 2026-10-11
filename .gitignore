@@ -7,3 +7,13 @@ dist-artifacts/
 
 # Local working plan (not part of the published project)
 plan.md
+
+# Copied into an app by tools/pack/prepack.mjs for the length of a pack, and removed again
+# by tools/pack/postpack.mjs (the bundled packages land in the app's node_modules/).
+apps/*/.prepack-generated.json
+apps/*/package-readme.parked.md
+apps/*/README.md
+apps/*/LICENSE
+apps/*/LICENSING.md
+apps/*/CONTRIBUTING.md
+apps/*/DATA_LICENSE.md
