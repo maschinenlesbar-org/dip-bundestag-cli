@@ -1,20 +1,35 @@
 // Writes _data/cli.json: the command tree of the built CLI, read from commander
-// itself (../dist/src/cli/program.js), so the website's command reference can't
-// drift from the code. Build the CLI first: `npm run build` in the repository root.
+// itself, so the website's command reference can't drift from the code. Build the
+// CLI first: `npm run build` in the repository root.
+//
+// Where the program and the published manifest live is a per-repo fact, so it comes
+// from _config.yml (`program:`, `manifest:`) and defaults to the single-package
+// layout (dist/src/cli/program.js, package.json). An npm workspace keeps both in the
+// app's folder (apps/cli/), and its root manifest is a private workspace file that
+// names no published package at all.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..');
-const programFile = join(root, 'dist', 'src', 'cli', 'program.js');
+
+/** A top-level `key: value` from _config.yml, without pulling in a YAML parser. */
+const config = (key, fallback) => {
+  const match = new RegExp(`^${key}:\\s*(\\S+)\\s*$`, 'm').exec(
+    readFileSync(join(here, '..', '_config.yml'), 'utf8'),
+  );
+  return match === null ? fallback : match[1];
+};
+
+const programFile = join(root, config('program', 'dist/src/cli/program.js'));
 if (!existsSync(programFile)) {
   console.error(`${programFile} not found: run "npm run build" in the repository root first.`);
   process.exit(1);
 }
 
 const { buildProgram } = await import(pathToFileURL(programFile).href);
-const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+const pkg = JSON.parse(readFileSync(join(root, config('manifest', 'package.json')), 'utf8'));
 
 const formatDefault = (option) => {
   if (option.defaultValueDescription) return option.defaultValueDescription;

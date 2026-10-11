@@ -37,7 +37,8 @@ module ProjectSite
       repository = site.config.fetch("repository")
       ref = ENV.fetch("SITE_REF", "main")
       blob = "https://github.com/#{repository}/blob/#{ref}"
-      package = JSON.parse(File.read(File.join(root, "package.json")))
+      manifest = site.config.fetch("manifest", "package.json")
+      package = JSON.parse(File.read(File.join(root, manifest)))
       readme = File.read(File.join(root, "README.md"))
       docs = DOCS.select { |_, file| File.exist?(File.join(root, file)) }
       baseurl = site.config.fetch("baseurl", "")

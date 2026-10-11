@@ -11,6 +11,12 @@ plugins_url: https://maschinenlesbar-org.github.io/plugins/
 # Read by _plugins/project.rb: the repository root with package.json, README.md, dist/ ...
 project_root: ..
 
+# Where the published manifest and the built CLI live, relative to project_root. Both
+# default to the single-package layout (package.json, dist/src/cli/program.js); this
+# repository is an npm workspace, so both are in the app's folder.
+manifest: apps/cli/package.json
+program: apps/cli/dist/src/cli/program.js
+
 # Every language gets the full site; strings live in _data/i18n/<lang>.yml.
 # The default language is served at the root, the others under /<lang>/.
 languages: [en, de]
