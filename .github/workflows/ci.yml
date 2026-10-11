@@ -58,7 +58,7 @@ jobs:
           pack="$RUNNER_TEMP/pack"
           mkdir -p "$pack"
           npm pack --workspace apps/cli --pack-destination "$pack"
-          if [ -e apps/cli/node_modules ] || [ -e apps/cli/.prepack-generated.json ]; then
+          if [ -e apps/cli/node_modules ] || [ -e apps/cli/dist/node_modules ] || [ -e apps/cli/.prepack-generated.json ]; then
             echo "::error::the pack left prepack's copies behind in apps/cli"
             exit 1
           fi

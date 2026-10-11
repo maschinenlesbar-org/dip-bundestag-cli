@@ -16,6 +16,7 @@
   },
   "files": [
     "dist/src",
+    "dist/node_modules",
     "!dist/src/**/*.map",
     "LICENSING.md",
     "CONTRIBUTING.md",
@@ -58,11 +59,9 @@
     "access": "public"
   },
   "dependencies": {
-    "@maschinenlesbar.org/dip-bundestag-client": "0.0.1",
     "commander": "15.0.0"
   },
   "bundleDependencies": [
-    "@maschinenlesbar.org/dip-bundestag-client",
     "commander"
   ]
 }

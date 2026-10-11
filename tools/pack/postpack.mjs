@@ -2,8 +2,9 @@
 // Runs as the app's `postpack`, in the app's folder. The same file is used by every
 // maschinenlesbar.org CLI repository.
 //
-// The copies in the app's `node_modules` would **shadow the workspace symlinks** for
-// anything running inside the app (tests resolve the bundled copy, not the source), and
+// The copies in the app's `node_modules` and `dist/node_modules` would **shadow the
+// workspace symlinks** for anything running inside the app (tests resolve the copy, not the
+// source), and
 // the copied documents would sit untracked next to the code. The app's own README.md,
 // parked while the repository README stood in for it, goes back in place. The README is
 // removed only when the record says prepack added it, never an app's own.

@@ -86,7 +86,8 @@ jobs:
       # Both are scoped to the apps/cli workspace (the dev one adds the root's
       # devDependencies, the build toolchain). The SBOM's main component is the private
       # workspace root, whose one dependency is the released package; that package
-      # depends on the client and commander it bundles.
+      # depends on commander (bundled). The workspace packages ship inside it as files
+      # (dist/node_modules), so they are part of the released package, not dependencies.
       #
       # Runs BEFORE `npm pack`: the pinned-but-transitively-unpinned cyclonedx tool
       # must not execute while a built .tgz already sits in dist-artifacts/, where a

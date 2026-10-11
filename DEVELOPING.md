@@ -177,21 +177,24 @@ publishes, `packages/` the libraries they are built from.
 ```
 package.json         # private workspace manifest: no version, never packed
 apps/cli/            # @maschinenlesbar.org/dip-bundestag-cli — the published package
-  package.json       # its version, bin, files, bundleDependencies
+  package.json       # its version, bin, files (no workspace package in dependencies)
   src/index.ts       # library entry: re-exports @maschinenlesbar.org/dip-bundestag-client
   src/cli/           # the CLI (below)
   test/              # CLI tests and every conformance-*.test.ts
-packages/client/     # @maschinenlesbar.org/dip-bundestag-client — private, bundled into the CLI
+packages/client/     # @maschinenlesbar.org/dip-bundestag-client — private, shipped inside the CLI's tarball
   src/               # the API client (below)
   test/              # tests that only touch the client, + the transport helpers
-tools/pack/          # prepack/postpack: bundle the client and commander into the tarball
+tools/pack/          # prepack/postpack: ship the client (dist/node_modules) and commander in the tarball
 tools/bump.mjs       # version bump + commit + tag (npm run bump)
 tsconfig.docs.json   # TypeDoc only: the package entry, with the client read from its sources
 ```
 
 - **The client is its own package** so a later MCP app can share it with the CLI. It is
-  never published on its own: `apps/cli`'s `prepack` copies it (and commander) into the
-  app's `node_modules`, and `bundleDependencies` ships it inside the tarball. The library
+  never published on its own: `apps/cli`'s `prepack` copies it into
+  `apps/cli/dist/node_modules/`, where the CLI's imports find it, and the tarball ships it
+  as plain files — so npm lists only commander (bundled) as a dependency, never the
+  private client. `apps/cli/package.json` therefore doesn't name the client; prepack finds
+  it through `apps/cli/tsconfig.json`'s project references. The library
   entry re-exports the client's `"."`, so `import { DipClient } from
   "@maschinenlesbar.org/dip-bundestag-cli"` is unchanged.
 - **The client's exports:** `"."` is the public library surface (`src/index.ts`);
