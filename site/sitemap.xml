@@ -1,0 +1,19 @@
+---
+# The sitemap of this website: every HTML page in every language, and the TypeDoc API
+# reference, which docs.yml mounts under /api/ after the Jekyll build. Crawlers find it
+# through robots.txt at the root of maschinenlesbar.org, which only the organisation
+# website can serve (maschinenlesbar-org/maschinenlesbar-org.github.io, _data/sites.yml).
+layout: null
+permalink: /sitemap.xml
+sitemap: false
+---
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+{%- assign pages = site.pages | sort: "url" %}
+{%- for p in pages %}
+{%- assign last = p.url | slice: -1 %}
+{%- if last != "/" or p.sitemap == false %}{% continue %}{% endif %}
+  <url><loc>{{ p.url | absolute_url | xml_escape }}</loc></url>
+{%- endfor %}
+  <url><loc>{{ "/api/" | absolute_url | xml_escape }}</loc></url>
+</urlset>

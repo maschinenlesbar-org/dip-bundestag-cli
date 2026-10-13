@@ -2,11 +2,11 @@
 # except this file and _data/project.yml; see "Website" in DEVELOPING.md.
 
 repository: maschinenlesbar-org/dip-bundestag-cli
-url: https://maschinenlesbar-org.github.io
+url: https://maschinenlesbar.org
 baseurl: /dip-bundestag-cli
 
-org_url: https://maschinenlesbar-org.github.io/
-plugins_url: https://maschinenlesbar-org.github.io/plugins/
+org_url: https://maschinenlesbar.org/
+plugins_url: https://maschinenlesbar.org/plugins/
 
 # Read by _plugins/project.rb: the repository root with package.json, README.md, dist/ ...
 project_root: ..

@@ -50,7 +50,7 @@
   "bugs": {
     "url": "https://github.com/maschinenlesbar-org/dip-bundestag-cli/issues"
   },
-  "homepage": "https://maschinenlesbar-org.github.io/dip-bundestag-cli/",
+  "homepage": "https://maschinenlesbar.org/dip-bundestag-cli/",
   "funding": {
     "type": "github",
     "url": "https://github.com/sponsors/sebs"

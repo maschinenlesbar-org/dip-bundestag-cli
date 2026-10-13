@@ -550,8 +550,8 @@ GitHub Actions workflows under `.github/workflows/`:
 
 ## Website
 
-The project website — <https://maschinenlesbar-org.github.io/dip-bundestag-cli/> in English and
-<https://maschinenlesbar-org.github.io/dip-bundestag-cli/de/> in German — is built from `site/`
+The project website — <https://maschinenlesbar.org/dip-bundestag-cli/> in English and
+<https://maschinenlesbar.org/dip-bundestag-cli/de/> in German — is built from `site/`
 with [Jekyll](https://jekyllrb.com/), [banira](https://sebs.github.io/banira/) web components
 and [Fylgja](https://fylgja.dev/) CSS, and deployed by `docs.yml` together with the TypeDoc API
 reference under `/api/`. Its content comes from this repository: the README intro and quick
@@ -563,6 +563,11 @@ apps/cli/package.json`, `program: apps/cli/dist/src/cli/program.js`) and
 `site/_data/project.yml` (the German intro and the access requirements); the rest of `site/` is
 identical in every maschinenlesbar.org CLI, so change it in all of them together. When the
 README intro changes, update the German intro in `site/_data/project.yml`.
+
+The build also writes `sitemap.xml`: every page in both languages, and `/api/`. Crawlers
+find it through `robots.txt` at the root of maschinenlesbar.org, which only the
+organisation website can serve; its `site/_data/sites.yml` lists every site's sitemap, so a
+new CLI gets a line there.
 
 ```bash
 npm run build                        # the CLI, for the command reference
