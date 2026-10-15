@@ -782,6 +782,17 @@ export class RequestEngine {
           await this.backOff(attempt, this.retryDelayMs * attempt, url);
           continue;
         }
+        // A reset names only itself ("socket hang up"): say which request it broke off and,
+        // like an exhausted 429/503 retry, how many retries ran. The original stays the
+        // cause, so isTransientNetworkError still recognises it.
+        if (hasTransientCode(cause)) {
+          const reason = cause instanceof Error && cause.message.trim() !== "" ? cause.message : "connection reset";
+          const retries = attempt === 0 ? "" : ` (after ${attempt} ${attempt === 1 ? "retry" : "retries"})`;
+          throw new DipNetworkError(
+            `${method} ${redactUrl(url)} failed: ${sanitizeServerText(this.scrub(reason))}${retries}`,
+            { cause: this.scrubCause(cause) },
+          );
+        }
         throw this.toNetworkError(method, url, cause);
       }
 

@@ -5,6 +5,7 @@ import {
   RequestEngine,
   baseUrlProblem,
   escapeRawControlCharsInStrings,
+  isTransientNetworkError,
   parseRetryAfter,
   validateBaseUrl,
 } from "../src/engine.js";
@@ -591,4 +592,30 @@ test("onRetry is never called without a retry", async () => {
 
 test("onRetry must be a function", () => {
   assert.throws(() => new RequestEngine({ onRetry: 5 as never }), DipValidationError);
+});
+
+test("a reset connection that outlasts the retries names the request and the retries", async () => {
+  // The default transport rejects a reset with a bare "socket hang up" (the Node error is its
+  // cause). Passed through as it was, the CLI's last record named neither the host nor the
+  // retries (exploratory 2026-10-15, bug 11).
+  const reset = () => new DipNetworkError("socket hang up", { cause: Object.assign(new Error("socket hang up"), { code: "ECONNRESET" }) });
+  for (const [maxRetries, suffix] of [[0, ""], [1, " (after 1 retry)"], [2, " (after 2 retries)"]] as const) {
+    let calls = 0;
+    const e = new RequestEngine({
+      baseUrl: "http://127.0.0.1:9",
+      transport: async () => {
+        calls += 1;
+        throw reset();
+      },
+      maxRetries,
+      sleep: async () => {},
+    });
+    await assert.rejects(e.getJson("/api/v1/vorgang/5"), (err) => {
+      assert.ok(err instanceof DipNetworkError);
+      assert.equal(err.message, `GET http://127.0.0.1:9/api/v1/vorgang/5 failed: socket hang up${suffix}`);
+      assert.ok(isTransientNetworkError(err), "still recognisable as a reset");
+      return true;
+    });
+    assert.equal(calls, maxRetries + 1);
+  }
 });

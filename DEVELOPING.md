@@ -424,7 +424,9 @@ A `Retry-After` (`parseRetryAfter`: delay-seconds or an IMF-fixdate) can make a
 wait longer, never shorter: `Retry-After: 0` or a past date still waits the
 backoff, so retries never burst. One above `MAX_RETRY_AFTER_MS` (30 s) is not
 retried — retrying sooner would only land inside the window — and the
-`DipApiError` names the requested wait.
+`DipApiError` names the requested wait. When a reset ends the request, the `DipNetworkError`
+names it and the retries spent (`GET <url> failed: socket hang up (after 2 retries)`), with
+the transport's error as its `cause`.
 `apps/cli/test/conformance-p6-retry-policy.test.ts` is the shared check (`OVER_CAP: "fail"`). `DipApiError`
 exposes `isRetryable` (true for `429`/`503`).
 Each retry is announced: the engine option `onRetry(event: RetryEvent)` (exported type:
