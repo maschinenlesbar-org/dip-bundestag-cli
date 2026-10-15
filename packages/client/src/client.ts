@@ -13,7 +13,7 @@
 //   client.drucksachen.get("123456")
 
 import { API_PATH, RequestEngine, type EngineOptions } from "./engine.js";
-import type { QueryParams } from "./query.js";
+import type { QueryParams, QueryPrimitive } from "./query.js";
 import type { ListResult, Document } from "./types.js";
 import {
   INTEGER_FILTERS,
@@ -46,6 +46,21 @@ const API = API_PATH;
 // Percent-encodes one path segment. It leaves "." and ".." unchanged; get()
 // rejects those ids first (idProblem), and RequestEngine.buildUrl is a backstop.
 const enc = encodeURIComponent;
+
+/**
+ * The query as DIP matches it, on a copy: every text value of a filter in composed Unicode
+ * (NFC) — DIP matches composed text only, so a decomposed "Bürgergeld" (u + U+0308, as pasted
+ * from a macOS file name) found nothing. The cursor is opaque and sent as given.
+ */
+function normaliseFilterValues(params: QueryParams): QueryParams {
+  const one = (value: QueryPrimitive): QueryPrimitive => (typeof value === "string" ? value.normalize("NFC") : value);
+  // No prototype: with allowUnknownFilters a key such as `__proto__` stays a key.
+  const out = Object.create(null) as QueryParams;
+  for (const [key, value] of Object.entries(params)) {
+    out[key] = key === "cursor" ? value : Array.isArray(value) ? value.map(one) : one(value);
+  }
+  return out;
+}
 
 /** Options for the DIP client (engine options plus the API key). */
 export interface DipClientOptions extends EngineOptions {
@@ -119,7 +134,7 @@ class ResourceGroup {
       }
     }
     const path = `${API}/${this.path}`;
-    return expectShape<ListResult>(await this.e.getJson(path, params), listResultProblem, path);
+    return expectShape<ListResult>(await this.e.getJson(path, normaliseFilterValues(params)), listResultProblem, path);
   }
 
   /**

@@ -205,7 +205,8 @@ New to terms like *Vorgang*, *Drucksache*, *Wahlperiode* or *Vorgangstyp*? The
 | `--id <id>` | Filter by id, a whole number — repeatable; maps to `f.id` |
 | `--filter <key=value>` | DIP filter, e.g. `f.titel=Klima` — repeatable; the key must be one of the resource's `f.*` filters |
 
-`--filter` passes the key and value verbatim to DIP. The key must be one of the
+`--filter` passes the key and value to DIP as given, the value in composed Unicode (NFC), the
+only form DIP matches (a `Bürgergeld` pasted with a combining umlaut found nothing). The key must be one of the
 `f.*` filters DIP documents for that resource (the error lists them): DIP ignores
 a key it does not know and answers with the whole unfiltered list, so a typo such
 as `f.titl`, or `f.person` on `vorgang`, is a usage error (exit `2`) instead. Only the first `=` splits

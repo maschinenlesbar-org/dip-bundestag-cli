@@ -93,3 +93,17 @@ test("an apiKey an HTTP header cannot carry is a DipValidationError at construct
     );
   }
 });
+
+test("a filter value in decomposed Unicode is sent composed (NFC); the cursor is left alone", async () => {
+  // DIP matches composed text only: f.titel=Bürgergeld with U+0308 counted 0 where the composed
+  // form counted 139, f.person=Müller 0 where it counted 60 (exploratory 2026-10-15, bug 8).
+  const mt = makeMockTransport(() => jsonResponse({ numFound: 0, documents: [], cursor: "*" }));
+  const client = clientWith(mt, "k");
+  await client.vorgaenge.list({ "f.titel": ["Bürgergeld", "Klima"], "f.wahlperiode": 20, cursor: "Aöx" });
+  const query = new URL(mt.calls[0]!.url).searchParams;
+  assert.deepEqual(query.getAll("f.titel"), ["Bürgergeld", "Klima"]);
+  assert.equal(query.get("f.wahlperiode"), "20");
+  assert.equal(query.get("cursor"), "Aöx", "a cursor is opaque and sent as given");
+  await client.personen.list({ "f.person": "Müller" });
+  assert.equal(new URL(mt.calls[1]!.url).searchParams.get("f.person"), "Müller");
+});

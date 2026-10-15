@@ -112,7 +112,8 @@ liefert die ganze ungefilterte Liste, daher lehnen `list()` der Bibliothek und d
 einen Schlüssel ab, der nicht zur Menge der Ressource gehört (die CLI mit Exit 2);
 `list(params, { allowUnknownFilters: true })` sendet ihn trotzdem, für einen später vom
 DIP ergänzten Filter. Die übrigen reicht sie über `--filter key=value`
-(mehrfach angebbar) unverändert weiter; nur das erste `=` trennt Schlüssel und Wert, ein Wert darf also
+(mehrfach angebbar) weiter, jeden Textwert in zusammengesetztem Unicode (NFC), der einzigen Form,
+die das DIP findet (ein mit kombinierendem Trema kopiertes `Bürgergeld` fand nichts); nur das erste `=` trennt Schlüssel und Wert, ein Wert darf also
 selbst `=` enthalten. Wird derselbe Schlüssel wiederholt, werden wiederholte
 Query-Schlüssel gesendet (`?f.id=1&f.id=2`), die das DIP als ODER-Menge behandelt.
 Ein leerer Filterwert, eine leere `--id` oder ein leerer `--cursor` wird ebenfalls
