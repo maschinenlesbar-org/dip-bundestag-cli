@@ -318,3 +318,29 @@ export function action(
     await fn({ client, global, opts: command.opts() }, positionals);
   };
 }
+
+/** The options that may be given more than once: each adds a filter (DIP's OR set, f.id). */
+const REPEATABLE_OPTIONS: ReadonlySet<string> = new Set(["--filter", "--id"]);
+
+/**
+ * Make giving a single-value option twice a usage error, on `command` and every subcommand.
+ * Commander keeps the last value silently: `--api-key A --api-key B` sent B, and
+ * `--base-url a --base-url b` asked b, with nothing telling the user a value was dropped.
+ * Flags without a value and the repeatable `--filter`/`--id` are left alone. Call it once on a
+ * freshly built program: the check counts per Option object.
+ */
+export function forbidRepeatedOptions(command: Command): void {
+  for (const option of command.options) {
+    if ((!option.required && !option.optional) || option.variadic) continue;
+    if (option.long !== undefined && REPEATABLE_OPTIONS.has(option.long)) continue;
+    const parse = option.parseArg;
+    let given = false;
+    const guarded = (value: string, previous: unknown): unknown => {
+      if (given) throw new InvalidArgumentError(`${option.long ?? option.short} may be given only once.`);
+      given = true;
+      return parse === undefined ? value : parse(value, previous);
+    };
+    option.parseArg = guarded as typeof option.parseArg;
+  }
+  for (const child of command.commands) forbidRepeatedOptions(child);
+}

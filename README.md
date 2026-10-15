@@ -363,7 +363,9 @@ deliberately. A directory is refused either way, and `-o -` prints to stdout.
 ## Global options
 
 These may be given **before or after** the command, e.g.
-`dip --api-key $DIP_API_KEY vorgang list`:
+`dip --api-key $DIP_API_KEY vorgang list`. Each takes one value: giving one twice
+(`--api-key A --api-key B`, `--base-url a --base-url b`) is a usage error (exit `2`), never "the
+last one wins"; only `--filter` and `--id` of `list` repeat (an OR set).
 
 | Option | Description |
 | --- | --- |

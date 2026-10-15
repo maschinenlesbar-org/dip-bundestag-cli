@@ -261,6 +261,11 @@ apps/cli/src/cli/
 
 ### Library input validation
 
+`apps/cli/test/conformance-p10-strict-filters.test.ts` is the shared check that a filter DIP
+would ignore never goes out (unknown, misspelled or `__proto__` keys, blank or non-integer
+values, keys spelled differently), that a repeated `--filter` is combined (DIP's OR set), and that
+a repeated single-value option is a usage error (`forbidRepeatedOptions`, in `apps/cli`).
+
 The library owns every rule about what a request may contain; the CLI only turns
 argv strings into typed values and calls the same rules. The rules are pure,
 exported `…Problem(value)` functions (they return the reason a value is invalid,

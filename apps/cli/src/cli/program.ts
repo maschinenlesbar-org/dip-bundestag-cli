@@ -11,6 +11,7 @@ import { DipClient } from "@maschinenlesbar.org/dip-bundestag-client/internal/cl
 import { MAX_TIMEOUT_MS } from "@maschinenlesbar.org/dip-bundestag-client/internal/http";
 import { MAX_RETRIES } from "@maschinenlesbar.org/dip-bundestag-client/internal/engine";
 import {
+  forbidRepeatedOptions,
   parseApiKey,
   parseBaseUrl,
   parseBoundedInt,
@@ -134,6 +135,7 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
   registerObtainKeyCommands(program, deps);
   registerConfigCommands(program, deps);
   registerResourceCommands(program, deps);
+  forbidRepeatedOptions(program);
 
   return program;
 }
