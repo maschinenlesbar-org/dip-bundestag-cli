@@ -52,17 +52,24 @@ export function registerObtainKeyCommands(program: Command, deps: CliDeps): void
         ...(deps.transport !== undefined ? { transport: deps.transport } : {}),
         verify: opts["verify"] !== false,
       });
-      logOf(deps).info(
-        "obtain-key",
-        verified
-          ? baseUrl === DEFAULT_BASE_URL
+      const log = logOf(deps);
+      if (verified) {
+        log.info(
+          "obtain-key",
+          baseUrl === DEFAULT_BASE_URL
             ? `Obtained the key from ${sourceUrl} and verified it against the live API.`
             : `Obtained the key from ${sourceUrl} and verified it against ${redactUrl(baseUrl)} ` +
-              `(--base-url), not against the live DIP API.`
-          : `Obtained the key from ${sourceUrl} WITHOUT verifying it. DIP rotates its ` +
-              `published key; if DIP answers 401, get the current one from ` +
-              `${HELP_PAGE_URL} or request a personal key from ${KEY_CONTACT}.`,
-      );
+              `(--base-url), not against the live DIP API.`,
+        );
+      } else {
+        // A WARN, not an INFO: a log filter on WARN and up must see that the key was never checked.
+        log.warn(
+          "obtain-key",
+          `Obtained the key from ${sourceUrl} WITHOUT verifying it. DIP rotates its ` +
+            `published key; if DIP answers 401, get the current one from ` +
+            `${HELP_PAGE_URL} or request a personal key from ${KEY_CONTACT}.`,
+        );
+      }
       deps.io.out(opts["export"] ? `export ${API_KEY_ENV_VAR}=${shellQuoteSingle(key)}` : key);
     });
 }

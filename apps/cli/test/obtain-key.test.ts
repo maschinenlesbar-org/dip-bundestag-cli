@@ -190,7 +190,9 @@ test("--no-verify prints the candidate but warns loudly on stderr", async () => 
   const code = await run(["obtain-key", "--no-verify"], cli.deps);
   assert.equal(code, 0);
   assert.deepEqual(cli.out, [KEY]);
-  assert.match(cli.err.join("\n"), /WITHOUT verifying/);
+  // A WARN record, not INFO: a log filter on WARN and up must see that the key was never
+  // checked (exploratory 2026-10-15, bug 5).
+  assert.match(untimed(cli.err.join("\n")), /^WARN  \[dip\.obtain-key\] Obtained the key from .* WITHOUT verifying/m);
 });
 
 // The verification request carries the candidate key, so a non-http(s) base URL
@@ -314,7 +316,8 @@ test("obtain-key warns when it would verify the key over plain http, not with --
   assert.deepEqual(cli.out, [KEY]);
   const unverified = makeCli(responder([KEY]));
   assert.equal(await run(["--base-url", "http://mirror.test", "obtain-key", "--no-verify"], unverified.deps), 0);
-  assert.deepEqual(unverified.err.map(untimed).filter((l) => l.startsWith("WARN ")), []);
+  // No cleartext warning (the --no-verify note itself is a WARN of dip.obtain-key).
+  assert.deepEqual(unverified.err.map(untimed).filter((l) => l.startsWith("WARN  [dip.http]")), []);
 });
 
 test("obtain-key refuses -o instead of silently printing the key to the terminal", async () => {

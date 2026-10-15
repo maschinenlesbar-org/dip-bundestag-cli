@@ -137,7 +137,8 @@ included. Only a 401 from the origin that received the key rejects it; any other
 status (a 403 from a WAF included), an answer from another origin, or a 2xx that is
 not a DIP list is treated as *the API being unwell*, not as a bad key, and aborts
 instead of walking the rest. `--no-verify` prints the first candidate unchecked with
-a loud warning. When a source redirects, `sourceUrl` (and the CLI's note) names the
+a loud warning (the CLI logs it as a `WARN` record of `dip.obtain-key`; a verified key is an
+`INFO`). When a source redirects, `sourceUrl` (and the CLI's note) names the
 document the key was actually read from.
 
 Do **not** read the portal's own `https://dip.bundestag.de/dip-config.js`

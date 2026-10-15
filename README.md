@@ -153,7 +153,7 @@ export DIP_API_KEY=your-key
 ```
 
 `--no-verify` skips the live check and prints the published candidate with a loud
-warning — useful offline, but expect a `401` if the source has drifted.
+warning (a `WARN` record of `dip.obtain-key`) — useful offline, but expect a `401` if the source has drifted.
 
 ## Quickstart
 
