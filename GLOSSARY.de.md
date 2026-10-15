@@ -125,7 +125,9 @@ OpenAPI-Beschreibung des DIP alle ganzzahlig) nehmen eine nicht negative ganze Z
 der Kommandozeile nur Ziffern (auch `--id`), in der Bibliothek eine Ziffernfolge oder eine
 Zahl; alles andere lehnt die CLI mit Exit 2 und `list()` mit `DipValidationError` ab
 (`integerFilterProblem`), denn das DIP beantwortet `f.wahlperiode=abc` mit einem
-irreführenden `400 … Invalid cursor`.
+irreführenden `400 … Invalid cursor`. Führende Nullen werden vor dem Senden entfernt
+(`f.id=0282486` geht als `282486` hinaus): Das DIP vergleicht Kennungen als Text und fand für
+die aufgefüllte Form nichts.
 
 **cursor.** Die Listen-Endpoints des DIP sind **cursorbasiert paginiert**. Eine
 Listenantwort enthält einen `cursor`; geben Sie ihn über `--cursor` (CLI) oder

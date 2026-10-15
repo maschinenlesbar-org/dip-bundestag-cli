@@ -50,13 +50,18 @@ const enc = encodeURIComponent;
 /**
  * The query as DIP matches it, on a copy: every text value of a filter in composed Unicode
  * (NFC) — DIP matches composed text only, so a decomposed "Bürgergeld" (u + U+0308, as pasted
- * from a macOS file name) found nothing. The cursor is opaque and sent as given.
+ * from a macOS file name) found nothing — and every integer filter (`INTEGER_FILTERS`) without
+ * leading zeros: DIP compares ids as text, so `f.id=0282486` found nothing where 282486 found
+ * the procedure. The cursor is opaque and sent as given.
  */
 function normaliseFilterValues(params: QueryParams): QueryParams {
-  const one = (value: QueryPrimitive): QueryPrimitive => (typeof value === "string" ? value.normalize("NFC") : value);
+  const text = (value: QueryPrimitive): QueryPrimitive => (typeof value === "string" ? value.normalize("NFC") : value);
+  const integer = (value: QueryPrimitive): QueryPrimitive =>
+    typeof value === "string" && /^\d+$/.test(value) ? value.replace(/^0+(?=\d)/, "") : value;
   // No prototype: with allowUnknownFilters a key such as `__proto__` stays a key.
   const out = Object.create(null) as QueryParams;
   for (const [key, value] of Object.entries(params)) {
+    const one = INTEGER_FILTERS.includes(key) ? integer : text;
     out[key] = key === "cursor" ? value : Array.isArray(value) ? value.map(one) : one(value);
   }
   return out;

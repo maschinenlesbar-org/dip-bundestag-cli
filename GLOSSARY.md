@@ -123,7 +123,8 @@ integers in DIP's OpenAPI description) take a non-negative whole number — plai
 on the command line (`--id` too), a string of digits or a number in the library; the
 CLI rejects anything else with exit 2 and `list()` with `DipValidationError`
 (`integerFilterProblem`), since DIP answers `f.wahlperiode=abc` with a misleading
-`400 … Invalid cursor`.
+`400 … Invalid cursor`. Leading zeros are dropped before sending (`f.id=0282486` goes out
+as `282486`): DIP compares ids as text and found nothing for the padded form.
 
 **cursor.** DIP list endpoints are **cursor-paginated**. A list response carries
 a `cursor`; pass it back via `--cursor` (CLI) or `{ cursor }` (library) to fetch

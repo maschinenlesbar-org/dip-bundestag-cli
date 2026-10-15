@@ -107,3 +107,17 @@ test("a filter value in decomposed Unicode is sent composed (NFC); the cursor is
   await client.personen.list({ "f.person": "Müller" });
   assert.equal(new URL(mt.calls[1]!.url).searchParams.get("f.person"), "Müller");
 });
+
+test("an integer filter loses its leading zeros: DIP compares ids as text (bug 9, 2026-10-15)", async () => {
+  // `--id 0282486` and `f.vorgang=0282486` passed the digits check and found nothing, exit 0,
+  // where 282486 found the procedure.
+  const mt = makeMockTransport(() => jsonResponse({ numFound: 0, documents: [], cursor: "*" }));
+  const client = clientWith(mt, "k");
+  await client.vorgaenge.list({ "f.id": ["0282486", "000", "0", 7], "f.wahlperiode": "020", "f.titel": "007" });
+  const query = new URL(mt.calls[0]!.url).searchParams;
+  assert.deepEqual(query.getAll("f.id"), ["282486", "0", "0", "7"]);
+  assert.equal(query.get("f.wahlperiode"), "20");
+  assert.equal(query.get("f.titel"), "007", "a text filter keeps its digits as typed");
+  await client.vorgangspositionen.list({ "f.vorgang": "0282486" });
+  assert.equal(new URL(mt.calls[1]!.url).searchParams.get("f.vorgang"), "282486");
+});

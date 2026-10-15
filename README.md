@@ -215,7 +215,8 @@ repeated query parameters, which DIP treats as an OR set. `--id` and
 `--filter f.id=…` are merged (neither silently wins). The integer filters — `f.id`, `f.wahlperiode`, `f.vorgang`, `f.drucksache`, `f.plenarprotokoll`, `f.aktivitaet`, `f.person_id`, `f.vorgangsposition_id` and `f.vorgangstyp_notation` —
 take a non-negative whole number in plain digits; anything else (`abc`, `1e3`, `-1`,
 a value with spaces) is a usage error (exit `2`), because DIP answers it with a misleading
-`400 … Invalid cursor` or with 0 hits.
+`400 … Invalid cursor` or with 0 hits. Leading zeros are dropped (`--id 0282486` asks for 282486;
+DIP compares ids as text and found nothing for the padded form).
 
 ### Common DIP filters
 
