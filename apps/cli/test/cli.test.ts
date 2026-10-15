@@ -631,3 +631,25 @@ test("a key with whitespace inside is a usage error from the flag and from DIP_A
     assert.doesNotMatch(err.join("\n"), /tabtab|spacespace/);
   }
 });
+
+test("a key typed as a --filter value is masked in the usage error, as as --id (bug 3, 2026-10-15)", async () => {
+  const key = "LeakKey.leakleakleakleakleakleakleakleakle";
+  for (const argv of [
+    ["vorgang", "list", "--filter", `f.nope=${key}`],
+    ["vorgang", "list", "--filter", `f.wahlperiode=${key}`],
+    ["vorgang", "list", `--filter=f.nope=${key}`],
+    ["vorgang", "list", "--filter", `=${key}`],
+    ["vorgang", "list", "--id", key],
+  ]) {
+    const err: string[] = [];
+    const deps: CliDeps = {
+      io: { out: () => assert.fail("nothing on stdout"), err: (t) => err.push(t), writeFile: () => assert.fail("no file"), outBinary: () => assert.fail("no binary") },
+      env: {},
+      createClient: () => assert.fail("no client"),
+    };
+    assert.equal(await run(argv, deps), 2, argv.join(" "));
+    const text = err.join("\n");
+    assert.doesNotMatch(text, /leakleak/, argv.join(" "));
+    assert.match(text, /\*\*\*/, argv.join(" "));
+  }
+});

@@ -355,7 +355,8 @@ What the library rejects:
   that starts with a scheme counts (a bare `a:b@c` is a file name, a search text or a
   User-Agent as often as a credential), except as the `--base-url` value; the
   `--api-key` value, the `DIP_API_KEY` value and any argument shaped like a DIP
-  key (`looksLikeApiKey`) become `***` on stderr (`redactSecrets`). Not on stdout,
+  key (`looksLikeApiKey`), or whose value after the first `=` is (`--filter f.titel=<key>`),
+  become `***` on stderr (`redactSecrets`). Not on stdout,
   where `obtain-key` prints the key. The forms a server echoes a userinfo back in
   are replaced too: the `Basic` value and the decoded `user:password` on stdout and
   stderr, the password alone (4 characters or more) on stderr only, since it may

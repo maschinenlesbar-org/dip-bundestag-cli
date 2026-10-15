@@ -143,7 +143,8 @@ export interface Redaction {
  *   variable (as `credentialsIn` finds it, parseable or not) becomes `***@`, on stdout
  *   and stderr;
  * - the value of `--api-key` (both forms), the `DIP_API_KEY` value and any argument
- *   shaped like a DIP key (`looksLikeApiKey`: a key typed without `--api-key`)
+ *   shaped like a DIP key, or whose value after the first `=` is (`looksLikeApiKey`: a key
+ *   typed without `--api-key`, also as `--filter f.titel=<key>`)
  *   become `***` on stderr. Not on stdout: `obtain-key` prints the key there, and it
  *   may well be the one already in `DIP_API_KEY`.
  *
@@ -188,7 +189,12 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
   addKey(envKey);
   for (const password of passwords) addKey(password);
   for (const value of flagValues(argv, SECRET_FLAGS)) addKey(value);
-  for (const value of values) if (looksLikeApiKey(value)) addKey(value);
+  for (const value of values) {
+    if (looksLikeApiKey(value)) addKey(value);
+    // A key typed as a `key=value` argument (`--filter f.titel=<key>`) is echoed with its key.
+    const eq = value.indexOf("=");
+    if (eq >= 0 && looksLikeApiKey(value.slice(eq + 1))) addKey(value.slice(eq + 1));
+  }
   const urlList = [...userinfo];
   // Longest first, so a key is never left half-replaced by one of its own substrings.
   const sortedKeys = (): string[] => [...keys].sort((a, b) => b.length - a.length);
