@@ -611,3 +611,23 @@ test("a number beyond what JSON.parse carries exactly exits 1, not a rounded val
     "ERROR [dip.api] Unexpected response from /api/v1/vorgang: the number 12345678901234567890 cannot be represented exactly.",
   );
 });
+
+test("a key with whitespace inside is a usage error from the flag and from DIP_API_KEY (bug 1, 2026-10-15)", async () => {
+  const key = "TabKeyA\t.tabtabtabtabtabtabtabtabtabtabtab";
+  for (const [argv, env] of [
+    [["--api-key", key, "vorgang", "get", "1"], {}],
+    [["vorgang", "get", "1"], { DIP_API_KEY: key }],
+    [["--api-key", "Inner Key.spacespacespacespacespacespacespa", "vorgang", "get", "1"], {}],
+  ] as const) {
+    const mt = makeMockTransport(() => jsonResponse({ id: "1" }));
+    const err: string[] = [];
+    const deps: CliDeps = {
+      io: { out: () => assert.fail("nothing on stdout"), err: (t) => err.push(t), writeFile: () => assert.fail("no file"), outBinary: () => assert.fail("no binary") },
+      env: { ...env },
+      createClient: (options) => new DipClient({ ...options, transport: mt.transport }),
+    };
+    assert.equal(await run([...argv], deps), 2, JSON.stringify(argv));
+    assert.equal(mt.calls.length, 0, "nothing is sent");
+    assert.doesNotMatch(err.join("\n"), /tabtab|spacespace/);
+  }
+});

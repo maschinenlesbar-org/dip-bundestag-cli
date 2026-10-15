@@ -160,11 +160,17 @@ class ResourceGroup {
 
 /**
  * Why an API key cannot be sent, or `undefined`: after trimming, a key with a
- * control character (other than tab) or a character above U+00FF cannot be an
- * HTTP header. A blank key is not a problem; it means "no key".
+ * control character or a character above U+00FF cannot be an HTTP header, and a key
+ * is one token — whitespace inside (a tab or space from a paste) went out as part of
+ * the header and ended in a 401, where the credentials file refused the same value.
+ * A blank key is not a problem; it means "no key".
  */
-export const apiKeyProblem: Problem<string> = (value) =>
-  typeof value !== "string" ? "Expected a string." : isBlank(value) ? undefined : headerValueProblem(value.trim());
+export const apiKeyProblem: Problem<string> = (value) => {
+  if (typeof value !== "string") return "Expected a string.";
+  if (isBlank(value)) return undefined;
+  const key = value.trim();
+  return headerValueProblem(key) ?? (/\s/.test(key) ? "The key holds whitespace inside; a key is one token." : undefined);
+};
 
 /**
  * The key the client sends: trimmed, a blank one counts as none (`undefined`).

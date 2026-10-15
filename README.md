@@ -369,7 +369,7 @@ These may be given **before or after** the command, e.g.
 | --- | --- |
 | `-V, --version` | Print the version number |
 | `-h, --help` | Show help for the program or a command |
-| `--api-key <key>` | DIP API key (env `DIP_API_KEY`). Surrounding whitespace is trimmed, as for `DIP_API_KEY`. A blank value, control characters or characters above U+00FF are a usage error (exit `2`), from the flag or the env var; the error never repeats the key |
+| `--api-key <key>` | DIP API key (env `DIP_API_KEY`). Surrounding whitespace is trimmed, as for `DIP_API_KEY`. A blank value, control characters, whitespace inside (a key is one token) or characters above U+00FF are a usage error (exit `2`), from the flag or the env var; the error never repeats the key |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
 | `--log-format <format>` | How errors, warnings and notes are written to stderr: `text` (default; log4j style, `2026-10-09T14:03:12.481Z WARN  [dip.http] …`) or `jsonl` (one JSON object per line: `ts`, `level`, `topic`, `msg`). stdout is not affected |
 | `-o, --output <file>` | Write output to this file instead of stdout (refuses to overwrite an existing file; `-` = stdout; a blank path is a usage error, exit `2`) |

@@ -338,7 +338,8 @@ What the library rejects:
   `baseUrlProblem`, so `--base-url` and `baseUrl` give the same reason.
 - **API key** (`normaliseApiKey`/`apiKeyProblem`, in the `DipClient`
   constructor): the key is trimmed and a blank one means no key; a key with a
-  control character (other than tab) or a character above U+00FF is rejected.
+  control character, a character above U+00FF or whitespace inside (a tab or space from a
+  paste: a key is one token, as the credentials file already required) is rejected.
   The CLI's `--api-key` parser (after its own blank-flag check) and the
   `DIP_API_KEY` path end up in the same function, so all three send the same
   header or fail the same way (exit 2).

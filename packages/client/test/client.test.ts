@@ -121,3 +121,17 @@ test("an integer filter loses its leading zeros: DIP compares ids as text (bug 9
   await client.vorgangspositionen.list({ "f.vorgang": "0282486" });
   assert.equal(new URL(mt.calls[1]!.url).searchParams.get("f.vorgang"), "282486");
 });
+
+test("an API key with whitespace inside is refused, like the credentials file refuses it (bug 1, 2026-10-15)", () => {
+  // A tab or space inside a pasted key went out as `ApiKey Tab\t.key…` and ended in a 401.
+  for (const key of ["TabKeyA\t.tabtabtabtabtabtabtabtabtabtabtab", "Inner Key.spacespacespacespacespacespacespa", "a b"]) {
+    assert.throws(() => new DipClient({ apiKey: key }), (err) => {
+      assert.ok(err instanceof DipValidationError, JSON.stringify(key));
+      assert.doesNotMatch(err.message, /tabtab|spacespace/, "the key is never repeated");
+      return true;
+    });
+  }
+  // Surrounding whitespace is still trimmed, and a blank key still means none.
+  assert.doesNotThrow(() => new DipClient({ apiKey: "  Trimmed.trimtrimtrimtrimtrimtrimtrimtrimtr \t" }));
+  assert.doesNotThrow(() => new DipClient({ apiKey: "   " }));
+});
