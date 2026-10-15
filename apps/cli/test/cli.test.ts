@@ -5,7 +5,7 @@ import { readEnvApiKey } from "../src/cli/program.js";
 import { DipClient } from "@maschinenlesbar.org/dip-bundestag-client/internal/client";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "@maschinenlesbar.org/dip-bundestag-client/internal/http";
-import { makeMockTransport, jsonResponse, untimed } from "./helpers.js";
+import { makeMockTransport, jsonResponse, rawResponse, untimed } from "./helpers.js";
 import { DipError, DipNetworkError, credentialsIn } from "@maschinenlesbar.org/dip-bundestag-client/internal/errors";
 import { cleartextCredentialsProblem, cleartextProblem } from "../src/index.js";
 
@@ -594,4 +594,20 @@ test("an a:b@c argument (here a User-Agent) is neither a credential in the log n
   assert.match(cli.out.join("\n"), /"titel": "run:2026-10-09@x"/);
   assert.deepEqual(credentialsIn("run:2026-10-09@x"), []);
   assert.deepEqual(credentialsIn("https://alice:pw@host"), ["alice:pw"]);
+});
+
+test("a number beyond what JSON.parse carries exactly exits 1, not a rounded value on stdout (bug 10, 2026-10-15)", async () => {
+  const mt = makeMockTransport(() => rawResponse('{"numFound":12345678901234567890,"documents":[],"cursor":"*"}', "application/json"));
+  const out: string[] = [];
+  const err: string[] = [];
+  const deps: CliDeps = {
+    io: { out: (t) => out.push(t), err: (t) => err.push(t), writeFile: () => assert.fail("no file"), outBinary: () => assert.fail("no binary") },
+    createClient: (options) => new DipClient({ ...options, transport: mt.transport }),
+  };
+  assert.equal(await run(["--api-key", "k", "vorgang", "list", "--filter", "f.titel=x"], deps), 1);
+  assert.deepEqual(out, []);
+  assert.equal(
+    untimed(err.join("\n")),
+    "ERROR [dip.api] Unexpected response from /api/v1/vorgang: the number 12345678901234567890 cannot be represented exactly.",
+  );
 });

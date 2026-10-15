@@ -619,3 +619,25 @@ test("a reset connection that outlasts the retries names the request and the ret
     assert.equal(calls, maxRetries + 1);
   }
 });
+
+test("a number the answer's JSON cannot carry exactly is a parse error, never a changed value (bug 10, 2026-10-15)", async () => {
+  // JSON.parse rounded 12345678901234567890 to 12345678901234567000 and turned 1e400 into
+  // Infinity, which printed as null, with exit 0.
+  const body = (n: string) => `{"id":"5","seiten":${n},"titel":"a 12345678901234567890 in text"}`;
+  for (const n of ["12345678901234567890", "-9007199254740993", "1e400", "-1e400"]) {
+    const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(body(n), "application/json")).transport });
+    await assert.rejects(e.getJson("/api/v1/vorgang/5"), (err) => {
+      assert.ok(err instanceof DipParseError, n);
+      assert.equal(err.message, `Unexpected response from /api/v1/vorgang/5: the number ${n} cannot be represented exactly.`);
+      return true;
+    });
+  }
+  // What a double carries exactly (or as JSON means it) passes, digits inside strings included.
+  for (const [n, value] of [["9007199254740991", 9007199254740991], ["1.10", 1.1], ["0.1", 0.1], ["1e21", 1e21]] as const) {
+    const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(body(n), "application/json")).transport });
+    assert.equal((await e.getJson<{ seiten: number }>("/x")).seiten, value, n);
+  }
+  // A raw control character inside a string (repaired, see escapeRawControlCharsInStrings) does not hide a number.
+  const raw = new RequestEngine({ transport: makeMockTransport(() => rawResponse('{"titel":"a\nb","n":1e400}', "application/json")).transport });
+  await assert.rejects(raw.getJson("/x"), /the number 1e400 cannot be represented exactly/);
+});

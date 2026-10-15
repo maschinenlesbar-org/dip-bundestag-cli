@@ -42,6 +42,60 @@ export const API_PATH = "/api/v1";
 export const DEFAULT_USER_AGENT = "dip-bundestag-cli";
 
 /**
+ * Parse a JSON body. The DIP API occasionally serves a string value containing a raw,
+ * unescaped C0 control character (e.g. a literal newline in a document title). That
+ * violates the JSON grammar (RFC 8259 §7: U+0000–U+001F MUST be escaped inside strings),
+ * so JSON.parse rejects it and a single malformed record would otherwise sink the whole
+ * page. Repair those characters and parse once more before giving up; the parsed value is
+ * later re-serialised via JSON.stringify, so the rendered output (compact or pretty) is
+ * always well-formed JSON.
+ */
+function parseJsonBody<T>(text: string, path: string): T {
+  try {
+    return JSON.parse(text) as T;
+  } catch (cause) {
+    try {
+      return JSON.parse(escapeRawControlCharsInStrings(text)) as T;
+    } catch {
+      throw new DipParseError(`Failed to parse JSON response from ${path}`, { cause });
+    }
+  }
+}
+
+/** A JSON number token, matched at a given position (sticky). */
+const JSON_NUMBER = /-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
+
+/**
+ * The first number literal in `json` (JSON that parsed) that JSON.parse cannot carry exactly,
+ * or undefined: one out of a double's range (`1e400` became Infinity, printed as `null`) or an
+ * integer beyond 2^53 that it rounds (`12345678901234567890` became `12345678901234567000`). A
+ * decimal fraction keeps a double's usual precision, as JSON means it. A linear scan that skips
+ * strings (raw control characters in them included); a reviver would recurse per nesting level.
+ */
+function firstInexactNumber(json: string): string | undefined {
+  for (let i = 0; i < json.length; i++) {
+    const c = json.charCodeAt(i);
+    if (c === 0x22) {
+      // a string: skip to its closing quote, past escapes
+      for (i++; i < json.length; i++) {
+        const d = json.charCodeAt(i);
+        if (d === 0x5c) i++;
+        else if (d === 0x22) break;
+      }
+    } else if (c === 0x2d || (c >= 0x30 && c <= 0x39)) {
+      JSON_NUMBER.lastIndex = i;
+      const literal = JSON_NUMBER.exec(json)?.[0];
+      if (literal === undefined) continue;
+      const value = Number(literal);
+      if (!Number.isFinite(value)) return literal;
+      if (!Number.isSafeInteger(value) && /^-?\d+$/.test(literal) && BigInt(literal) !== BigInt(value)) return literal;
+      i += literal.length - 1;
+    }
+  }
+  return undefined;
+}
+
+/**
  * Escape raw C0 control characters (U+0000–U+001F) that appear *inside* JSON
  * string literals, rewriting each to its \uXXXX form. Structural whitespace
  * between tokens (the spaces/newlines a server may use to pretty-print) is left
@@ -989,23 +1043,14 @@ export class RequestEngine {
     if (res.status === 204 || text.trim().length === 0) {
       throw new DipParseError(`Empty response body from ${path}`);
     }
-    try {
-      return JSON.parse(text) as T;
-    } catch (cause) {
-      // The DIP API occasionally serves a string value containing a raw,
-      // unescaped C0 control character (e.g. a literal newline in a document
-      // title). That violates the JSON grammar (RFC 8259 §7: U+0000–U+001F MUST
-      // be escaped inside strings), so JSON.parse rejects it and a single
-      // malformed record would otherwise sink the whole page. Repair those
-      // characters and parse once more before giving up; the parsed value is
-      // later re-serialised via JSON.stringify, so the rendered output (compact
-      // or pretty) is always well-formed JSON.
-      try {
-        return JSON.parse(escapeRawControlCharsInStrings(text)) as T;
-      } catch {
-        throw new DipParseError(`Failed to parse JSON response from ${path}`, { cause });
-      }
+    const parsed = parseJsonBody<T>(text, path);
+    // JSON.parse rounds an integer beyond 2^53 and turns an out-of-range literal into Infinity
+    // (printed as null), silently: refuse the answer rather than print a changed value.
+    const inexact = firstInexactNumber(text);
+    if (inexact !== undefined) {
+      throw new DipParseError(`Unexpected response from ${path}: the number ${cutForMessage(inexact)} cannot be represented exactly.`);
     }
+    return parsed;
   }
 
   /** Perform a GET returning the raw bytes (image / binary downloads). */
