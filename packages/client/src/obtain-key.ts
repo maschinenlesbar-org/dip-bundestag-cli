@@ -79,9 +79,11 @@ export function looksLikeApiKey(value: string): boolean {
  * a reworded sentence should not be the difference between a working key and
  * none. Every candidate is verified before it is returned.
  */
+// Each ends where the token ends, like BARE_KEY_PATTERN: without the boundary a longer key was
+// cut to the pattern's 48-character body and then failed verification as "no longer accepted".
 const LABELLED_KEY_PATTERNS = [
-  new RegExp(String.raw`API-?Key\s+lautet\s*:?(?:\s|<[^>]*>)*(${KEY_TOKEN})`, "i"),
-  new RegExp(String.raw`ApiKey\s+(${KEY_TOKEN})`),
+  new RegExp(String.raw`API-?Key\s+lautet\s*:?(?:\s|<[^>]*>)*(${KEY_TOKEN})(?![A-Za-z0-9_-])`, "i"),
+  new RegExp(String.raw`ApiKey\s+(${KEY_TOKEN})(?![A-Za-z0-9_-])`),
 ];
 const BARE_KEY_PATTERN = new RegExp(
   String.raw`(?<![A-Za-z0-9_-])(${KEY_TOKEN})(?![A-Za-z0-9_-])`,

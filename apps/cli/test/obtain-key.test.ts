@@ -403,3 +403,15 @@ test("only a DIP-shaped key is ever returned: placeholders, flags and escapes ar
   }
   assert.deepEqual(extractKeyCandidates("Der API-Key lautet: YOUR-API-KEY"), []);
 });
+
+test("a labelled key longer than a DIP key is not cut to fit (bug 6, 2026-10-15)", () => {
+  // The label pattern had no end boundary: a 52-character body came out as its first 48, which
+  // then failed verification as "no longer accepted by DIP (HTTP 401)".
+  const long = `LongKey.${"L".repeat(52)}`;
+  assert.deepEqual(extractKeyCandidates(`{"x":"API-Key lautet:<br />${long}</p>"}`), []);
+  assert.deepEqual(extractKeyCandidates(`Authorization: ApiKey ${long}`), []);
+  // A key of the documented shape right before markup or punctuation is still read whole.
+  assert.deepEqual(extractKeyCandidates(`API-Key lautet: ${KEY}.`), [KEY]);
+  assert.deepEqual(extractKeyCandidates(`API-Key lautet:<br />${KEY}</p>`), [KEY]);
+});
+

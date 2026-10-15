@@ -131,7 +131,8 @@ key-shaped string (`prefix.body`), labelled forms first: the help document's
 anything else token-shaped, capped at five per source. Each candidate is verified in
 turn, so a reworded sentence degrades to "try the other matches" rather than to
 failure. Only a value of that exact shape (`A–Z a–z 0–9 _ -`, 6–12 characters, a
-dot, 30–48 characters) can be a candidate, so a placeholder (`YOUR-API-KEY`), a flag,
+dot, 30–48 characters, ending there: a longer token is no candidate rather than one cut to
+fit, which would fail verification as a rejected key) can be a candidate, so a placeholder (`YOUR-API-KEY`), a flag,
 punctuation or a terminal escape is never printed as the key, `--no-verify`
 included. Only a 401 from the origin that received the key rejects it; any other
 status (a 403 from a WAF included), an answer from another origin, or a 2xx that is
