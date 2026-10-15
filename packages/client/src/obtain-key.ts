@@ -143,13 +143,46 @@ export interface ObtainedKey {
  * tried before anything that merely looks like one.
  */
 export function extractKeyCandidates(document: string): string[] {
+  const text = jsonText(document) ?? document;
   const candidates: string[] = [];
   const add = (value: string | undefined): void => {
     if (value && !candidates.includes(value)) candidates.push(value);
   };
-  for (const pattern of LABELLED_KEY_PATTERNS) add(pattern.exec(document)?.[1]);
-  for (const match of document.matchAll(BARE_KEY_PATTERN)) add(match[1]);
+  for (const pattern of LABELLED_KEY_PATTERNS) add(pattern.exec(text)?.[1]);
+  for (const match of text.matchAll(BARE_KEY_PATTERN)) add(match[1]);
   return candidates.slice(0, MAX_CANDIDATES_PER_SOURCE);
+}
+
+/**
+ * The text of a JSON document: every string in it (values and names), decoded and one per
+ * line, or undefined when `document` is not JSON. DIP's help document is JSON with HTML in its
+ * strings; read raw, `…lautet:\u003cbr /\u003e<key>` (an encoder that escapes < and >) hid the
+ * label's markup and turned the key into `u003e<key>`.
+ */
+function jsonText(document: string): string | undefined {
+  let value: unknown;
+  try {
+    value = JSON.parse(document);
+  } catch {
+    return undefined;
+  }
+  const strings: string[] = [];
+  const walk = (node: unknown): void => {
+    if (typeof node === "string") strings.push(node);
+    else if (Array.isArray(node)) node.forEach(walk);
+    else if (typeof node === "object" && node !== null) {
+      for (const [name, child] of Object.entries(node)) {
+        strings.push(name);
+        walk(child);
+      }
+    }
+  };
+  try {
+    walk(value);
+  } catch {
+    return undefined; // nested too deeply to walk (a hostile source): read it as text
+  }
+  return strings.join("\n");
 }
 
 /**

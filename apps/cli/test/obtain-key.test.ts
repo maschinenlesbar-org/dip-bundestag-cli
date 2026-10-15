@@ -415,3 +415,19 @@ test("a labelled key longer than a DIP key is not cut to fit (bug 6, 2026-10-15)
   assert.deepEqual(extractKeyCandidates(`API-Key lautet:<br />${KEY}</p>`), [KEY]);
 });
 
+test("a key after JSON-escaped markup is read without the escape (bug 7, 2026-10-15)", () => {
+  // `…lautet:<br /><key>` (a JSON encoder that escapes < and >) gave the candidate
+  // `u003e<key>`; the document is JSON, so its strings are read decoded.
+  const escaped = `{"blocks":["\\u003cp\\u003eDer API-Key lautet:\\u003cbr /\\u003e${KEY}\\u003c/p\\u003e"]}`;
+  assert.deepEqual(extractKeyCandidates(escaped), [KEY]);
+  // \u-escaped letters inside the key itself decode too.
+  const inKey = `{"x":"API-Key lautet: ${KEY.slice(0, 3)}\\u00${KEY.charCodeAt(3).toString(16)}${KEY.slice(4)}"}`;
+  assert.deepEqual(extractKeyCandidates(inKey), [KEY]);
+  // A document that is not JSON is read as text, as before.
+  assert.deepEqual(extractKeyCandidates(`# README\nAuthorization: ApiKey ${KEY}`), [KEY]);
+});
+
+test("a JSON source nested too deeply to walk is read as text, not a raw RangeError", () => {
+  const deep = `${"[".repeat(200000)}"API-Key lautet: ${KEY}"${"]".repeat(200000)}`;
+  assert.deepEqual(extractKeyCandidates(deep), [KEY]);
+});

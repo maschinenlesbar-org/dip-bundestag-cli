@@ -125,7 +125,9 @@ key is rejected; its key has been rejected with `401` since at least 2026-09-15.
 Until 2026-09-17 the README was the *only* source, which is why `obtain-key` failed
 outright — reading the help document is the fix.
 
-**How a key is picked out of a document.** `extractKeyCandidates` returns every
+**How a key is picked out of a document.** A JSON document (the help document is one) is read
+as its decoded strings, so markup an encoder escaped (`\u003cbr /\u003e`) reads as `<br />`;
+anything else, or JSON nested too deeply to walk, as text. `extractKeyCandidates` returns every
 key-shaped string (`prefix.body`), labelled forms first: the help document's
 `… gültige API-Key lautet:<br />…` and the README's `Authorization: ApiKey …`, then
 anything else token-shaped, capped at five per source. Each candidate is verified in
