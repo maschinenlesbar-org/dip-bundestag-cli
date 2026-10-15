@@ -653,3 +653,33 @@ test("a key typed as a --filter value is masked in the usage error, as as --id (
     assert.match(text, /\*\*\*/, argv.join(" "));
   }
 });
+
+test("--api-key followed by a command name says the key is missing, and the help stays readable (bug 2, 2026-10-15)", async () => {
+  // `dip --api-key $DIP_KEY vorgang list` with an empty, unquoted variable took `vorgang` as the
+  // key: "unknown command 'list'", and the help showed *** for every "vorgang".
+  for (const argv of [
+    ["--api-key", "vorgang", "list", "--filter", "f.wahlperiode=20"],
+    ["--api-key", "drucksache", "get", "5"],
+    ["--api-key=person", "list"],
+  ]) {
+    const err: string[] = [];
+    const deps: CliDeps = {
+      io: { out: () => assert.fail("nothing on stdout"), err: (t) => err.push(t), writeFile: () => assert.fail("no file"), outBinary: () => assert.fail("no binary") },
+      env: {},
+      createClient: () => assert.fail("no client"),
+    };
+    assert.equal(await run(argv, deps), 2, argv.join(" "));
+    const text = untimed(err.join("\n"));
+    const name = (argv[0] === "--api-key" ? argv[1] : argv[0]!.slice("--api-key=".length)) as string;
+    assert.match(text, new RegExp(`^ERROR \\[dip\\.cli\\] .*"${name}" is a dip command, not a key`, "m"), argv.join(" "));
+    assert.doesNotMatch(text, /\*\*\*/, "the command name is not redacted");
+    assert.doesNotMatch(text, /unknown command/);
+  }
+});
+
+test("COMMAND_NAMES lists exactly the program's commands", async () => {
+  const { COMMAND_NAMES } = await import("../src/cli/shared.js");
+  const { buildProgram } = await import("../src/cli/program.js");
+  const program = buildProgram({ io: { out: () => {}, err: () => {}, writeFile: () => {}, outBinary: () => {} }, env: {}, createClient: () => assert.fail() } as CliDeps);
+  assert.deepEqual([...COMMAND_NAMES].sort(), [...program.commands.map((c) => c.name()), "help"].sort());
+});

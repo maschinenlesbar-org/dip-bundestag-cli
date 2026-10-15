@@ -55,6 +55,24 @@ export function parseHeaderValue(value: string): string {
 }
 
 /**
+ * The program's command names (`program.commands` and commander's `help`; a test keeps the
+ * list in step). Never a key: `--api-key` refuses one, and the run's redaction leaves one alone.
+ */
+export const COMMAND_NAMES = [
+  "obtain-key",
+  "config",
+  "vorgang",
+  "vorgangsposition",
+  "drucksache",
+  "drucksache-text",
+  "plenarprotokoll",
+  "plenarprotokoll-text",
+  "aktivitaet",
+  "person",
+  "help",
+] as const;
+
+/**
  * commander value-parser for `--api-key`. A blank flag is a usage error (it would
  * otherwise silently replace DIP_API_KEY and send no key: a CLI-only rule); the
  * rest is the library's: the key is trimmed, and one an HTTP header cannot carry
@@ -62,6 +80,14 @@ export function parseHeaderValue(value: string): string {
  */
 export function parseApiKey(value: string): string {
   parseNonEmpty(value);
+  // `dip --api-key $DIP_KEY vorgang list` with an empty, unquoted variable hands commander
+  // the command as the key's value: say that, rather than "unknown command 'list'".
+  if ((COMMAND_NAMES as readonly string[]).includes(value)) {
+    throw new InvalidArgumentError(
+      `"${value}" is a dip command, not a key: --api-key needs the key after it (an empty or unset ` +
+        `variable leaves it out). Pass the key, or leave --api-key out to use DIP_API_KEY or the credentials file.`,
+    );
+  }
   const problem = apiKeyProblem(value);
   if (problem !== undefined) throw new InvalidArgumentError(problem);
   return normaliseApiKey(value) as string;

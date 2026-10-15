@@ -5,6 +5,7 @@
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import { OutputError, logOf, type CliDeps } from "./io.js";
+import { COMMAND_NAMES } from "./shared.js";
 import { DEFAULT_LOG_FORMAT, createLogger, logFormatFromArgv, type LogFormat, type Logger } from "./log.js";
 import {
   DipApiError,
@@ -188,7 +189,9 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
   };
   addKey(envKey);
   for (const password of passwords) addKey(password);
-  for (const value of flagValues(argv, SECRET_FLAGS)) addKey(value);
+  // A command name after --api-key is a missing key, not a secret (parseApiKey says so):
+  // redacted, it turned every "vorgang" in the help into ***.
+  for (const value of flagValues(argv, SECRET_FLAGS)) if (!(COMMAND_NAMES as readonly string[]).includes(value)) addKey(value);
   for (const value of values) {
     if (looksLikeApiKey(value)) addKey(value);
     // A key typed as a `key=value` argument (`--filter f.titel=<key>`) is echoed with its key.
