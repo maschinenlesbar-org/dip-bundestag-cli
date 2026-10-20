@@ -461,10 +461,12 @@ contentType, status, url, credentialsDropped? }` — raw bytes, never lossily
 decoded. `getJson` (and `obtainKey` for its source documents) decode them by the
 charset the Content-Type names (`decodeBody`, UTF-8 when none; a BOM is dropped,
 an unknown label is a `DipParseError`). A body with a number JSON.parse cannot carry
-exactly — one out of a double's range (`1e400`, which printed as `null`) or an integer
-literal beyond 2^53 that it rounds (`12345678901234567890`) — is a `DipParseError` too
+exactly — one out of a double's range (`1e400`, which printed as `null`), one past 2^53
+that it rounds, in any form (`12345678901234567890`, `12345678901234567890.0`,
+`9007199254740993e0`, `9007199254740992.5`), or a non-zero one too small for a double (`1e-400`,
+which became `0`) — is a `DipParseError` too
 (`Unexpected response from <path>: the number … cannot be represented exactly.`), never a
-changed value; a decimal fraction keeps a double's usual precision.
+changed value; below 2^53 a decimal fraction keeps a double's usual precision.
 
 **Query builder.** [`buildQueryString`](packages/client/src/query.ts) — a
 dependency-free serialiser: omits `undefined`/`null`, repeats keys for arrays,
