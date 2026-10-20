@@ -535,6 +535,30 @@ test("integer filters take whole numbers only, in the CLI and in list()", async 
   assert.equal(calls.length, 1);
 });
 
+test("a whole number past 2^53-1 is refused for its size, not as 'digits only' (bug 1, 2026-10-19)", async () => {
+  // `--id 9007199254740992` was refused with "Expected a non-negative whole number (digits
+  // only)", which it is.
+  const big: Array<[string[], Record<string, unknown>, string]> = [
+    [["vorgang", "list", "--id", "9007199254740992"], { "f.id": ["9007199254740992"] }, "f.id"],
+    [["vorgang", "list", "--id", "000123456789012345678901234567890"], { "f.id": ["000123456789012345678901234567890"] }, "f.id"],
+    [["vorgang", "list", "--filter", "f.wahlperiode=99999999999999999999"], { "f.wahlperiode": "99999999999999999999" }, "f.wahlperiode"],
+  ];
+  for (const [argv, params, key] of big) {
+    const r = await parity({ argv, lib: (t) => client(t).vorgaenge.list(params as never) });
+    assertBothReject(r, new RegExp(`^Invalid ${key.replace(".", "\\.")}: Expected a whole number of at most 9007199254740991`));
+    assert.doesNotMatch(r.cli.err, /digits only/, argv.join(" "));
+  }
+  // The library's number past the limit gets the same reason.
+  await assert.rejects(client(async () => jsonResponse({ numFound: 0, documents: [] })).vorgaenge.list({ "f.id": 2 ** 53 }), /at most 9007199254740991/);
+  // Zeros in front of a safe value don't make it big: it is sent without them.
+  const ok = await parity({
+    argv: ["--api-key", "k", "vorgang", "list", "--id", "00000000000000000000009007199254740991"],
+    lib: (t) => client(t).vorgaenge.list({ "f.id": ["00000000000000000000009007199254740991"] }),
+  });
+  assertSameRequests(ok);
+  assert.match(ok.cli.requests[0]!.url, /f\.id=9007199254740991$/);
+});
+
 test("a get id is trimmed in the CLI and in get(); a blank one stays a usage error", async () => {
   const doc = () => jsonResponse({ id: "282486", titel: "x" });
   for (const id of [" 282486", "282486 ", "\t282486\n"]) {

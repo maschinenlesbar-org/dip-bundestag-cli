@@ -145,14 +145,17 @@ export const INTEGER_FILTERS: readonly string[] = [
 /**
  * Why `value` cannot be sent for one of the `INTEGER_FILTERS`, or `undefined`: a
  * non-negative safe integer, as a number or as a string of ASCII digits only (no sign,
- * no spaces, no `1e3` or `0x10`). The reason does not echo the value.
+ * no spaces, no `1e3` or `0x10`). Leading zeros don't count (`list()` strips them); a
+ * whole number past `Number.MAX_SAFE_INTEGER` gets its own reason. The reason does not
+ * echo the value.
  */
 export function integerFilterProblem(value: unknown): string | undefined {
-  const ok =
+  const whole =
     typeof value === "number"
-      ? Number.isSafeInteger(value) && value >= 0
-      : typeof value === "string" && /^\d+$/.test(value) && Number.isSafeInteger(Number(value));
-  return ok ? undefined : "Expected a non-negative whole number (digits only), e.g. 21.";
+      ? Number.isInteger(value) && value >= 0
+      : typeof value === "string" && /^\d+$/.test(value);
+  if (!whole) return "Expected a non-negative whole number (digits only), e.g. 21.";
+  return Number.isSafeInteger(Number(value)) ? undefined : `Expected a whole number of at most ${Number.MAX_SAFE_INTEGER}, e.g. 21.`;
 }
 
 /** The paging parameter `list()` takes besides the resource's `f.*` filters. */

@@ -308,6 +308,8 @@ What the library rejects:
   `f.vorgang` and the other filters DIP's OpenAPI types as integers that is not a
   non-negative safe integer or a string of ASCII digits. DIP answers
   `f.wahlperiode=abc` with `400 … Invalid cursor` and a non-numeric id with 0 hits.
+  A whole number past `Number.MAX_SAFE_INTEGER` is refused with its own reason
+  (`at most 9007199254740991`); leading zeros don't count towards it.
   The CLI's `--filter` and `--id` parsers call the same function.
 - **`get` id** (`idProblem`, in every `get(id)`, on the id trimmed of surrounding
   whitespace, which is also what is sent): a blank id (an empty last

@@ -121,7 +121,7 @@ abgelehnt (Exit 2), und `list()` der Bibliothek lehnt einen leeren Parametername
 -wert, ein leeres Array und ein leeres Array-Element vor jeder Anfrage mit
 `DipValidationError` ab: Das DIP behandelt einen leeren Parameter als keinen Filter.
 Die **ganzzahligen Filter** (`INTEGER_FILTERS`: `f.id`, `f.wahlperiode`, `f.vorgang`, `f.drucksache`, `f.plenarprotokoll`, `f.aktivitaet`, `f.person_id`, `f.vorgangsposition_id` und `f.vorgangstyp_notation`, in der
-OpenAPI-Beschreibung des DIP alle ganzzahlig) nehmen eine nicht negative ganze Zahl – auf
+OpenAPI-Beschreibung des DIP alle ganzzahlig) nehmen eine nicht negative ganze Zahl bis `Number.MAX_SAFE_INTEGER` (9007199254740991) – auf
 der Kommandozeile nur Ziffern (auch `--id`), in der Bibliothek eine Ziffernfolge oder eine
 Zahl; alles andere lehnt die CLI mit Exit 2 und `list()` mit `DipValidationError` ab
 (`integerFilterProblem`), denn das DIP beantwortet `f.wahlperiode=abc` mit einem
