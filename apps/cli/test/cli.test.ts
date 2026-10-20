@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { run } from "../src/cli/run.js";
 import { readEnvApiKey } from "../src/cli/program.js";
+import { renderJson } from "../src/cli/shared.js";
 import { DipClient } from "@maschinenlesbar.org/dip-bundestag-client/internal/client";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "@maschinenlesbar.org/dip-bundestag-client/internal/http";
@@ -389,21 +390,40 @@ test("an empty list response exits 1 instead of printing null", async () => {
   assert.match(untimed(cli.err.join("\n")), /^ERROR \[dip\.api\] Empty response body from \/api\/v1\/vorgang/);
 });
 
-test("--compact prints through JSON.stringify's gap path, which a huge parsed string doesn't crash (bug 6, 2026-10-19)", async (t) => {
-  // `--compact` on a 300 MB full text aborted Node (V8's fast stringifier: "Zone Allocation
-  // failed", exit 134, a native dump on stderr); the gap path, which pretty printing takes,
-  // printed it. Such a body is too big for this suite, so this pins the call and the output.
-  const doc = { id: "5", titel: "Plenarprotokoll", n: [1, 2.5, 1e21], text: "Rede über \u0085Bürgergeld\n" };
-  const cli = makeCli(() => jsonResponse(doc));
-  const stringify = t.mock.method(JSON, "stringify");
-  const code = await run(["--compact", "plenarprotokoll-text", "get", "5"], cli.deps);
-  // The parsed answer, not the mock's own JSON.stringify(doc).
-  const calls = stringify.mock.calls.filter((call) => call.arguments[0] !== doc && (call.arguments[0] as { id?: unknown } | null)?.id === "5");
+test("--compact takes the gap path for an answer with a huge string, the fast path otherwise (bug 6, 2026-10-19)", async (t) => {
+  // On Node 26 a 300 MB string from JSON.parse aborted V8's fast stringifier ("Zone Allocation
+  // failed", exit 134, a native dump on stderr) where the gap path prints it; but only the
+  // fast path is iterative there and prints 20,000 levels of nesting, which the gap path
+  // refuses at ~7,000 (0.6.1 took the gap path for every answer and lost that). So the
+  // choice is made per answer, not by the runtime.
+  const cli = makeCli(() => jsonResponse({}));
+  const stringify = t.mock.method(JSON, "stringify", () => '"stub"');
+  const huge = { id: "1", text: "x".repeat(64 * 1024 * 1024) };
+  const deep = { id: "1", x: [[[["Rede"]]]], titel: "x".repeat(64 * 1024 * 1024 - 1) };
+  const hugeKey = { ["k".repeat(64 * 1024 * 1024)]: 1 };
+  renderJson(cli.deps, { compact: true }, huge);
+  renderJson(cli.deps, { compact: true }, deep);
+  renderJson(cli.deps, { compact: true }, hugeKey);
+  renderJson(cli.deps, { compact: false }, deep);
+  const calls = stringify.mock.calls.map((call) => call.arguments);
   stringify.mock.restore();
-  assert.equal(code, 0);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0]!.arguments[2], "", "an empty gap: the same text as no gap");
-  assert.deepEqual(cli.out, [JSON.stringify(doc).replace("\u0085", "\\u0085")]);
+  const gaps = calls.map((args) => (args.length >= 3 ? args[2] : "none"));
+  assert.deepEqual(gaps, ["", "none", "", 2]);
+  assert.deepEqual(cli.out, ['"stub"', '"stub"', '"stub"', '"stub"']);
+});
+
+test("--compact prints an answer nested 20,000 levels deep where the runtime's fast path can (regression of 0.6.1)", async () => {
+  const depth = 20_000;
+  const cli = makeCli(() => rawResponse(`{"id":"1","deep":${"[".repeat(depth)}${"]".repeat(depth)}}`, "application/json"));
+  const code = await run(["--api-key", "k", "--compact", "vorgang", "get", "1"], cli.deps);
+  let fastPathCan = true;
+  try {
+    JSON.stringify(JSON.parse(`${"[".repeat(depth)}${"]".repeat(depth)}`));
+  } catch {
+    fastPathCan = false; // Node 22 and 24: compact is recursive there too
+  }
+  if (fastPathCan) assert.equal(code, 0, untimed(cli.err.join("\n")));
+  else assert.match(untimed(cli.err.join("\n")), /nested too deeply to print/);
 });
 
 test("a blank -o is a usage error before any request", async () => {
