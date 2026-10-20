@@ -117,11 +117,11 @@ export interface ObtainKeyOptions
     | "sleep"
   > {
   /** Pin a single source document (tests, mirrors) instead of trying each in turn. */
-  sourceUrl?: string;
+  sourceUrl?: string | undefined;
   /** API base URL used for the verification request; checked like the client's. */
-  baseUrl?: string;
+  baseUrl?: string | undefined;
   /** Check the candidate against the live API before returning it (default true). */
-  verify?: boolean;
+  verify?: boolean | undefined;
 }
 
 export interface ObtainedKey {

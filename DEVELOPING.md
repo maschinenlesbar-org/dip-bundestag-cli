@@ -72,6 +72,9 @@ new DipClient({
 });
 ```
 
+Every option may be omitted or given as `undefined`, which means the same (the default),
+so the example above compiles under `exactOptionalPropertyTypes` too.
+
 ### Resource groups
 
 `client.vorgaenge`, `.vorgangspositionen`, `.drucksachen`, `.drucksacheText`,
@@ -520,7 +523,7 @@ npm run coverage  # the same tests in one run, with a coverage report
 node --test apps/cli/dist/test/cli.test.js   # one file, after a build
 ```
 
-The client's tests are in `packages/client/test/` (`query`, `http`, `engine`, `client`),
+The client's tests are in `packages/client/test/` (`query`, `http`, `engine`, `client`, `types`),
 everything that drives the CLI is in `apps/cli/test/`.
 
 - **`query.test.ts`** — query-string serialisation.
@@ -531,6 +534,8 @@ everything that drives the CLI is in `apps/cli/test/`.
   network-error propagation, `maxResponseBytes=0` — mocked transport.
 - **`client.test.ts`** — the `Authorization` header, per-resource paths, cursor
   and filter params — mocked transport.
+- **`types.test.ts`** — a consumer file compiled with `exactOptionalPropertyTypes` against
+  the built declarations (it starts `tsc`, so it gets 30 s).
 - **`cli.test.ts`** — command parsing, `--api-key`/`--filter`/`--id`, and exit
   codes — mocked client.
 - **`validate.test.ts`** — `assertValid`, `DipValidationError` and its exit code.

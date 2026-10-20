@@ -75,7 +75,7 @@ export interface DipClientOptions extends EngineOptions {
    * https://dip.bundestag.de/über-dip/hilfe/api; a personal key can be requested
    * from parlamentsdokumentation@bundestag.de.
    */
-  apiKey?: string;
+  apiKey?: string | undefined;
 }
 
 /** Options for `list()`. */
@@ -85,14 +85,14 @@ export interface ListOptions {
    * DIP added after the table was read. Default `false`: an unknown key is
    * rejected, because DIP ignores it and returns the whole unfiltered list.
    */
-  allowUnknownFilters?: boolean;
+  allowUnknownFilters?: boolean | undefined;
   /**
    * Send a `cursor` without any filter, to page through the whole unfiltered list on
    * purpose. Default `false`: a bare cursor is rejected, because DIP does not keep the
    * filters of the page the cursor came from, so a cursor from a filtered page sent
    * alone answers with unrelated records (`cursorWithoutFiltersProblem`).
    */
-  allowUnfilteredCursor?: boolean;
+  allowUnfilteredCursor?: boolean | undefined;
 }
 
 /** A DIP resource: cursor-paginated `list` plus `get` by id. */

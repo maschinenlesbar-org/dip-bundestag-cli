@@ -216,24 +216,24 @@ export interface EngineOptions {
    * whitespace or control characters inside, and a trailing `/api/v1` are a
    * `DipValidationError`.
    */
-  baseUrl?: string;
+  baseUrl?: string | undefined;
   /** Swappable transport. Defaults to the built-in node http/https transport. */
-  transport?: Transport;
+  transport?: Transport | undefined;
   /**
    * Value of the User-Agent header (default `DEFAULT_USER_AGENT`). A blank value,
    * a control character but tab, or a character above U+00FF is rejected with
    * `DipValidationError`.
    */
-  userAgent?: string;
+  userAgent?: string | undefined;
   /** Extra headers sent on every request (e.g. an API key); checked like `userAgent`. */
-  defaultHeaders?: Record<string, string>;
+  defaultHeaders?: Record<string, string> | undefined;
   /**
    * Time limit per request in milliseconds, covering the whole response body, not
    * only idle gaps (0 disables; at most `MAX_TIMEOUT_MS`, 2^31 - 1 ms, else
    * `DipValidationError`). Enforced by the engine for every transport: the
    * transport gets an AbortSignal that fires at the deadline.
    */
-  timeoutMs?: number;
+  timeoutMs?: number | undefined;
   /**
    * Number of automatic retries for transient (429/503) responses and reset
    * connections (`isTransientNetworkError`; GET/HEAD only). Each waits
@@ -241,31 +241,31 @@ export interface EngineOptions {
    * (up to `MAX_RETRY_AFTER_MS`; a longer one is not retried, and the error names
    * it). An integer 0..`MAX_RETRIES` (10).
    */
-  maxRetries?: number;
+  maxRetries?: number | undefined;
   /**
    * Base backoff between retries in milliseconds (grows linearly; default 200, at most
    * `MAX_RETRY_AFTER_MS`). A Retry-After can lengthen a wait, never shorten it.
    */
-  retryDelayMs?: number;
+  retryDelayMs?: number | undefined;
   /**
    * Number of HTTP redirects (301/302/303/307/308) to follow. Defaults to 5. Any
    * other 3xx, one with a missing or malformed Location, and one past this limit
    * surface as a DipApiError naming the target. An integer 0..`MAX_REDIRECTS` (10).
    */
-  maxRedirects?: number;
+  maxRedirects?: number | undefined;
   /**
    * Hard cap on response body size in bytes (defends against memory exhaustion
    * from a hostile/buggy endpoint). Defaults to 100 MiB; set to 0 for no limit.
    * A non-negative safe integer. Checked on the body of every transport.
    */
-  maxResponseBytes?: number;
+  maxResponseBytes?: number | undefined;
   /** Injectable sleep, primarily for deterministic tests. */
-  sleep?: (ms: number) => Promise<void>;
+  sleep?: ((ms: number) => Promise<void>) | undefined;
   /**
    * Called once per retry, right before the backoff sleep, for each retried 429/503
    * and reset connection; never when there is no retry. A throw is swallowed.
    */
-  onRetry?: (event: RetryEvent) => void;
+  onRetry?: ((event: RetryEvent) => void) | undefined;
 }
 
 /** What `EngineOptions.onRetry` is told about one retry. */
