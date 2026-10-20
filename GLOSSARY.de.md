@@ -164,9 +164,11 @@ Filterbar über `f.dokumentart` bei `vorgang`, `vorgangsposition` und `aktivitae
 Art einer Drucksache (Antrag, Gesetzentwurf, Antwort, …) steht in `drucksachetyp` und
 ist über `f.drucksachetyp` filterbar.
 
-**Datum.** Das Datum, auf das ein Dokument bzw. eine Aktivität datiert ist. Die
-Filterung nach Datumsbereich nutzt `f.datum.start` und `f.datum.end` (ISO
-`YYYY-MM-DD`). Der Query-Builder serialisiert `Date`-Werte zu vollständigen
+**Datum.** Das Datum, auf das ein Dokument bzw. eine Aktivität datiert ist; bei einem
+Vorgang das Datum seines letzten Schritts. Die Filterung nach Datumsbereich nutzt
+`f.datum.start` und `f.datum.end` (ISO `YYYY-MM-DD`). Bei `vorgang` trifft sie jeden
+Vorgang mit irgendeinem Schritt im Bereich, das `datum` eines Treffers kann also außerhalb
+davon liegen. Der Query-Builder serialisiert `Date`-Werte zu vollständigen
 ISO-8601-Zeitpunkten in UTC (`2024-01-01T00:00:00.000Z`), die das DIP für
 `f.aktualisiert.*` akzeptiert, für `f.datum.*` aber **nicht** (HTTP 400 `Invalid date`).
 In der Bibliothek wird `f.datum.*` daher als Zeichenkette `"YYYY-MM-DD"` übergeben: Ein

@@ -92,7 +92,12 @@ want each result on a single line for easier downstream processing.
 
 ### Browse Vorgänge by date range
 
-Procedures dated within a given window, using DIP's date-range filter keys.
+Procedures with activity in a given window, using DIP's date-range filter keys. On
+`vorgang` the filter matches a procedure that has **any step** (Vorgangsposition) in the
+window, while each result's `datum` is the date of its **latest** step, so it may lie
+outside the window: a procedure with a step in Q1 2024 that was still debated in 2025 shows
+`datum` 2025-…. To report what happened inside the window, read the steps
+(`vorgangsposition list --filter f.vorgang=<id>`) and keep those dated in it.
 
 ```bash
 dip vorgang list \

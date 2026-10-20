@@ -225,7 +225,7 @@ DIP compares ids as text and found nothing for the padded form).
 | `f.titel=<text>` | Title keyword |
 | `f.id=<n>` | Specific document id |
 | `f.wahlperiode=<n>` | Electoral term (e.g. `20`) |
-| `f.datum.start=<YYYY-MM-DD>` | Date range start |
+| `f.datum.start=<YYYY-MM-DD>` | Date range start (on `vorgang`: any step in the range, see below) |
 | `f.datum.end=<YYYY-MM-DD>` | Date range end |
 | `f.aktualisiert.start=<YYYY-MM-DDThh:mm:ss>` | Last-updated range start (full ISO datetime) |
 | `f.aktualisiert.end=<YYYY-MM-DDThh:mm:ss>` | Last-updated range end |
@@ -240,7 +240,8 @@ A few recipes to get going — see **[Usage.md](https://github.com/maschinenlesb
 use-case-driven set.
 
 ```bash
-# Procedures by date range
+# Procedures with a step in a date range (each result's datum is its latest step,
+# which may lie outside the range)
 dip vorgang list \
   --filter f.datum.start=2024-01-01 \
   --filter f.datum.end=2024-03-31

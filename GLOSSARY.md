@@ -160,8 +160,10 @@ interpellation). Filterable via `f.vorgangstyp`.
 and `aktivitaet`. The kind of Drucksache (Antrag, Gesetzentwurf, Antwort, …) is
 `drucksachetyp`, filterable via `f.drucksachetyp`.
 
-**Datum (date).** The date a document/activity is dated. Date-range filtering
-uses `f.datum.start` and `f.datum.end` (ISO `YYYY-MM-DD`). The query builder
+**Datum (date).** The date a document/activity is dated; on a Vorgang, the date of its
+latest step. Date-range filtering uses `f.datum.start` and `f.datum.end` (ISO
+`YYYY-MM-DD`). On `vorgang` it matches a procedure with any step in the range, so a
+result's `datum` may lie outside it. The query builder
 serialises `Date` values to full ISO-8601 instants in UTC
 (`2024-01-01T00:00:00.000Z`), which DIP accepts for `f.aktualisiert.*` but **not**
 for `f.datum.*` (HTTP 400 `Invalid date`). Library users pass `f.datum.*` as a
