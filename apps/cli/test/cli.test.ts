@@ -389,6 +389,23 @@ test("an empty list response exits 1 instead of printing null", async () => {
   assert.match(untimed(cli.err.join("\n")), /^ERROR \[dip\.api\] Empty response body from \/api\/v1\/vorgang/);
 });
 
+test("--compact prints through JSON.stringify's gap path, which a huge parsed string doesn't crash (bug 6, 2026-10-19)", async (t) => {
+  // `--compact` on a 300 MB full text aborted Node (V8's fast stringifier: "Zone Allocation
+  // failed", exit 134, a native dump on stderr); the gap path, which pretty printing takes,
+  // printed it. Such a body is too big for this suite, so this pins the call and the output.
+  const doc = { id: "5", titel: "Plenarprotokoll", n: [1, 2.5, 1e21], text: "Rede über \u0085Bürgergeld\n" };
+  const cli = makeCli(() => jsonResponse(doc));
+  const stringify = t.mock.method(JSON, "stringify");
+  const code = await run(["--compact", "plenarprotokoll-text", "get", "5"], cli.deps);
+  // The parsed answer, not the mock's own JSON.stringify(doc).
+  const calls = stringify.mock.calls.filter((call) => call.arguments[0] !== doc && (call.arguments[0] as { id?: unknown } | null)?.id === "5");
+  stringify.mock.restore();
+  assert.equal(code, 0);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]!.arguments[2], "", "an empty gap: the same text as no gap");
+  assert.deepEqual(cli.out, [JSON.stringify(doc).replace("\u0085", "\\u0085")]);
+});
+
 test("a blank -o is a usage error before any request", async () => {
   for (const value of ["", " "]) {
     const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));

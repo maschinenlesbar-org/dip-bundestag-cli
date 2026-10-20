@@ -186,10 +186,15 @@ export function escapeControlChars(json: string): string {
  * which is why the message suggests --compact. The RangeError becomes a DipError so
  * the CLI prints a clear message instead of "Unexpected error: Maximum call stack
  * size exceeded".
+ *
+ * The compact form passes an empty gap, which prints the same text as none: without a
+ * gap V8 (seen on Node 26) takes its fast stringifier, which aborts the process ("Zone
+ * Allocation failed", exit 134, a native dump on stderr) on a string of some 300 MB that
+ * JSON.parse made. The gap path, the one pretty printing takes, prints it.
  */
 function stringifyJson(value: unknown, compact: boolean): string {
   try {
-    return compact ? JSON.stringify(value) : JSON.stringify(value, null, 2);
+    return compact ? JSON.stringify(value, null, "") : JSON.stringify(value, null, 2);
   } catch (err) {
     if (err instanceof RangeError) {
       throw new DipError(
