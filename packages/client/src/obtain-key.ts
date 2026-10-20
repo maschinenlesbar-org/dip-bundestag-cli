@@ -25,7 +25,7 @@ import {
   type EngineOptions,
   type RawResponse,
 } from "./engine.js";
-import { DipApiError, DipError, DipValidationError, credentialsIn, cutForMessage, redactCredentials, redactUrl } from "./errors.js";
+import { DipApiError, DipError, DipNetworkError, DipValidationError, credentialsIn, cutForMessage, redactCredentials, redactUrl } from "./errors.js";
 import { assertValid, isPlainObject, listResultProblem, type Problem } from "./validate.js";
 
 /** Why a pinned key source cannot be read, or undefined: it must be an absolute http(s) URL. */
@@ -338,8 +338,16 @@ function verificationBodyProblem(response: RawResponse): string | undefined {
   return listResultProblem(value);
 }
 
-/** A transport failure's message for the error text (never empty). */
+/**
+ * A transport failure's message for the error text (never empty). The text names the
+ * source or the API itself, so the engine's `GET <url> failed: ` in front of a network
+ * error's reason is dropped.
+ */
 function describeError(err: unknown): string {
+  if (err instanceof DipNetworkError) {
+    const reason = err.message.replace(/^[A-Z]+ \S+ failed: /, "");
+    if (reason.trim() !== "") return reason;
+  }
   if (err instanceof Error && err.message.trim() !== "") return err.message;
   const code = (err as { code?: unknown } | null)?.code;
   return typeof code === "string" ? code : "network error";

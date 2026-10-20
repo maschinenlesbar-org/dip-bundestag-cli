@@ -594,6 +594,29 @@ test("onRetry must be a function", () => {
   assert.throws(() => new RequestEngine({ onRetry: 5 as never }), DipValidationError);
 });
 
+test("a timeout, the size cap and a refused connection name the request (bug 4, 2026-10-19)", async () => {
+  // They said only "Request timed out after 500ms", "Response exceeded maxResponseBytes (…)" and
+  // "connect ECONNREFUSED 127.0.0.1:1", where a reset says "GET <url> failed: socket hang up".
+  const url = "http://127.0.0.1:9/api/v1/vorgang/5";
+  const cases: Array<[string, ConstructorParameters<typeof RequestEngine>[0], RegExp]> = [
+    ["engine deadline", { transport: () => new Promise<HttpResponse>(() => {}), timeoutMs: 20 }, /^Request timed out after 20ms$/],
+    ["size cap", { transport: async () => rawResponse("x".repeat(100), "application/json"), maxResponseBytes: 10 }, /^Response exceeded maxResponseBytes \(10 bytes/],
+    ["transport's own error", { transport: async () => { throw new DipNetworkError("connect ECONNREFUSED 127.0.0.1:9"); } }, /^connect ECONNREFUSED 127\.0\.0\.1:9$/],
+  ];
+  for (const [name, options, reason] of cases) {
+    const e = new RequestEngine({ baseUrl: "http://127.0.0.1:9", maxRetries: 0, ...options });
+    await assert.rejects(e.getJson("/api/v1/vorgang/5"), (err) => {
+      assert.ok(err instanceof DipNetworkError, name);
+      assert.ok(err.message.startsWith(`GET ${url} failed: `), `${name}: ${err.message}`);
+      assert.match(err.message.slice(`GET ${url} failed: `.length), reason, name);
+      return true;
+    });
+  }
+  // A message that names the request already is not prefixed twice.
+  const named = new RequestEngine({ baseUrl: "http://127.0.0.1:9", transport: async () => { throw new DipNetworkError(`GET ${url} failed: x`); } });
+  await assert.rejects(named.getJson("/api/v1/vorgang/5"), { message: `GET ${url} failed: x` });
+});
+
 test("a reset connection that outlasts the retries names the request and the retries", async () => {
   // The default transport rejects a reset with a bare "socket hang up" (the Node error is its
   // cause). Passed through as it was, the CLI's last record named neither the host nor the

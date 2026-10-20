@@ -124,7 +124,7 @@ test("a network failure maps to exit code 1", async () => {
   });
   const code = await run(["vorgang", "list"], cli.deps);
   assert.equal(code, 1);
-  assert.match(untimed(cli.err.join("\n")), /^ERROR \[dip\.http\] connect ECONNREFUSED/);
+  assert.match(untimed(cli.err.join("\n")), /^ERROR \[dip\.http\] GET https:\/\/search\.dip\.bundestag\.de\/api\/v1\/vorgang failed: connect ECONNREFUSED/);
 });
 
 test("DIP_API_KEY from the env populates the Authorization header", async () => {

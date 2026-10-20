@@ -411,7 +411,10 @@ a caller. `maxResponseBytes` is checked on the body any transport returns (the
 built-in one aborts early). A body may be a Buffer, any `ArrayBuffer` view
 (fetch's `Uint8Array`, from any realm), an `ArrayBuffer` or a string; headers may be
 a plain record in any case, a `Headers` object or a `Map`. Whatever a transport
-throws becomes a `DipNetworkError` naming the request (the original as `cause`), and
+throws becomes a `DipNetworkError` naming the request (the original as `cause`): the
+built-in transport's own errors and the engine's deadline and size cap too
+(`GET <url> failed: Request timed out after 500ms`, `… failed: connect ECONNREFUSED …`,
+`… failed: Response exceeded maxResponseBytes …`), and
 a malformed response (no numeric status, no headers object, no body) is one too. A
 reset reported as `ECONNRESET`/`EPIPE`/`ECONNABORTED` or undici's `UND_ERR_SOCKET`
 anywhere in the `cause` chain (`isTransientNetworkError`) is retried for a GET like a
