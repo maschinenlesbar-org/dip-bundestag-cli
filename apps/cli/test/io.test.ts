@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { execFile } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EventEmitter } from "node:events";
@@ -47,6 +49,52 @@ test("writeFile creates a new file when none exists", () => {
     const path = join(dir, "fresh.json");
     defaultIO.writeFile(path, Buffer.from("data"));
     assert.equal(readFileSync(path, "utf8"), "data");
+  });
+});
+
+// Runs node under a file-size limit.
+const STARTS_A_PROCESS = { timeout: 30_000 };
+const IO_MODULE = fileURLToPath(new URL("../src/cli/io.js", import.meta.url));
+
+/** `defaultIO.writeFile(path, 100 KB, force)` in a node whose files may grow to 1–2 blocks only. */
+function writeUnderSizeLimit(path: string, force: boolean): Promise<string> {
+  const script = `import { defaultIO } from ${JSON.stringify(IO_MODULE)};
+try { defaultIO.writeFile(${JSON.stringify(path)}, Buffer.alloc(100_000, 120), ${force}); console.log("written"); }
+catch (err) { console.log(err.message); }`;
+  // SIGXFSZ ignored (inherited through exec), so the write fails with EFBIG instead of killing node.
+  const sh = `trap '' XFSZ; ulimit -f 2; exec "$0" --input-type=module -e "$1"`;
+  return new Promise((resolve) => execFile("/bin/sh", ["-c", sh, process.execPath, script], (_err, stdout, stderr) => resolve(stdout + stderr)));
+}
+
+test("an -o write that fails part-way leaves the old file as it was, and no cut file (bug 5, 2026-10-19)", STARTS_A_PROCESS, async () => {
+  // `-o keep.json --force` under a full disk left keep.json as 1 MB of cut JSON, the previous
+  // result gone; without --force a cut new file blocked the next run.
+  const dir = mkdtempSync(join(tmpdir(), "dip-io-"));
+  try {
+    const keep = join(dir, "keep.json");
+    writeFileSync(keep, '{"good":"previous result"}\n');
+    assert.match(await writeUnderSizeLimit(keep, true), /^Could not write to ".*keep\.json": EFBIG/);
+    assert.equal(readFileSync(keep, "utf8"), '{"good":"previous result"}\n');
+    const fresh = join(dir, "new.json");
+    assert.match(await writeUnderSizeLimit(fresh, false), /^Could not write to ".*new\.json": EFBIG/);
+    assert.deepEqual(readdirSync(dir), ["keep.json"], "no cut file and no temporary file is left");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("writeFile with force keeps the old file's mode and writes through a symlink, as before (bug 5, 2026-10-19)", () => {
+  withTempDir((dir) => {
+    const path = join(dir, "out.json");
+    writeFileSync(path, "original");
+    chmodSync(path, 0o600);
+    defaultIO.writeFile(path, Buffer.from("new"), true);
+    assert.equal(statSync(path).mode & 0o777, 0o600);
+    const link = join(dir, "latest.json");
+    symlinkSync(path, link);
+    defaultIO.writeFile(link, Buffer.from("newer"), true);
+    assert.equal(readFileSync(path, "utf8"), "newer");
+    assert.ok(statSync(link, { throwIfNoEntry: true }) && readdirSync(dir).sort().join() === "latest.json,out.json");
   });
 });
 

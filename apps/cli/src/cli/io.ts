@@ -1,7 +1,9 @@
 // I/O seam for the CLI. Everything the CLI writes goes through a CliIO object so
 // tests can capture output instead of hitting the real stdout/stderr/filesystem.
 
-import { statSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { chmodSync, closeSync, openSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { DipError, DipUsageError } from "@maschinenlesbar.org/dip-bundestag-client/internal/errors";
 import type { DipClient, DipClientOptions } from "@maschinenlesbar.org/dip-bundestag-client/internal/client";
 import type { Transport } from "@maschinenlesbar.org/dip-bundestag-client/internal/http";
@@ -135,6 +137,46 @@ function isDirectory(path: string): boolean {
   }
 }
 
+/**
+ * Replace `target` with `data` atomically: a temporary file beside it, created
+ * exclusively, renamed over it. A write cut short (a full disk, a quota, a killed
+ * process) leaves the old file as it was, never half of the new one. An existing
+ * file's mode is kept, as the in-place write kept it.
+ */
+function replaceFile(target: string, data: Buffer): void {
+  const temporary = join(dirname(target), `.${basename(target)}.${process.pid}-${randomBytes(4).toString("hex")}.tmp`);
+  try {
+    writeFileSync(temporary, data, { flag: "wx" });
+    const mode = existingMode(target);
+    if (mode !== undefined) chmodSync(temporary, mode);
+    renameSync(temporary, target);
+  } catch (err) {
+    rmSync(temporary, { force: true });
+    throw err;
+  }
+}
+
+function existingMode(path: string): number | undefined {
+  try {
+    return statSync(path).mode & 0o7777;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The file a path names, through any symlinks, so `--force` replaces the file a link
+ * points at (as the in-place write did) rather than the link. A dangling link is
+ * replaced itself.
+ */
+function throughLinks(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
+}
+
 /** What `stderrAfterStdout` needs of stdout: its backlog, and the events that end one. */
 export interface StdoutBacklog {
   readonly writableLength: number;
@@ -182,20 +224,24 @@ export const defaultIO: CliIO = {
   out: (text) => process.stdout.write(text + "\n"),
   // A record never lands inside the data when both streams share a pipe.
   err: stderrLine,
-  // "wx" fails if the path already exists (a dangling symlink included, since an
-  // exclusive create never follows one), turning an accidental overwrite into a
-  // clean error instead of silent data loss. With --force we fall back to the
-  // default truncating write.
   writeFile: (path, data, force) => {
+    if (isDirectory(path)) throw new DipError(`"${path}" is a directory; give a file path to --output.`);
+    let claimed = false;
     try {
-      writeFileSync(path, data, { flag: force ? "w" : "wx" });
-    } catch (cause) {
-      const code = (cause as NodeJS.ErrnoException | undefined)?.code;
-      // `wx` answers EEXIST and `w` EISDIR for a directory; --force cannot help there.
-      if ((code === "EEXIST" || code === "EISDIR") && isDirectory(path)) {
-        throw new DipError(`"${path}" is a directory; give a file path to --output.`, { cause });
+      // Without --force the name is claimed first with an exclusive create, which fails if
+      // the path exists (a dangling symlink included, since it never follows one): an
+      // accidental overwrite is a clean error instead of silent data loss.
+      if (!force) {
+        closeSync(openSync(path, "wx"));
+        claimed = true;
       }
-      if (code === "EEXIST") {
+      replaceFile(force ? throughLinks(path) : path, data);
+    } catch (cause) {
+      // A write cut short (a full disk) leaves no file under the new name either, so the
+      // next run isn't refused for a file that holds half a result.
+      if (claimed) rmSync(path, { force: true });
+      const code = (cause as NodeJS.ErrnoException | undefined)?.code;
+      if (code === "EEXIST" && !claimed) {
         throw new DipError(
           `Refusing to overwrite existing file "${path}"; pass --force to overwrite.`,
           { cause },

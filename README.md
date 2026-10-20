@@ -320,7 +320,9 @@ dip --output results.json drucksache list --filter f.titel=Bürgergeld
 `-o` **will not overwrite an existing file** — it exits with an error
 (`Refusing to overwrite existing file …; pass --force to overwrite.`) to protect
 against a mistyped path clobbering your data. Pass `--force` to overwrite
-deliberately. A directory is refused either way, and `-o -` prints to stdout.
+deliberately. A directory is refused either way, and `-o -` prints to stdout. The new
+file replaces the old one only once it is complete, so a write that fails part-way (a
+full disk) leaves the old file as it was and no half-written one.
 
 **Exit codes** make the CLI easy to use in scripts:
 
