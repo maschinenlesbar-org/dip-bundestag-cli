@@ -312,7 +312,7 @@ What the library rejects:
   (`at most 9007199254740991`); leading zeros don't count towards it.
   The CLI's `--filter` and `--id` parsers call the same function.
 - **`get` id** (`idProblem`, in every `get(id)`, on the id trimmed of surrounding
-  whitespace, which is also what is sent): a blank id (an empty last
+  whitespace, which is also what is sent, an all-digit id without its leading zeros): a blank id (an empty last
   path segment would request the collection endpoint and resolve with the list
   envelope typed as a `Document`), and `.` or `..` (`encodeURIComponent` leaves
   them and URL parsing resolves them to the list or the API root). The message

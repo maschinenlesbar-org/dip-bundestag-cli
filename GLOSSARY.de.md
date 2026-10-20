@@ -96,7 +96,8 @@ Abgeordnete:r, aber auch andere Akteure. CLI: `person`. Client: `client.personen
 **id.** Jedes Ressourcendokument hat eine numerische `id`, die der `get`-Endpoint
 (`drucksache get 123456`) und der Filter `f.id` verwenden. Das CLI-Flag `--id` ist eine
 Kurzform für `f.id` und kann mehrfach angegeben werden (eine ganze Zahl, siehe unten). Die
-ID für `get` wird zuerst getrimmt, eine mitkopierte `"282486 "` findet also das Dokument.
+ID für `get` wird zuerst getrimmt, eine mitkopierte `"282486 "` findet also das Dokument, und
+eine ID nur aus Ziffern verliert ihre führenden Nullen wie bei `--id` (`get 0282486` fragt nach 282486).
 Eine leere ID, `.` oder `..`
 wird vor jeder Anfrage abgelehnt (CLI Exit 2, Bibliothek `DipValidationError`, dieselbe
 Meldung): `get("")` oder `get(".")` würde sonst den Sammel-Endpoint abfragen und die

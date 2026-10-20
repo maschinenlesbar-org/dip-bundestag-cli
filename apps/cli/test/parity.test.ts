@@ -570,3 +570,18 @@ test("a get id is trimmed in the CLI and in get(); a blank one stays a usage err
     assertBothReject(await parity({ argv: ["vorgang", "get", id], lib: (t) => client(t).vorgaenge.get(id) }), /^Invalid vorgang id: /);
   }
 });
+
+test("a get id loses its leading zeros, as --id does (bug 8, 2026-10-19)", async () => {
+  // `dip vorgang get 0282486` was "ID not found", exit 4, while `--id 0282486` found 282486:
+  // DIP compares ids as text.
+  const doc = () => jsonResponse({ id: "282486", titel: "x" });
+  for (const [id, sent] of [["0282486", "282486"], [" 00267686 ", "267686"], ["000", "0"], ["0", "0"]] as const) {
+    const r = await parity({ argv: ["--api-key", "k", "drucksache", "get", id], lib: (t) => client(t).drucksachen.get(id), responder: doc });
+    assertSameRequests(r);
+    assert.match(r.cli.requests[0]!.url, new RegExp(`/api/v1/drucksache/${sent}$`), JSON.stringify(id));
+  }
+  // Only an all-digit id is touched.
+  const r = await parity({ argv: ["--api-key", "k", "vorgang", "get", "0a1"], lib: (t) => client(t).vorgaenge.get("0a1"), responder: doc });
+  assertSameRequests(r);
+  assert.match(r.cli.requests[0]!.url, /\/vorgang\/0a1$/);
+});

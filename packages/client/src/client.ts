@@ -147,13 +147,16 @@ class ResourceGroup {
    * `"282486 "` used to be sent as `282486%20` and reported as not found). Rejects
    * with `DipValidationError`, before any request, for a blank id (`Invalid vorgang id: ...`), which would request the
    * collection endpoint and resolve with the list envelope, and for "." or "..",
-   * which URL parsing resolves to the list or the API root. A 2xx answer that is not
+   * which URL parsing resolves to the list or the API root. An all-digit id loses its
+   * leading zeros, as an integer filter does: DIP compares ids as text, so `0282486`
+   * was "not found" where `--id 0282486` found 282486. A 2xx answer that is not
    * a document (an object with an `id`) is a `DipParseError`.
    */
   async get(id: string): Promise<Document> {
     const trimmed = typeof id === "string" ? id.trim() : id;
     assertValid(`${this.path} id`, trimmed, idProblem);
-    const path = `${API}/${this.path}/${enc(String(trimmed))}`;
+    const sent = typeof trimmed === "string" && /^\d+$/.test(trimmed) ? trimmed.replace(/^0+(?=\d)/, "") : trimmed;
+    const path = `${API}/${this.path}/${enc(String(sent))}`;
     return expectShape<Document>(await this.e.getJson(path), documentProblem, path);
   }
 }
