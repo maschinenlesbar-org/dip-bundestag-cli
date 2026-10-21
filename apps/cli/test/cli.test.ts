@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { run } from "../src/cli/run.js";
@@ -473,12 +473,18 @@ test("a refused -o target is a usage error before any request (kit rollout 2026-
     writeFileSync(existing, "mine");
     const dangling = join(dir, "dangling.json");
     symlinkSync(join(dir, "nowhere"), dangling);
+    const readonly = join(dir, "ro");
+    mkdirSync(readonly, { mode: 0o555 });
     const cases: Array<[string[], RegExp]> = [
       [["--force", "vorgang", "list"], /--force needs --output/],
       [["-o", existing, "vorgang", "list"], /Refusing to overwrite existing file ".*keep\.json"; pass --force to overwrite\./],
       [["-o", dangling, "vorgang", "list"], /Refusing to overwrite existing file ".*dangling\.json"/],
       [["-o", dir, "vorgang", "list"], /is a directory; give a file path to --output\./],
       [["-o", dir, "--force", "vorgang", "get", "1"], /is a directory/],
+      // Bug 4 of 2026-10-21: a missing or unwritable directory was found only after the request.
+      [["-o", join(dir, "missing", "x.json"), "drucksache-text", "get", "1"], /Cannot write to ".*x\.json": the directory ".*missing" does not exist\./],
+      [["-o", join(dir, "keep.json", "x.json"), "vorgang", "list"], /Cannot write to ".*x\.json": ".*keep\.json" is not a directory\./],
+      [["-o", join(readonly, "new.json"), "vorgang", "list"], /Cannot write to ".*new\.json": no permission to create files in ".*ro"\./],
     ];
     for (const [argv, message] of cases) {
       const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));

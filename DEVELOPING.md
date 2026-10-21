@@ -589,7 +589,10 @@ everything that drives the CLI is in `apps/cli/test/`.
   `TEXT_FILTERS` on each resource that takes it, and every `get` id, through the CLI and the
   library: sent canonical or refused, never blank, a dot segment or with a `/`), **P25** the
   response corpus (a number a double can't carry exactly, or an empty body, is an error) and
-  **P26** `-o` integrity (`ulimit -f` cuts the write: the old file stays, nothing half-written
+  **P26** `-o` integrity (a missing directory refused before the request, `/dev/null` and a FIFO
+  written in place, `--force` through a dangling link, a 255-byte name, a signal during the
+  write leaving nothing behind, stdout cut short under `ulimit -f` an error; `ulimit -f` cuts the
+  write: the old file stays, nothing half-written
   is left; an existing file is refused before any request; it starts the bin, 30 s). P24 and
   P25 use `kitParity`, dip's `parity` in the shape the shared bodies expect. **P27** big and odd
 answers (`conformance-p27-big-and-odd-answers.test.ts`: a large flat answer and one full of DEL
@@ -673,8 +676,14 @@ bad JSON, the wrong shape, an empty body), `http` (the connection, the cleartext
 `OutputError`, an answer nested too deeply or too large to print, which names that cause and
 suggests `--compact` only when the compact form of that answer prints, and a stdout write error). A `-o` target refused before any request
 (`checkOutputTarget` in `action()`: an existing path without `--force`, a dangling link
-included, a directory, `--force` without `-o`) is a usage error of `cli`, exit 2; the write
-checks again, so a file that appears during the request is an `OutputError`. Code logs through `logOf(deps)` and never writes diagnostics
+included, a directory, `--force` without `-o`, a file whose directory is missing or not
+writable or whose links loop, `outputParentProblem`) is a usage error of `cli`, exit 2; the write
+checks again, so a file that appears during the request is an `OutputError`. `defaultIO.writeFile`
+writes a stream (a character device, a FIFO, a socket, `/dev/stdout`, `/dev/fd/N`) in place, with
+no claim, no temporary file and no `--force` needed; a file atomically (an exclusive claim of the
+name without `--force`, a temporary file within NAME_MAX renamed over it), and from the first
+file write on SIGINT, SIGTERM and SIGHUP remove the claim and the temporary file and exit 130,
+143 or 129. `--force` through a link writes the file it names, created if the link dangles. Code logs through `logOf(deps)` and never writes diagnostics
 with `io.err` directly. `run()` builds the logger from argv before commander parses it
 (`logFormatFromArgv`, used only for the records of a parse error; a `preAction` hook then
 sets the format commander parsed, so `--user-agent --log-format=jsonl` logs text),

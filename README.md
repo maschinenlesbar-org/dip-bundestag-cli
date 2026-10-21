@@ -326,11 +326,14 @@ dip --output results.json drucksache list --filter f.titel=Bürgergeld
 `-o` **will not overwrite an existing file** — it is a usage error (exit `2`), before any
 request is sent (`Refusing to overwrite existing file …; pass --force to overwrite.`), to
 protect against a mistyped path clobbering your data; a dangling symlink counts as existing.
-Pass `--force` to overwrite deliberately (through a symlink, to the file it points at). A
-directory is refused either way, `--force` without `-o` is a usage error too, and `-o -`
-prints to stdout. The new
-file replaces the old one only once it is complete, so a write that fails part-way (a
-full disk) leaves the old file as it was and no half-written one.
+Pass `--force` to overwrite deliberately (through a symlink, to the file it points at, which
+is created if the link dangles; the link stays). A directory, and a file whose directory is
+missing or not writable, are refused either way before any request, `--force` without `-o` is
+a usage error too, and `-o -` prints to stdout. The new file replaces the old one only once it
+is complete, so a write that fails part-way (a full disk) or is interrupted (Ctrl-C, `SIGTERM`,
+`SIGHUP`: exit `130`, `143`, `129`) leaves the old file as it was and no half-written or
+temporary one. A device, a FIFO or the shell's own descriptor (`/dev/null`, `/dev/stdout`,
+`>(gzip > x.gz)`) is written in place, without `--force`.
 
 **Exit codes** make the CLI easy to use in scripts:
 
@@ -384,8 +387,8 @@ last one wins"; only `--filter` and `--id` of `list` repeat (an OR set).
 | `--api-key <key>` | DIP API key (env `DIP_API_KEY`). Surrounding whitespace is trimmed, as for `DIP_API_KEY`. A blank value, control characters, whitespace inside (a key is one token) or characters above U+00FF are a usage error (exit `2`), from the flag or the env var; the error never repeats the key. A dip command in its place (`--api-key $EMPTY vorgang list` with an empty variable) is a usage error that says the key is missing |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
 | `--log-format <format>` | How errors, warnings and notes are written to stderr: `text` (default; log4j style, `2026-10-09T14:03:12.481Z WARN  [dip.http] …`) or `jsonl` (one JSON object per line: `ts`, `level`, `topic`, `msg`). stdout is not affected |
-| `-o, --output <file>` | Write output to this file instead of stdout (refuses to overwrite an existing file; `-` = stdout; a blank path is a usage error, exit `2`) |
-| `--force` | With `-o`, overwrite the output file if it already exists |
+| `-o, --output <file>` | Write output to this file instead of stdout (`-` = stdout). An existing file is refused before any request (exit `2`) unless `--force` is given; a directory, a blank path and a file whose directory is missing or not writable are refused either way. The file is replaced only once complete; an interrupted run leaves no half-written or temporary file. A device, a FIFO or `/dev/stdout` is written in place, without `--force` |
+| `--force` | With `-o`, overwrite the output file if it already exists (through a symlink, to the file it points at, which is created if the link dangles); without `-o` a usage error |
 | `--base-url <url>` | API base URL: the host, **without** `/api/v1`, which the CLI adds (default `https://search.dip.bundestag.de`). `http:`/`https:` only; a query (`?`), fragment (`#`), whitespace (surrounding or inside), a trailing `/api/v1` or a `%` in the user name or password that is not an escape (write a literal `%` as `%25`) is a usage error (exit `2`). A `user:password@` part is sent as HTTP Basic auth (unless an API key takes the `Authorization` header) but shown as `***@` in everything the CLI prints, usage errors included. Credentials go to this origin only: a redirect to another host, port or scheme (http→https included) drops them, so use `https://`. A plain-`http:` base URL to any host other than the loopback interface (`localhost`, `127.0.0.0/8`, `::1`) logs one WARN record of `dip.http` on stderr before the first request (naming the host and whether the API key or the URL's credentials go with it, never their values); stdout and the exit code are unchanged |
 | `--timeout <ms>` | Time limit per request, reading the whole response included (default `30000`; at most `2147483647`). Running out ends in `GET <url> failed: Request timed out after <ms>ms` |
 | `--user-agent <ua>` | `User-Agent` header value. A blank value, control characters or characters above U+00FF are a usage error (exit `2`) |

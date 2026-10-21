@@ -1,12 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chmodSync, closeSync, mkdtempSync, openSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, lstatSync, mkdtempSync, openSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EventEmitter } from "node:events";
-import { defaultIO, handleOutputErrors, stderrAfterStdout, stdoutWriter } from "../src/cli/io.js";
+import { defaultIO, handleOutputErrors, outputParentProblem, outputPathState, stderrAfterStdout, stdoutWriter } from "../src/cli/io.js";
 import { DipError } from "@maschinenlesbar.org/dip-bundestag-client/internal/errors";
 import { createLogger } from "../src/cli/log.js";
 
@@ -232,4 +232,32 @@ test("stdout to a regular file gets every byte or an error: a short write is nev
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("writeFile with --force through a dangling link creates the file the link names; the link stays (D1)", () => {
+  withTempDir((dir) => {
+    const link = join(dir, "latest.json");
+    symlinkSync("target.json", link);
+    defaultIO.writeFile(link, Buffer.from("data"), true);
+    assert.ok(lstatSync(link).isSymbolicLink());
+    assert.equal(readFileSync(join(dir, "target.json"), "utf8"), "data");
+    // A loop is refused before the request, naming the user's path.
+    symlinkSync("loop2", join(dir, "loop1"));
+    symlinkSync("loop1", join(dir, "loop2"));
+    assert.match(outputParentProblem(join(dir, "loop1"), true) ?? "", /^Cannot write to ".*loop1": too many levels of symbolic links$/);
+  });
+});
+
+test("a stream target is written in place without --force; a 255-byte name gets a temporary name that fits (D5)", () => {
+  assert.equal(outputPathState("/dev/null"), "stream");
+  assert.equal(outputPathState("/dev/stdout"), "stream");
+  assert.equal(outputPathState("/dev/fd/63"), "stream");
+  defaultIO.writeFile("/dev/null", Buffer.from("x"));
+  assert.ok(statSync("/dev/null").isCharacterDevice());
+  withTempDir((dir) => {
+    const long = join(dir, `${"x".repeat(250)}.json`);
+    defaultIO.writeFile(long, Buffer.from("data"));
+    assert.equal(readFileSync(long, "utf8"), "data");
+    assert.deepEqual(readdirSync(dir), [`${"x".repeat(250)}.json`]);
+  });
 });

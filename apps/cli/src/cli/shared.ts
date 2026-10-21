@@ -4,7 +4,7 @@
 import { constants } from "node:buffer";
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
-import { OutputError, isDirectoryMessage, logOf, outputPathState, refuseOverwrite, type CliDeps } from "./io.js";
+import { OutputError, isDirectoryMessage, logOf, outputParentProblem, outputPathState, refuseOverwrite, type CliDeps } from "./io.js";
 import type { RawResponse, RetryEvent } from "@maschinenlesbar.org/dip-bundestag-client/internal/engine";
 import { apiKeyProblem, normaliseApiKey, type DipClientOptions } from "@maschinenlesbar.org/dip-bundestag-client/internal/client";
 
@@ -304,9 +304,11 @@ function writeOutputFile(deps: CliDeps, path: string, data: Buffer, force: boole
 
 /**
  * Check `-o` before any request, so a refused target costs none: `--force` without `-o`, a
- * directory, and an existing path (a dangling link too) without `--force` are usage errors
- * (exit 2, an ERROR record of `dip.cli`). `-o -` is stdout. The write checks again: a file
- * that appears during the request is not overwritten either (an OutputError then, exit 1).
+ * directory, an existing path (a dangling link too) without `--force`, and a file whose
+ * directory is missing or not writable are usage errors (exit 2, an ERROR record of
+ * `dip.cli`). A stream (`/dev/null`, a FIFO, `/dev/stdout`, `>(…)`) needs no `--force`: it is
+ * written in place, and nothing in it can be lost. `-o -` is stdout. The write checks again: a
+ * file that appears during the request is not overwritten either (an OutputError then, exit 1).
  */
 export function checkOutputTarget(deps: CliDeps, global: GlobalOptions): void {
   if (global.force === true && global.output === undefined) {
@@ -315,7 +317,10 @@ export function checkOutputTarget(deps: CliDeps, global: GlobalOptions): void {
   if (global.output === undefined || global.output === "-") return;
   const state = (deps.io.outputState ?? outputPathState)(global.output);
   if (state === "directory") throw new DipValidationError(isDirectoryMessage(global.output));
+  if (state === "stream") return;
   if (state === "exists" && global.force !== true) throw new DipValidationError(refuseOverwrite(global.output));
+  const problem = (deps.io.outputParentProblem ?? outputParentProblem)(global.output, global.force === true);
+  if (problem !== undefined) throw new DipValidationError(problem);
 }
 
 /**
