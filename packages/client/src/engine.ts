@@ -66,24 +66,27 @@ function parseJsonBody<T>(text: string, path: string): T {
 const JSON_NUMBER = /-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
 
 /**
- * Whether the double `value` (finite) is exactly the number `literal` (a JSON number token)
- * writes, checked where a double can be off by a whole number or more: at and past 2^53, where
- * every double is an integer, and at 0, which a literal too small for a double becomes.
+ * Whether the double `value` (finite) prints as the number `literal` wrote, checked where a
+ * double can be off by a whole number or more: past 2^53, where every double is an integer, and
+ * at 0, which a literal too small for a double becomes. Past 2^53 the CLI prints `String(value)`,
+ * the shortest decimal that reads back as the same double: `12345678901234567890` prints as
+ * `12345678901234567000`, a changed value, while `1E23` or `1.7976931348623157E308` (a double a
+ * server printed in its own shortest form) print as the same number.
  */
 function exactAtTheEdges(literal: string, value: number): boolean {
   if (value !== 0 && Math.abs(value) <= Number.MAX_SAFE_INTEGER) return true;
-  const [, mantissa = "", exponent = "0"] = /^-?([\d.]+)(?:[eE]([+-]?\d+))?$/.exec(literal) ?? [];
-  if (value === 0) return !/[1-9]/.test(mantissa);
-  // The literal as digits × 10^shift, without trailing zeros.
-  const [whole = "", fraction = ""] = mantissa.split(".");
-  let digits = (whole + fraction).replace(/^0+/, "");
-  let shift = Number(exponent) - fraction.length;
-  const trimmed = digits.replace(/0+$/, "");
-  shift += digits.length - trimmed.length;
-  digits = trimmed;
-  // A fraction can't equal a double this big, and a finite value bounds the shift.
-  if (shift < 0) return false;
-  return BigInt(digits) * 10n ** BigInt(shift) === BigInt(Math.abs(value));
+  const written = decimalOf(literal);
+  if (value === 0) return written.digits === "";
+  const printed = decimalOf(String(value));
+  return written.negative === printed.negative && written.digits === printed.digits && written.exponent === printed.exponent;
+}
+
+/** A decimal literal as sign, significant digits (no leading or trailing zeros) and exponent: digits × 10^exponent. */
+function decimalOf(text: string): { negative: boolean; digits: string; exponent: number } {
+  const [, sign = "", whole = "", fraction = "", exp = "0"] = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(text) ?? [];
+  const all = (whole + fraction).replace(/^0+/, "");
+  const digits = all.replace(/0+$/, "");
+  return { negative: sign === "-", digits, exponent: Number(exp) - fraction.length + (all.length - digits.length) };
 }
 
 /**
