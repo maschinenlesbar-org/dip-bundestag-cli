@@ -121,9 +121,10 @@ test("a filter value in decomposed Unicode is sent composed (NFC); the cursor is
   assert.equal(new URL(mt.calls[1]!.url).searchParams.get("f.person"), "Müller");
 });
 
-test("a text filter goes out trimmed and composed; codes and dates are left as given (kit rollout 2026-10-21, K6)", async () => {
+test("a text filter goes out trimmed and composed; codes and dates trimmed too (K6; D8 of 2026-10-21)", async () => {
   // `--filter "f.titel= Klima"` (or a value pasted with a trailing newline) went out with the
-  // space and matched nothing. Codes, dates and the cursor are not text the API matches.
+  // space and matched nothing. Codes, document numbers and dates are tokens: trimmed too (D8;
+  // `f.dokumentnummer=20/6875 ` found nothing). The cursor is opaque.
   const mt = makeMockTransport(() => jsonResponse({ numFound: 0, documents: [], cursor: "*" }));
   const client = clientWith(mt, "k");
   await client.vorgaenge.list({
@@ -136,8 +137,8 @@ test("a text filter goes out trimmed and composed; codes and dates are left as g
   const query = new URL(mt.calls[0]!.url).searchParams;
   assert.deepEqual(query.getAll("f.titel"), ["Bürgergeld", "Klima  schutz"]);
   assert.equal(query.get("f.urheber"), "Bundesregierung");
-  assert.equal(query.get("f.dokumentnummer"), " 20/1234", "a code is sent as given");
-  assert.equal(query.get("f.datum.start"), "2024-01-01 ", "a date is sent as given");
+  assert.equal(query.get("f.dokumentnummer"), "20/1234", "a document number is trimmed");
+  assert.equal(query.get("f.datum.start"), "2024-01-01", "a date is trimmed");
   assert.equal(query.get("cursor"), " Aöx ", "a cursor is opaque");
   await client.personen.list({ "f.person": "　Müller " });
   assert.equal(new URL(mt.calls[1]!.url).searchParams.get("f.person"), "Müller");
@@ -182,4 +183,26 @@ test("a wrong answer shape names the request: method and URL, query included (D9
   await assert.rejects(client.personen.get(" 014 "), {
     message: 'GET http://***@mirror.test/api/v1/person/14: unexpected response shape: expected a DIP document (an object with an id), got an object with "error".',
   });
+});
+
+test("a code, document number or date is a token: trimmed and composed, or refused with an invisible character (D8)", async () => {
+  // Result 01 of 2026-10-21, question 1: `f.dokumentnummer=20/6875 ` and `f.zuordnung=BT ` found
+  // nothing with exit 0; a value of only a zero-width space was sent and found nothing.
+  const mt = makeMockTransport(() => jsonResponse({ numFound: 0, documents: [] }));
+  const client = clientWith(mt, "k");
+  await client.drucksachen.list({ "f.dokumentnummer": "20/6875 ", "f.zuordnung": [" BT", "BR\n"], "f.drucksachetyp": " Antrag" });
+  const query = new URL(mt.calls[0]!.url).searchParams;
+  assert.equal(query.get("f.dokumentnummer"), "20/6875");
+  assert.deepEqual(query.getAll("f.zuordnung"), ["BT", "BR"]);
+  assert.equal(query.get("f.drucksachetyp"), "Antrag");
+  for (const value of ["\u200b", "B\u200bT", "BT\u00ad", "\u202eBT", "B\u0000T", "\ud800", "\u0301"]) {
+    await assert.rejects(client.drucksachen.list({ "f.zuordnung": value }), DipValidationError, JSON.stringify(value));
+  }
+  // A text filter keeps ZWJ (emoji, scripts) but refuses a zero-width space or a soft hyphen.
+  await client.vorgaenge.list({ "f.titel": "a\u200db" });
+  for (const value of ["Kli\u200bma", "Kli\u00adma"]) {
+    await assert.rejects(client.vorgaenge.list({ "f.titel": value }), (err: Error) => err instanceof DipValidationError && err.message.includes("\\u"), JSON.stringify(value));
+  }
+  await assert.rejects(client.vorgaenge.list({ "f.titel": "\u200b" }), { message: "Invalid f.titel: Expected a non-empty value." });
+  assert.equal(mt.calls.length, 2, "no refused value was sent");
 });

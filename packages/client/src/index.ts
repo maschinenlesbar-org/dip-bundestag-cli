@@ -65,6 +65,11 @@ export {
   listResultProblem,
   nonEmptyProblem,
   normalizeText,
+  normalizeToken,
+  splitList,
+  listProblem,
+  textProblem,
+  tokenProblem,
 } from "./validate.js";
 export type { Problem } from "./validate.js";
 

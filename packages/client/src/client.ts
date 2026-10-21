@@ -17,6 +17,7 @@ import type { QueryParams, QueryPrimitive } from "./query.js";
 import type { ListResult, Document } from "./types.js";
 import {
   INTEGER_FILTERS,
+  LIST_FILTERS,
   TEXT_FILTERS,
   cursorWithoutFiltersProblem,
   filterKeyProblem,
@@ -32,7 +33,10 @@ import {
   isBlank,
   isPlainObject,
   normalizeText,
+  normalizeToken,
   listResultProblem,
+  textProblem,
+  tokenProblem,
   type Problem,
 } from "./validate.js";
 import { DipParseError, DipValidationError } from "./errors.js";
@@ -53,23 +57,49 @@ const API = API_PATH;
 // rejects those ids first (idProblem), and RequestEngine.buildUrl is a backstop.
 const enc = encodeURIComponent;
 
+/** Whether `key` is one of the filters DIP compares exactly (a code, a document number, a date). */
+function isTokenFilter(key: string): boolean {
+  return key.startsWith("f.") && ALL_FILTERS.has(key) && !TEXT_FILTERS.includes(key) && !INTEGER_FILTERS.includes(key);
+}
+
+/** Every filter of every resource. */
+const ALL_FILTERS: ReadonlySet<string> = new Set(Object.values(LIST_FILTERS).flat());
+
+/**
+ * Refuse a string value that would match nothing, before any request: a text filter by
+ * `textProblem` (and an unknown filter sent with `allowUnknownFilters`, whose kind is unknown),
+ * a code, document number or date by `tokenProblem`. The cursor is opaque, and integer filters
+ * have their own rule.
+ */
+function assertCanonicalValues(params: QueryParams): void {
+  for (const [key, raw] of Object.entries(params)) {
+    if (key === "cursor" || INTEGER_FILTERS.includes(key)) continue;
+    const problem = isTokenFilter(key) ? tokenProblem : textProblem;
+    for (const value of Array.isArray(raw) ? raw : [raw]) {
+      if (typeof value === "string") assertValid(key, value, problem);
+    }
+  }
+}
+
 /**
  * The query as DIP matches it, on a copy: every value of a text filter (`TEXT_FILTERS`)
  * trimmed and in composed Unicode (`normalizeText`; a value pasted with a trailing space, or
- * a decomposed "Bürgergeld", u + U+0308, found nothing), every other string value in composed
- * Unicode (NFC), and every integer filter (`INTEGER_FILTERS`) without leading zeros: DIP
+ * a decomposed "Bürgergeld", u + U+0308, found nothing), every code, document number and date
+ * trimmed and composed too (`normalizeToken`; `f.dokumentnummer=20/6875 ` with a trailing space
+ * found nothing), and every integer filter (`INTEGER_FILTERS`) without leading zeros: DIP
  * compares ids as text, so `f.id=0282486` found nothing where 282486 found the procedure. The
- * cursor is opaque and sent as given.
+ * cursor is opaque and sent as given; an unknown filter (`allowUnknownFilters`) composed.
  */
 function normaliseFilterValues(params: QueryParams): QueryParams {
   const composed = (value: QueryPrimitive): QueryPrimitive => (typeof value === "string" ? value.normalize("NFC") : value);
+  const token = (value: QueryPrimitive): QueryPrimitive => (typeof value === "string" ? normalizeToken(value) : value);
   const text = (value: QueryPrimitive): QueryPrimitive => (typeof value === "string" ? normalizeText(value) : value);
   const integer = (value: QueryPrimitive): QueryPrimitive =>
     typeof value === "string" && /^\d+$/.test(value) ? value.replace(/^0+(?=\d)/, "") : value;
   // No prototype: with allowUnknownFilters a key such as `__proto__` stays a key.
   const out = Object.create(null) as QueryParams;
   for (const [key, value] of Object.entries(params)) {
-    const one = INTEGER_FILTERS.includes(key) ? integer : TEXT_FILTERS.includes(key) ? text : composed;
+    const one = INTEGER_FILTERS.includes(key) ? integer : TEXT_FILTERS.includes(key) ? text : isTokenFilter(key) ? token : composed;
     out[key] = key === "cursor" ? value : Array.isArray(value) ? value.map(one) : one(value);
   }
   return out;
@@ -146,6 +176,7 @@ class ResourceGroup {
         if (one !== undefined && one !== null) assertValid(key, one, integerFilterProblem);
       }
     }
+    assertCanonicalValues(params);
     const path = `${API}/${this.path}`;
     const query = normaliseFilterValues(params);
     return expectShape<ListResult>(await this.e.getJson(path, query), listResultProblem, `GET ${this.e.describeUrl(path, query)}`);
@@ -164,7 +195,9 @@ class ResourceGroup {
   async get(id: string): Promise<Document> {
     const trimmed = typeof id === "string" ? id.trim() : id;
     assertValid(`${this.path} id`, trimmed, idProblem);
-    const sent = typeof trimmed === "string" && /^\d+$/.test(trimmed) ? trimmed.replace(/^0+(?=\d)/, "") : trimmed;
+    // Sent as a token (`normalizeToken`: trimmed, composed), an all-digit id without its leading zeros.
+    const token = typeof trimmed === "string" ? normalizeToken(trimmed) : trimmed;
+    const sent = typeof token === "string" && /^\d+$/.test(token) ? token.replace(/^0+(?=\d)/, "") : token;
     const path = `${API}/${this.path}/${enc(String(sent))}`;
     return expectShape<Document>(await this.e.getJson(path), documentProblem, `GET ${this.e.describeUrl(path)}`);
   }

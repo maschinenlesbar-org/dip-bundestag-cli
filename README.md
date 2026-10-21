@@ -209,7 +209,11 @@ New to terms like *Vorgang*, *Drucksache*, *Wahlperiode* or *Vorgangstyp*? The
 only form DIP matches (a `Bürgergeld` pasted with a combining umlaut found nothing). The value
 of a text filter (`f.titel`, `f.person`, `f.urheber`, `f.deskriptor`, `f.sachgebiet` and the
 other names and terms) also goes out without surrounding whitespace, since one pasted with a
-trailing space or newline matched nothing; codes, document numbers and dates are sent as typed. The key must be one of the
+trailing space or newline matched nothing; so do codes, document numbers and dates
+(`f.dokumentnummer=20/6875 ` found nothing). A value that holds only invisible characters (a
+zero-width space), a lone surrogate or a control character, an invisible format character in a
+text (a zero-width space, a soft hyphen, a bidi control; ZWJ is allowed) and any of them in a code
+is a usage error (exit `2`), shown escaped (`"Kli\u200bma"`). The key must be one of the
 `f.*` filters DIP documents for that resource (the error lists them): DIP ignores
 a key it does not know and answers with the whole unfiltered list, so a typo such
 as `f.titl`, or `f.person` on `vorgang`, is a usage error (exit `2`) instead. Only the first `=` splits

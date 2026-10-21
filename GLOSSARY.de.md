@@ -117,8 +117,12 @@ DIP ergänzten Filter. Die übrigen reicht sie über `--filter key=value`
 (mehrfach angebbar) weiter, jeden Textwert in zusammengesetztem Unicode (NFC), der einzigen Form,
 die das DIP findet (ein mit kombinierendem Trema kopiertes `Bürgergeld` fand nichts), und den
 Wert eines **Textfilters** (`TEXT_FILTERS`: `f.titel`, `f.person`, `f.urheber`, `f.deskriptor`,
-`f.sachgebiet` und die übrigen Namen und Begriffe; nicht die Codes, Dokumentnummern oder Daten)
-ohne umgebenden Leerraum (`normalizeText`), denn ein mitkopiertes Leerzeichen am Ende fand nichts; nur das erste `=` trennt Schlüssel und Wert, ein Wert darf also
+`f.sachgebiet` und die übrigen Namen und Begriffe) ohne umgebenden Leerraum (`normalizeText`),
+denn ein mitkopiertes Leerzeichen am Ende fand nichts; ein Code, eine Dokumentnummer oder ein
+Datum ist ein **Token** und wird ebenso gekürzt (`normalizeToken`). Ein Wert nur aus unsichtbaren
+Zeichen oder einer mit Steuerzeichen, halbem Zeichen (einzelnem Surrogat) oder unsichtbarem
+Formatzeichen (im Token jedes, im Text alle außer ZWJ/ZWNJ) wird abgelehnt und maskiert gezeigt
+(`textProblem`, `tokenProblem`); nur das erste `=` trennt Schlüssel und Wert, ein Wert darf also
 selbst `=` enthalten. Wird derselbe Schlüssel wiederholt, werden wiederholte
 Query-Schlüssel gesendet (`?f.id=1&f.id=2`), die das DIP als ODER-Menge behandelt.
 Ein leerer Filterwert, eine leere `--id` oder ein leerer `--cursor` wird ebenfalls

@@ -116,8 +116,11 @@ added later. It passes the rest on via
 `--filter key=value` (repeatable), each text value in composed Unicode (NFC), the only form
 DIP matches (a `Bürgergeld` pasted with a combining umlaut found nothing), and the value of a
 **text filter** (`TEXT_FILTERS`: `f.titel`, `f.person`, `f.urheber`, `f.deskriptor`,
-`f.sachgebiet` and the other names and terms; not the codes, document numbers or dates)
-without surrounding whitespace (`normalizeText`), since a pasted trailing space matched nothing; only the first `=` splits key from value, so a
+`f.sachgebiet` and the other names and terms) without surrounding whitespace (`normalizeText`),
+since a pasted trailing space matched nothing; a code, document number or date is a **token**,
+trimmed too (`normalizeToken`). A value of only invisible characters, or one with a control
+character, a lone surrogate or an invisible format character (in a token any, in a text all but
+ZWJ/ZWNJ) is refused, shown escaped (`textProblem`, `tokenProblem`); only the first `=` splits key from value, so a
 value may itself contain `=`. Repeating the same key sends repeated query keys
 (`?f.id=1&f.id=2`), which DIP treats as an OR set. A blank filter value, `--id`
 or `--cursor` is rejected too (exit 2), and the library's `list()` rejects a blank

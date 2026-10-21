@@ -8,7 +8,7 @@
 //   - `assertValid` turns a reason into a `DipValidationError` with the message
 //     `Invalid <name>: <reason>`.
 
-import { DipValidationError, cutForMessage } from "./errors.js";
+import { DipValidationError, cutForMessage, quoteValue } from "./errors.js";
 import type { QueryParams } from "./query.js";
 
 /** Returns why `value` is invalid, or `undefined` when it is valid. */
@@ -45,6 +45,111 @@ export const nonEmptyProblem: Problem<string> = (value) =>
  */
 export function normalizeText(value: string): string {
   return value.trim().normalize("NFC");
+}
+
+/** Characters that never make a value non-blank: whitespace, controls, format characters, combining marks. */
+const INVISIBLE = /[\s\p{Cc}\p{Cf}\p{M}]/gu;
+
+/** A lone surrogate: half of a character, which URLSearchParams would send as U+FFFD. */
+const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
+
+/**
+ * True when nothing in `value` would match anything: it holds only whitespace, control and
+ * format characters (a zero-width space, a soft hyphen) and combining marks. DIP reads such a
+ * value as no filter, or matches nothing with it, so it is refused as blank.
+ */
+function holdsNothing(value: string): boolean {
+  return value.replace(INVISIBLE, "") === "";
+}
+
+/** `U+200B` for the first character of `text` that `pattern` matches. */
+function codePointOf(text: string, pattern: RegExp): string {
+  const ch = pattern.exec(text)?.[0] ?? "";
+  return `U+${(ch.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0")}`;
+}
+
+/** A control character inside a text filter: C0 and C1, but not TAB, LF or CR (whitespace in a pasted phrase). */
+const TEXT_CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/;
+
+/** A format character inside a text filter, but not ZWNJ/ZWJ (U+200C/U+200D), which some scripts and emoji need. */
+const TEXT_FORMAT = /(?![\u200c\u200d])\p{Cf}/u;
+
+/**
+ * Why `value` cannot be sent as a text filter (`TEXT_FILTERS`), or undefined when it can.
+ * Refused, before any request, as DIP would match nothing or everything:
+ * - a value that is blank once trimmed (Unicode whitespace, U+00A0 included), or that holds only
+ *   invisible characters and combining marks: an empty filter reads as "no filter";
+ * - a lone surrogate (half of a character, sent as U+FFFD);
+ * - a control character (but TAB, LF and CR) or a format character (a zero-width space, a soft
+ *   hyphen, a bidi control; ZWNJ and ZWJ are allowed): pasted along, it makes the search find
+ *   nothing.
+ * The reason quotes the value with every invisible character escaped (`quoteValue`).
+ */
+export function textProblem(value: string): string | undefined {
+  if (typeof value !== "string") return "Expected a string.";
+  if (holdsNothing(value)) return "Expected a non-empty value.";
+  if (LONE_SURROGATE.test(value)) return `${quoteValue(value)} contains half of a character (a lone surrogate).`;
+  if (TEXT_CONTROL.test(value)) return `${quoteValue(value)} contains a control character (${codePointOf(value, TEXT_CONTROL)}).`;
+  if (TEXT_FORMAT.test(value)) return `${quoteValue(value)} contains an invisible character (${codePointOf(value, TEXT_FORMAT)}).`;
+  return undefined;
+}
+
+/** A control or format character in a token (after trimming): every Cc and every Cf. */
+const TOKEN_INVISIBLE = /[\p{Cc}\p{Cf}]/u;
+
+/**
+ * Why `value` cannot be sent as a token, or undefined when it can. A token is a value DIP
+ * compares exactly: a `get` id, a code (`f.zuordnung`, `f.dokumentart`, `f.gesta`), a document
+ * number, a date. The rules apply to the value with surrounding whitespace trimmed, as it is
+ * sent (`normalizeToken`): not blank (and not only invisible characters or combining marks), no
+ * lone surrogate, and no control or format character at all (a zero-width space, a soft hyphen,
+ * a bidi control), since an invisible character in a code only ever makes it match nothing.
+ * The reason quotes the value visibly. (The repo knows no list of DIP's code values, so a code
+ * is checked for its form only.)
+ */
+export function tokenProblem(value: string): string | undefined {
+  if (typeof value !== "string") return "Expected a string.";
+  if (holdsNothing(value)) return "Expected a non-empty value.";
+  const token = value.trim();
+  if (LONE_SURROGATE.test(token)) return `${quoteValue(value)} contains half of a character (a lone surrogate).`;
+  if (TOKEN_INVISIBLE.test(token)) {
+    return `${quoteValue(value)} contains an invisible or control character (${codePointOf(token, TOKEN_INVISIBLE)}).`;
+  }
+  return undefined;
+}
+
+/**
+ * A token as it is sent: trimmed and in composed Unicode (NFC). A document number or code
+ * pasted with a trailing space (`f.dokumentnummer=20/6875 `) matched nothing, with exit 0.
+ * Check it with {@link tokenProblem} first.
+ */
+export function normalizeToken(value: string): string {
+  return value.trim().normalize("NFC");
+}
+
+/**
+ * The items of a comma-separated list value, as typed: each item is checked (`listProblem`)
+ * and canonicalised (`normalizeToken`) on its own, so `"a1, a2"` sends `a2`, and `"a1,,a2"`,
+ * `"a1,"` and `","` are refused rather than sent as an empty item. (DIP takes repeated
+ * parameters, not comma lists; this is the kit's helper for a caller that splits one.)
+ */
+export function splitList(value: string): string[] {
+  return value.split(",");
+}
+
+/**
+ * Why `items` cannot be sent as a list, or undefined when it can: not an array of strings, no
+ * item at all (an empty list reads as "no filter"), or an item that `itemProblem` refuses (by
+ * default {@link tokenProblem}: a blank item is refused, never dropped). The reason names the item.
+ */
+export function listProblem(items: readonly string[], itemProblem: Problem<string> = tokenProblem): string | undefined {
+  if (!Array.isArray(items)) return "Expected a list of strings.";
+  if (items.length === 0) return "Expected at least one value.";
+  for (let i = 0; i < items.length; i++) {
+    const problem = itemProblem(items[i] as string);
+    if (problem !== undefined) return items.length === 1 ? problem : `item ${i + 1} of ${items.length}: ${problem}`;
+  }
+  return undefined;
 }
 
 /** True for a plain object (`{}`, `Object.create(null)`), not an array, class instance or primitive. */
@@ -114,6 +219,11 @@ export const idProblem: Problem<string> = (id) => {
     return "Expected an id string, e.g. \"123456\".";
   }
   if (isBlank(String(id))) return "An id is required, e.g. 123456.";
+  // An invisible or control character, a lone surrogate, or only invisible characters.
+  if (typeof id === "string") {
+    const problem = tokenProblem(id);
+    if (problem !== undefined) return problem;
+  }
   if (id === "." || id === "..") return '"." and ".." cannot be used as an id.';
   // encodeURIComponent sends it as %2F, which a server or proxy that decodes it reads as more
   // path segments ("a1/../a2" re-targets the request); no DIP id holds one.
