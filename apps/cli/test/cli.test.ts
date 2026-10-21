@@ -1,5 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { run } from "../src/cli/run.js";
 import { readEnvApiKey } from "../src/cli/program.js";
 import { renderJson } from "../src/cli/shared.js";
@@ -444,6 +447,42 @@ test("-o - prints to stdout instead of writing a file named -", async () => {
   assert.deepEqual(cli.out, ['{"numFound":1,"documents":[{"id":"1"}]}']);
   assert.equal(cli.files.size, 0);
   assert.doesNotMatch(cli.err.join("\n"), /Wrote/);
+});
+
+test("a refused -o target is a usage error before any request (kit rollout 2026-10-21, K7)", async () => {
+  // An existing file was refused only after the request (exit 1): the answer was fetched for
+  // nothing, and --force without -o was silently ignored.
+  const dir = mkdtempSync(join(tmpdir(), "dip-o-"));
+  try {
+    const existing = join(dir, "keep.json");
+    writeFileSync(existing, "mine");
+    const dangling = join(dir, "dangling.json");
+    symlinkSync(join(dir, "nowhere"), dangling);
+    const cases: Array<[string[], RegExp]> = [
+      [["--force", "vorgang", "list"], /--force needs --output/],
+      [["-o", existing, "vorgang", "list"], /Refusing to overwrite existing file ".*keep\.json"; pass --force to overwrite\./],
+      [["-o", dangling, "vorgang", "list"], /Refusing to overwrite existing file ".*dangling\.json"/],
+      [["-o", dir, "vorgang", "list"], /is a directory; give a file path to --output\./],
+      [["-o", dir, "--force", "vorgang", "get", "1"], /is a directory/],
+    ];
+    for (const [argv, message] of cases) {
+      const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+      assert.equal(await run(argv, cli.deps), 2, argv.join(" "));
+      assert.equal(cli.mt.calls.length, 0, `${argv.join(" ")}: a request was sent`);
+      assert.equal(cli.files.size, 0);
+      assert.match(untimed(cli.err.join("\n")), new RegExp(`^ERROR \\[dip\\.cli\\] .*${message.source}`), argv.join(" "));
+    }
+    assert.equal(readFileSync(existing, "utf8"), "mine");
+    // With --force an existing file is written; -o - is stdout, --force or not.
+    const forced = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+    assert.equal(await run(["-o", existing, "--force", "vorgang", "list"], forced.deps), 0, forced.err.join("\n"));
+    assert.equal(forced.files.size, 1);
+    const stdout = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+    assert.equal(await run(["-o", "-", "--force", "--compact", "vorgang", "list"], stdout.deps), 0, stdout.err.join("\n"));
+    assert.deepEqual(stdout.out, ['{"numFound":0,"documents":[]}']);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("an overwrite refusal is a clear error, not an unexpected one", async () => {

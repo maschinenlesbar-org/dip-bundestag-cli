@@ -321,10 +321,12 @@ option — works before or after the command):
 dip --output results.json drucksache list --filter f.titel=Bürgergeld
 ```
 
-`-o` **will not overwrite an existing file** — it exits with an error
-(`Refusing to overwrite existing file …; pass --force to overwrite.`) to protect
-against a mistyped path clobbering your data. Pass `--force` to overwrite
-deliberately. A directory is refused either way, and `-o -` prints to stdout. The new
+`-o` **will not overwrite an existing file** — it is a usage error (exit `2`), before any
+request is sent (`Refusing to overwrite existing file …; pass --force to overwrite.`), to
+protect against a mistyped path clobbering your data; a dangling symlink counts as existing.
+Pass `--force` to overwrite deliberately (through a symlink, to the file it points at). A
+directory is refused either way, `--force` without `-o` is a usage error too, and `-o -`
+prints to stdout. The new
 file replaces the old one only once it is complete, so a write that fails part-way (a
 full disk) leaves the old file as it was and no half-written one.
 

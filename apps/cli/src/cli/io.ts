@@ -2,7 +2,7 @@
 // tests can capture output instead of hitting the real stdout/stderr/filesystem.
 
 import { randomBytes } from "node:crypto";
-import { chmodSync, closeSync, openSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, lstatSync, openSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { DipError, DipUsageError } from "@maschinenlesbar.org/dip-bundestag-client/internal/errors";
 import type { DipClient, DipClientOptions } from "@maschinenlesbar.org/dip-bundestag-client/internal/client";
@@ -24,6 +24,12 @@ export interface CliIO {
    * `force` is set, so a mistyped `-o` cannot silently clobber the user's data.
    */
   writeFile(path: string, data: Buffer, force?: boolean): void;
+  /**
+   * What is at an `-o` path, for the check before any request (`checkOutputTarget`):
+   * nothing, a directory, or anything else (a file, a link, a dangling one too). Unset, the
+   * real file system (`outputPathState`).
+   */
+  outputState?(path: string): OutputPathState;
   /** Write raw bytes to stdout (binary-safe). */
   outBinary(data: Buffer): void;
   /**
@@ -129,6 +135,35 @@ function readerGone(err: NodeJS.ErrnoException): boolean {
   return err.code === "EPIPE" || err.code === "ENOTCONN";
 }
 
+/** What is at an `-o` path. */
+export type OutputPathState = "absent" | "directory" | "exists";
+
+/** What is at `path` on the real file system: a dangling link counts as "exists". */
+export function outputPathState(path: string): OutputPathState {
+  try {
+    return statSync(path).isDirectory() ? "directory" : "exists";
+  } catch {
+    // statSync follows a link; a dangling one is still a name the exclusive create
+    // refuses, so lstat decides between "exists" and "absent".
+    try {
+      lstatSync(path);
+      return "exists";
+    } catch {
+      return "absent";
+    }
+  }
+}
+
+/** The message for an existing `-o` path without `--force`. */
+export function refuseOverwrite(path: string): string {
+  return `Refusing to overwrite existing file "${path}"; pass --force to overwrite.`;
+}
+
+/** The message for an `-o` path that is a directory, which `--force` can't fix. */
+export function isDirectoryMessage(path: string): string {
+  return `"${path}" is a directory; give a file path to --output.`;
+}
+
 function isDirectory(path: string): boolean {
   try {
     return statSync(path).isDirectory();
@@ -225,7 +260,7 @@ export const defaultIO: CliIO = {
   // A record never lands inside the data when both streams share a pipe.
   err: stderrLine,
   writeFile: (path, data, force) => {
-    if (isDirectory(path)) throw new DipError(`"${path}" is a directory; give a file path to --output.`);
+    if (isDirectory(path)) throw new DipError(isDirectoryMessage(path));
     let claimed = false;
     try {
       // Without --force the name is claimed first with an exclusive create, which fails if
@@ -242,10 +277,7 @@ export const defaultIO: CliIO = {
       if (claimed) rmSync(path, { force: true });
       const code = (cause as NodeJS.ErrnoException | undefined)?.code;
       if (code === "EEXIST" && !claimed) {
-        throw new DipError(
-          `Refusing to overwrite existing file "${path}"; pass --force to overwrite.`,
-          { cause },
-        );
+        throw new DipError(refuseOverwrite(path), { cause });
       }
       const reason = cause instanceof Error ? cause.message : String(cause);
       throw new DipError(`Could not write to "${path}": ${reason}`, { cause });

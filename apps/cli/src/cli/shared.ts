@@ -3,13 +3,13 @@
 
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
-import { OutputError, logOf, type CliDeps } from "./io.js";
+import { OutputError, isDirectoryMessage, logOf, outputPathState, refuseOverwrite, type CliDeps } from "./io.js";
 import type { RawResponse, RetryEvent } from "@maschinenlesbar.org/dip-bundestag-client/internal/engine";
 import { apiKeyProblem, normaliseApiKey, type DipClientOptions } from "@maschinenlesbar.org/dip-bundestag-client/internal/client";
 
 /** The name the API key is stored under in the credentials file (`dip config set api-key`). */
 export const API_KEY_CREDENTIAL = "api-key";
-import { DipError } from "@maschinenlesbar.org/dip-bundestag-client/internal/errors";
+import { DipError, DipValidationError } from "@maschinenlesbar.org/dip-bundestag-client/internal/errors";
 import { API_KEY_PHRASE, DEFAULT_BASE_URL, baseUrlProblem, cleartextProblem } from "@maschinenlesbar.org/dip-bundestag-client/internal/engine";
 import { headerValueProblem, intInRangeProblem, nonEmptyProblem } from "@maschinenlesbar.org/dip-bundestag-client/internal/validate";
 
@@ -246,6 +246,22 @@ function writeOutputFile(deps: CliDeps, path: string, data: Buffer, force: boole
 }
 
 /**
+ * Check `-o` before any request, so a refused target costs none: `--force` without `-o`, a
+ * directory, and an existing path (a dangling link too) without `--force` are usage errors
+ * (exit 2, an ERROR record of `dip.cli`). `-o -` is stdout. The write checks again: a file
+ * that appears during the request is not overwritten either (an OutputError then, exit 1).
+ */
+export function checkOutputTarget(deps: CliDeps, global: GlobalOptions): void {
+  if (global.force === true && global.output === undefined) {
+    throw new DipValidationError("--force needs --output (it only allows overwriting the -o file).");
+  }
+  if (global.output === undefined || global.output === "-") return;
+  const state = (deps.io.outputState ?? outputPathState)(global.output);
+  if (state === "directory") throw new DipValidationError(isDirectoryMessage(global.output));
+  if (state === "exists" && global.force !== true) throw new DipValidationError(refuseOverwrite(global.output));
+}
+
+/**
  * Render a JSON value, pretty by default and compact with --compact. Writes to
  * the file given by --output (with a short stderr confirmation so stdout stays
  * clean for piping), or to stdout otherwise. An existing file is not overwritten
@@ -325,6 +341,8 @@ export function action(
     const command = args[args.length - 1] as Command;
     const positionals = args.slice(0, Math.max(0, args.length - 2)) as string[];
     const global = command.optsWithGlobals() as GlobalOptions;
+    // A refused -o target is a usage error before anything else happens.
+    checkOutputTarget(deps, global);
     // `-o -` means stdout: from here on it is the same as no -o.
     if (global.output === "-") delete global.output;
     const options = toEngineOptions(global);

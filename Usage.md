@@ -206,8 +206,9 @@ plain `YYYY-MM-DD` date.)
 
 `-o, --output <file>` is a global option (before or after the command) and writes
 the JSON output to a file. It **refuses to overwrite an existing file**
-(exits with an error) so a mistyped path cannot clobber your data; add `--force`
-to overwrite deliberately. The file is written beside the target and renamed over it
+(a usage error, exit 2, before any request) so a mistyped path cannot clobber your data;
+add `--force` to overwrite deliberately. A directory is refused either way, and `--force`
+without `-o` is a usage error. The file is written beside the target and renamed over it
 when complete, so a write that fails part-way (a full disk) leaves the old file as it was
 and no half-written one.
 
