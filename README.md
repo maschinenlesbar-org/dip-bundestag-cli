@@ -289,11 +289,11 @@ record of `dip.api` naming the count and the request, so the output stays valid 
 ```text
 2026-10-09T14:03:12.481Z WARN  [dip.http] requests to mirror.test are sent unencrypted (http:, not https:)
 2026-10-09T14:03:12.700Z WARN  [dip.http] HTTP 503 from search.dip.bundestag.de: retry 1 of 2 in 200 ms
-2026-10-09T14:03:12.902Z ERROR [dip.api] HTTP 404 for GET https://search.dip.bundestag.de/api/v1/vorgang/1: Not found
+2026-10-09T14:03:12.902Z ERROR [dip.api] HTTP 404 for GET https://search.dip.bundestag.de/api/v1/vorgang/abc: …
 ```
 
 ```bash
-dip --log-format jsonl vorgang get 1 2>log.jsonl   # {"ts":"…","level":"ERROR","topic":"dip.api","msg":"HTTP 404 …"}
+dip --log-format jsonl vorgang get abc 2>log.jsonl   # {"ts":"…","level":"ERROR","topic":"dip.api","msg":"HTTP 404 …"}
 ```
 
 ```bash
