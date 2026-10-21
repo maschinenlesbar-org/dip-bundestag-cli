@@ -275,7 +275,8 @@ apps/cli/src/cli/
 `apps/cli/test/conformance-p10-strict-filters.test.ts` is the shared check that a filter DIP
 would ignore never goes out (unknown, misspelled or `__proto__` keys, blank or non-integer
 values, keys spelled differently), that a repeated `--filter` is combined (DIP's OR set), and that
-a repeated single-value option is a usage error (`forbidRepeatedOptions`, in `apps/cli`).
+a repeated single-value option is a usage error (`forbidRepeatedOptions`, in `apps/cli`), and so is a
+repeated boolean that can be switched both ways (`--no-verify`, an `--x` / `--no-x` pair, `--x [bool]`).
 
 The library owns every rule about what a request may contain; the CLI only turns
 argv strings into typed values and calls the same rules. The rules are pure,

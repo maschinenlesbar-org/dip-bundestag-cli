@@ -838,3 +838,15 @@ test("-o refuses the next option as its file name, before any request; ./-name w
   assert.equal(await run(["-o", "./-v.json", "vorgang", "list"], cli.deps), 0, cli.err.join("\n"));
   assert.deepEqual([...cli.files.keys()], ["./-v.json"]);
 });
+
+test("a boolean that can be switched both ways may be given only once (T11)", async () => {
+  // A negatable option is counted from commander's option events; its value parser never runs.
+  const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+  cli.deps.transport = cli.mt.transport;
+  assert.equal(await run(["obtain-key", "--no-verify", "--no-verify"], cli.deps), 2);
+  assert.equal(cli.mt.calls.length, 0, "a request was sent");
+  assert.match(untimed(cli.err.join("\n")), /^ERROR \[dip\.cli\] --no-verify may be given only once\./);
+  // Plain flags may still repeat.
+  const flags = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+  assert.equal(await run(["--compact", "--compact", "vorgang", "list"], flags.deps), 0, flags.err.join("\n"));
+});
