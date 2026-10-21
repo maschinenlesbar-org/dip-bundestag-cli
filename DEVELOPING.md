@@ -559,7 +559,14 @@ everything that drives the CLI is in `apps/cli/test/`.
   skipped, dip has `--base-url` only), **P21** README links
   (`conformance-p21-readme-links.test.ts`: README ships to npmjs.com, so a relative
   link may only point at a file `package.json` `files` ships; the rest are absolute
-  `https://github.com/maschinenlesbar-org/dip-bundestag-cli/blob/main/…` URLs).
+  `https://github.com/maschinenlesbar-org/dip-bundestag-cli/blob/main/…` URLs),
+  **P24** the input corpus (`conformance-p24-input-corpus.test.ts`: every text filter,
+  `TEXT_FILTERS` on each resource that takes it, and every `get` id, through the CLI and the
+  library: sent canonical or refused, never blank, a dot segment or with a `/`), **P25** the
+  response corpus (a number a double can't carry exactly, or an empty body, is an error) and
+  **P26** `-o` integrity (`ulimit -f` cuts the write: the old file stays, nothing half-written
+  is left; an existing file is refused before any request; it starts the bin, 30 s). P24 and
+  P25 use `kitParity`, dip's `parity` in the shape the shared bodies expect.
 - **Parity tests** use `parity()` from `apps/cli/test/helpers.ts`: one input goes through
   `run()` and through a library call on one recording mock transport, and the
   test asserts the same outcome (both reject with no request, or both send the

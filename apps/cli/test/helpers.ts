@@ -100,3 +100,27 @@ export function requestKey(req: HttpRequest): string {
   const h = (name: string): string => req.headers?.[name] ?? "-";
   return `${req.method} ${req.url} auth:${h("Authorization")} ua:${h("User-Agent")}`;
 }
+
+/** One side of `kitParity`: the library's outcome as the kit's conformance tests read it. */
+export interface KitLibOutcome extends ParitySide {
+  ok: boolean;
+  value?: unknown;
+  error?: { name: string; message: string };
+}
+
+/**
+ * `parity` in the shape of the kit's conformance tests (P24, P25): `kitParity(argv, call,
+ * responder)` resolves to `{ cli: { code, out, err, requests }, lib: { ok, value?, error?:
+ * { name, message }, requests } }`, the error named by its class.
+ */
+export async function kitParity(
+  argv: string[],
+  call: (transport: Transport) => unknown,
+  responder?: (req: HttpRequest) => HttpResponse | Promise<HttpResponse>,
+): Promise<{ cli: CliOutcome; lib: KitLibOutcome }> {
+  const r = await parity({ argv, lib: call, ...(responder === undefined ? {} : { responder }) });
+  if (r.lib.ok) return { cli: r.cli, lib: { ok: true, value: r.lib.value, requests: r.lib.requests } };
+  const e = r.lib.error;
+  const error = e instanceof Error ? { name: e.constructor.name, message: e.message } : { name: typeof e, message: String(e) };
+  return { cli: r.cli, lib: { ok: false, error, requests: r.lib.requests } };
+}
