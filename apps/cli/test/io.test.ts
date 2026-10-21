@@ -62,7 +62,9 @@ function writeUnderSizeLimit(path: string, force: boolean): Promise<string> {
 try { defaultIO.writeFile(${JSON.stringify(path)}, Buffer.alloc(100_000, 120), ${force}); console.log("written"); }
 catch (err) { console.log(err.message); }`;
   // SIGXFSZ ignored (inherited through exec), so the write fails with EFBIG instead of killing node.
-  const sh = `trap '' XFSZ; ulimit -f 2; exec "$0" --input-type=module -e "$1"`;
+  // Node passes NODE_V8_COVERAGE to the child; under the limit its coverage file was cut short
+  // and `npm run coverage` failed to report, so the shell drops it (as P26 does).
+  const sh = `trap '' XFSZ; ulimit -f 2; unset NODE_V8_COVERAGE; exec "$0" --input-type=module -e "$1"`;
   return new Promise((resolve) => execFile("/bin/sh", ["-c", sh, process.execPath, script], (_err, stdout, stderr) => resolve(stdout + stderr)));
 }
 
