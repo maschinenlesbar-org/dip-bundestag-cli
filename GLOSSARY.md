@@ -220,7 +220,8 @@ any other runtime error (including `401` when the key is missing/expired).
 (`ERROR`, `WARN`, `INFO`) and a topic `dip.<area>`, as text (log4j style) or with
 `--log-format jsonl` as one JSON object per line. The areas: `cli` (usage errors,
 commander's messages, unexpected errors), `api` (the API's answers: an error status, and
-a malformed answer — bad JSON, the wrong shape, an empty body), `http` (the connection,
+a malformed answer — bad JSON, the wrong shape, an empty body — each naming the request, and
+a WARN when characters of an answer were not valid text and were replaced with U+FFFD), `http` (the connection,
 the cleartext warning, and one WARN per retry before it waits), `config`, `obtain-key` and `output` (the `-o` file, stdout
 failures). A record is always one line; control characters in it are escaped.
 

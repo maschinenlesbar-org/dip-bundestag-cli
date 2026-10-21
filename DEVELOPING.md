@@ -478,7 +478,12 @@ unlimited; default 100 MiB), guarding against unbounded responses.
 contentType, status, url, credentialsDropped? }` — raw bytes, never lossily
 decoded. `getJson` (and `obtainKey` for its source documents) decode them by the
 charset the Content-Type names (`decodeBody`, UTF-8 when none; a BOM is dropped,
-an unknown label is a `DipParseError`). A body with a number JSON.parse cannot carry
+an unknown label is a `DipParseError`). Text that is not valid is never changed silently:
+bytes invalid in the charset and a lone surrogate written as a JSON escape (`\ud800`, which `jq`
+refuses) become U+FFFD, and `getJson` tells the engine option `onWarning` how many
+(`GET <url>: 2 characters of the answer were not valid text (invalid bytes or a lone surrogate)
+and replaced with U+FFFD.`); the CLI logs it as a `WARN` record of `dip.api`. One bad character
+never sinks a whole answer. A body with a number JSON.parse cannot carry
 exactly — one out of a double's range (`1e400`, which printed as `null`), one past 2^53
 that prints as a different number, in any form (`12345678901234567890`, which prints as
 `12345678901234567000`, `12345678901234567890.0`, `9007199254740993e0`, `9007199254740992.5`),
@@ -579,7 +584,11 @@ everything that drives the CLI is in `apps/cli/test/`.
   response corpus (a number a double can't carry exactly, or an empty body, is an error) and
   **P26** `-o` integrity (`ulimit -f` cuts the write: the old file stays, nothing half-written
   is left; an existing file is refused before any request; it starts the bin, 30 s). P24 and
-  P25 use `kitParity`, dip's `parity` in the shape the shared bodies expect.
+  P25 use `kitParity`, dip's `parity` in the shape the shared bodies expect. **P27** big and odd
+answers (`conformance-p27-big-and-odd-answers.test.ts`: a large flat answer and one full of DEL
+characters print within a small heap, or past V8's longest string are one ERROR record of
+`dip.output`; a lone surrogate or invalid bytes are replaced with U+FFFD and a WARN; it starts the
+bin, 30 s).
 - **Parity tests** use `parity()` from `apps/cli/test/helpers.ts`: one input goes through
   `run()` and through a library call on one recording mock transport, and the
   test asserts the same outcome (both reject with no request, or both send the

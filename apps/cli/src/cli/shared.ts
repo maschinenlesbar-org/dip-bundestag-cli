@@ -416,6 +416,8 @@ export function action(
       }
     }
     options.onRetry = (event) => logOf(deps).warn("http", retryMessage(event));
+    // Text in an answer replaced with U+FFFD is said, never silent (D2).
+    options.onWarning = (message) => logOf(deps).warn("api", message);
     const client = deps.createClient(options);
     // Built first, so a key the client rejects is a usage error before any warning.
     warnIfCleartext(deps, options.baseUrl, options.apiKey !== undefined);

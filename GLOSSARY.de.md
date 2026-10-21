@@ -234,7 +234,8 @@ Zeitstempel, eine Stufe (`ERROR`, `WARN`, `INFO`) und ein Thema `dip.<Bereich>`,
 (im Stil von log4j) oder mit `--log-format jsonl` als ein JSON-Objekt pro Zeile. Die
 Bereiche: `cli` (Bedienfehler, Meldungen von commander, unerwartete Fehler), `api` (die
 Antworten der API: ein Fehlerstatus und eine fehlerhafte Antwort — ungültiges JSON, die
-falsche Form, ein leerer Body), `http` (die Verbindung, die Klartext-Warnung und je Wiederholung eine WARN-Zeile vor dem Warten), `config`,
+falsche Form, ein leerer Body —, jeweils mit der Anfrage, und eine WARN-Zeile, wenn Zeichen einer
+Antwort kein gültiger Text waren und durch U+FFFD ersetzt wurden), `http` (die Verbindung, die Klartext-Warnung und je Wiederholung eine WARN-Zeile vor dem Warten), `config`,
 `obtain-key` und `output` (die `-o`-Datei, Schreibfehler auf stdout). Ein Eintrag ist
 immer eine Zeile; Steuerzeichen darin werden maskiert.
 
