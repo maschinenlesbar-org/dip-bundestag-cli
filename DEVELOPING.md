@@ -477,7 +477,9 @@ an unknown label is a `DipParseError`). A body with a number JSON.parse cannot c
 exactly — one out of a double's range (`1e400`, which printed as `null`), one past 2^53
 that prints as a different number, in any form (`12345678901234567890`, which prints as
 `12345678901234567000`, `12345678901234567890.0`, `9007199254740993e0`, `9007199254740992.5`),
-or a non-zero one too small for a double (`1e-400`, which became `0`) — is a `DipParseError` too
+a non-zero one too small for a double (`1e-400`, which became `0`), or a subnormal one (below
+2.2250738585072014e-308, where a double has fewer digits) that does not print as written (`3e-324`,
+which printed as `5e-324`; `5e-324` itself passes) — is a `DipParseError` too
 (`Unexpected response from <path>: the number … cannot be represented exactly.`), never a
 changed value; below 2^53 a decimal fraction keeps a double's usual precision. Past 2^53 the
 check compares the number as written with the number as printed (`String(value)`), not with

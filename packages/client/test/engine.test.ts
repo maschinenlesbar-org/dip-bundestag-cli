@@ -690,3 +690,17 @@ test("a big number written as a decimal or an exponent, a fraction past 2^53 and
     assert.equal((await e.getJson<{ numFound: number }>("/x")).numFound, value, n);
   }
 });
+
+test("a subnormal number that does not print as written is a parse error; one that does passes (D4, bug 1 of 2026-10-21)", async () => {
+  // 3e-324 printed as 5e-324 and 1.23456789e-320 as 1.2347e-320, exit 0: below the smallest
+  // normal double a double has fewer significant digits.
+  const body = (n: string) => `{"id":"5","numFound":${n},"documents":[]}`;
+  for (const n of ["3e-324", "4e-324", "-4.9e-324", "7e-324", "1.23456789e-320", "1.2345678901234567e-310", "2.225073858507201e-309"]) {
+    const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(body(n), "application/json")).transport });
+    await assert.rejects(e.getJson("/x"), (err) => err instanceof DipParseError && err.message.endsWith(`the number ${n} cannot be represented exactly.`), n);
+  }
+  for (const [n, value] of [["5e-324", 5e-324], ["-5e-324", -5e-324], ["1e-310", 1e-310], ["2.2250738585072014e-308", 2.2250738585072014e-308]] as const) {
+    const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(body(n), "application/json")).transport });
+    assert.equal((await e.getJson<{ numFound: number }>("/x")).numFound, value, n);
+  }
+});
