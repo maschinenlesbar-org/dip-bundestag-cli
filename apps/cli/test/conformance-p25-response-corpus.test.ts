@@ -22,6 +22,8 @@ const fromCli = (out: string): unknown => (JSON.parse(out) as { n: unknown }).n;
 const fromLib = (value: unknown): unknown => (value as { n: unknown }).n;
 /** The log program, as in `ERROR [<bin>.api]`. */
 const BIN = "dip";
+/** The exit code of a malformed answer in this repo (most repos use 1). */
+const PARSE_EXIT = 1;
 // --------------------------------------------------------------------------------------
 
 const INEXACT = [
@@ -40,7 +42,7 @@ const EXACT: Array<[string, number]> = [
 test("P25: a number the answer can't carry exactly is an error, never a changed value", async () => {
   for (const literal of INEXACT) {
     const o = await parity(argv, (t) => lib(new Client({ transport: t })), () => rawResponse(body(literal), "application/json"));
-    assert.equal(o.cli.code, 1, `${literal}: CLI exit ${o.cli.code}, out ${o.cli.out}`);
+    assert.equal(o.cli.code, PARSE_EXIT, `${literal}: CLI exit ${o.cli.code}, out ${o.cli.out}`);
     assert.equal(o.cli.out, "", literal);
     assert.match(o.cli.err, new RegExp(`^ERROR \\[${BIN}\\.api\\] .*the number ${literal.replace(/[.+]/g, "\\$&")} cannot be represented exactly`), literal);
     assert.equal(o.lib.ok, false, `${literal}: the library resolved`);
@@ -61,7 +63,7 @@ test("P25: a number a double carries is printed as the same value", async () => 
 test("P25: an empty answer is an error, never 'nothing found'", async () => {
   for (const raw of ["", "  \n\t"]) {
     const o = await parity(argv, (t) => lib(new Client({ transport: t })), () => rawResponse(raw, "application/json"));
-    assert.equal(o.cli.code, 1, JSON.stringify(raw));
+    assert.equal(o.cli.code, PARSE_EXIT, JSON.stringify(raw));
     assert.equal(o.cli.out, "", JSON.stringify(raw));
     assert.match(o.cli.err, new RegExp(`^ERROR \\[${BIN}\\.api\\] `), JSON.stringify(raw));
     assert.equal(o.lib.ok, false, JSON.stringify(raw));
