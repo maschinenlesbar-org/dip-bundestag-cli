@@ -9,7 +9,7 @@
 // and the CLI's `--filter` uses the same check. A filter DIP adds after this
 // table was read can still be sent with `list(params, { allowUnknownFilters: true })`.
 
-import { cutForMessage } from "./errors.js";
+import { quoteValue } from "./errors.js";
 
 /** The list endpoints, by their path segment under `/api/v1`. */
 export type ListResource =
@@ -194,7 +194,7 @@ export function filterKeyProblem(resource: ListResource): (key: string) => strin
   return (key) =>
     known.includes(key) || LIST_PAGING_PARAMS.includes(key)
       ? undefined
-      : `Unknown filter "${cutForMessage(key)}" for ${resource}. DIP ignores unknown filters and would ` +
+      : `Unknown filter ${quoteValue(key)} for ${resource}. DIP ignores unknown filters and would ` +
         `return the whole unfiltered list. Filters for ${resource}: ${known.join(", ")}.`;
 }
 

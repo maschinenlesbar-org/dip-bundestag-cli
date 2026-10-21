@@ -10,7 +10,7 @@ import { apiKeyProblem, normaliseApiKey, type DipClientOptions } from "@maschine
 
 /** The name the API key is stored under in the credentials file (`dip config set api-key`). */
 export const API_KEY_CREDENTIAL = "api-key";
-import { DipValidationError, cutForMessage } from "@maschinenlesbar.org/dip-bundestag-client/internal/errors";
+import { DipValidationError, quoteValue } from "@maschinenlesbar.org/dip-bundestag-client/internal/errors";
 import { API_KEY_PHRASE, DEFAULT_BASE_URL, baseUrlProblem, cleartextProblem, isBidiControl } from "@maschinenlesbar.org/dip-bundestag-client/internal/engine";
 import { headerValueProblem, intInRangeProblem, nonEmptyProblem } from "@maschinenlesbar.org/dip-bundestag-client/internal/validate";
 
@@ -109,7 +109,7 @@ export function parseOutputPath(value: string): string {
   // file whose name starts with a dash is written as `./-x`.
   if (value !== "-" && value.startsWith("-")) {
     throw new InvalidArgumentError(
-      `looks like a missing value — "${cutForMessage(value)}" is the next option, consumed because ` +
+      `looks like a missing value — ${quoteValue(value)} is the next option, consumed because ` +
         "this one was left without a value. For a file whose name starts with a dash, write ./-name.",
     );
   }

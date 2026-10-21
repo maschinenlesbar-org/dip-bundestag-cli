@@ -8,7 +8,7 @@ import { action, parseNonEmpty, renderJson } from "../shared.js";
 import type { DipClient } from "@maschinenlesbar.org/dip-bundestag-client/internal/client";
 import type { QueryParams } from "@maschinenlesbar.org/dip-bundestag-client/internal/query";
 import { INTEGER_FILTERS, filterKeyProblem, integerFilterProblem, type ListResource } from "@maschinenlesbar.org/dip-bundestag-client/internal/filters";
-import { DipUsageError, cutForMessage } from "@maschinenlesbar.org/dip-bundestag-client/internal/errors";
+import { DipUsageError, quoteValue } from "@maschinenlesbar.org/dip-bundestag-client/internal/errors";
 import { isBlank } from "@maschinenlesbar.org/dip-bundestag-client/internal/validate";
 
 type ResourceKey =
@@ -83,7 +83,7 @@ function filterCollector(resource: ListResource): (value: string, previous?: Fil
     if (reason !== undefined) throw new InvalidArgumentError(reason);
     // DIP answers a non-integer id or Wahlperiode with "400 Invalid cursor" or 0 hits.
     const intReason = INTEGER_FILTERS.includes(key) ? integerFilterProblem(val) : undefined;
-    if (intReason !== undefined) throw new InvalidArgumentError(`Invalid --filter "${cutForMessage(value)}": ${key}: ${intReason}`);
+    if (intReason !== undefined) throw new InvalidArgumentError(`Invalid --filter ${quoteValue(value)}: ${key}: ${intReason}`);
     return { ...previous, [key]: (previous[key] ?? []).concat([val]) };
   };
 }
@@ -94,7 +94,7 @@ function splitFilter(value: string): [string, string] {
   // Throw commander's InvalidArgumentError (not a bare DipError) so the usual
   // parse-error path runs and showHelpAfterError() displays the command help,
   // matching how commander reports its own option errors.
-  if (eq <= 0) throw new InvalidArgumentError(`Invalid --filter "${cutForMessage(value)}". Expected key=value.`);
+  if (eq <= 0) throw new InvalidArgumentError(`Invalid --filter ${quoteValue(value)}. Expected key=value.`);
   const key = value.slice(0, eq);
   const val = value.slice(eq + 1);
   // A blank key or value would be dropped (f.id) or sent as an empty parameter,
@@ -103,7 +103,7 @@ function splitFilter(value: string): [string, string] {
   // --filter wording and commander's help.
   if (isBlank(key) || isBlank(val)) {
     throw new InvalidArgumentError(
-      `Invalid --filter "${cutForMessage(value)}". Both key and value must be non-empty.`,
+      `Invalid --filter ${quoteValue(value)}. Both key and value must be non-empty.`,
     );
   }
   return [key, val];

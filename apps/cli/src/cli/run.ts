@@ -51,6 +51,17 @@ function commandPath(command: Command): string {
  * here) with no `error:` line: an ERROR record "missing command: `dip vorgang
  * <subcommand>`" comes first, so every failed run has one.
  */
+/**
+ * `text` with every Unicode format character (General Category Cf: a zero-width space, a soft
+ * hyphen, a BOM, the bidi controls) written as a `\uXXXX` escape. commander echoes a refused
+ * value as typed (`argument 'a<ZWSP>b' is invalid`); the record escapes control and bidi
+ * characters, this keeps the invisible ones visible too, as the library's own messages do
+ * (`quoteValue`).
+ */
+export function escapeFormatChars(text: string): string {
+  return text.replace(/\p{Cf}/gu, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`);
+}
+
 function writeCommanderErr(command: Command, deps: CliDeps, state: { errorLogged: boolean }, str: string): void {
   const log = logOf(deps);
   const text = str.replace(/\n$/, "");
@@ -58,7 +69,7 @@ function writeCommanderErr(command: Command, deps: CliDeps, state: { errorLogged
   if (text.trim() === "") return;
   if (text.startsWith("error: ")) {
     state.errorLogged = true;
-    log.error("cli", text.slice("error: ".length).replace(/\n(\(Did you mean .*\?\))$/, " $1"));
+    log.error("cli", escapeFormatChars(text.slice("error: ".length)).replace(/\n(\(Did you mean .*\?\))$/, " $1"));
     return;
   }
   if (!state.errorLogged) {
@@ -168,6 +179,9 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
     for (const secret of credentialsIn(source)) {
       userinfo.add(secret);
       userinfo.add(JSON.stringify(secret).slice(1, -1));
+      // As a commander echo or a quoted refusal shows it: invisible characters escaped.
+      userinfo.add(escapeFormatChars(secret));
+      userinfo.add(escapeFormatChars(JSON.stringify(secret).slice(1, -1)));
       // A URL typed as an id is echoed percent-encoded in a request path
       // (`/vorgang/https%3A%2F%2Falice%3Apw%40host`): no "@" to anchor on there.
       const encoded = encodeURIComponent(secret);
@@ -185,6 +199,8 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
     for (const form of [value, value.trim()]) {
       keys.add(form);
       keys.add(JSON.stringify(form).slice(1, -1));
+      keys.add(escapeFormatChars(form));
+      keys.add(escapeFormatChars(JSON.stringify(form).slice(1, -1)));
     }
   };
   addKey(envKey);

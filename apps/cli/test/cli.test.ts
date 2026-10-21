@@ -709,7 +709,7 @@ test("a rejected --filter value is quoted at most 200 characters long (L3)", asy
   assert.equal(await run(["vorgang", "list", "--filter", `f.id=${"9x".repeat(500)}`], cli.deps), 2);
   const record = cli.err.find((line) => line.includes("Invalid --filter")) ?? "";
   const own = record.slice(record.indexOf("Invalid --filter"));
-  assert.match(own, /^Invalid --filter "f\.id=(9x)+9?…": f\.id: /);
+  assert.match(own, /^Invalid --filter "f\.id=(9x)+9?"…: f\.id: /);
   assert.ok(own.length < 400, `${own.length}`);
 });
 
@@ -849,4 +849,22 @@ test("a boolean that can be switched both ways may be given only once (T11)", as
   // Plain flags may still repeat.
   const flags = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
   assert.equal(await run(["--compact", "--compact", "vorgang", "list"], flags.deps), 0, flags.err.join("\n"));
+});
+
+test("a refused value is quoted with its invisible characters escaped, never raw (D10, T10)", async () => {
+  const ZWSP = "​";
+  for (const [argv, call] of [
+    [["vorgang", "list", "--filter", `f.titl${ZWSP}=x`], (c: DipClient) => c.vorgaenge.list({ [`f.titl${ZWSP}`]: "x" })],
+    [["vorgang", "list", "--filter", `f.wahlperiode=2${ZWSP}0`], undefined],
+    [["vorgang", "list", "--filter", `f.titel${ZWSP}`], undefined],
+  ] as const) {
+    const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+    assert.equal(await run([...argv], cli.deps), 2, argv.join(" "));
+    const err = cli.err.join("\n");
+    assert.ok(err.includes("\\u200b"), `${argv.join(" ")}: ${err}`);
+    assert.ok(!err.includes(ZWSP), `${argv.join(" ")}: shown raw`);
+    if (call !== undefined) {
+      await assert.rejects(call(new DipClient({ transport: cli.mt.transport })), (e: Error) => e.message.includes("\\u200b") && !e.message.includes(ZWSP));
+    }
+  }
 });

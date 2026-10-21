@@ -305,7 +305,11 @@ What the library rejects:
   pair (`cutText`), so the message stays well-formed; any other value an own message
   quotes from a server answer or the user's input (a redirect target, a charset or
   Content-Type, a key, an unknown filter, a `--filter` value) at `MAX_QUOTED_LENGTH`
-  (200, `cutForMessage`), so `err.message` stays bounded for a library caller.
+  (200, `cutForMessage`), so `err.message` stays bounded for a library caller. A refused value
+  the user typed (an unknown filter, a `--filter` argument, an `-o` value) is quoted with
+  `quoteValue`: JSON-quoted, with every invisible or format character, DEL, C1 and U+2028/2029
+  escaped (`"a\u200bb"`) and a cut marked after the closing quote; commander's own echo of a
+  refused value gets its format characters escaped the same way (`escapeFormatChars` in `run.ts`).
 - **Blank list parameters** (`assertNonBlankParams`, called first in every
   `list()`): a blank parameter name, a blank string value, an empty array or a
   blank array element, `cursor` included. DIP treats an empty parameter as no
