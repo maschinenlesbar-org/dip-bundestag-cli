@@ -483,7 +483,11 @@ bytes invalid in the charset and a lone surrogate written as a JSON escape (`\ud
 refuses) become U+FFFD, and `getJson` tells the engine option `onWarning` how many
 (`GET <url>: 2 characters of the answer were not valid text (invalid bytes or a lone surrogate)
 and replaced with U+FFFD.`); the CLI logs it as a `WARN` record of `dip.api`. One bad character
-never sinks a whole answer. A body with a number JSON.parse cannot carry
+never sinks a whole answer. A body too large to become one string (512 MB and more, possible only
+with `maxResponseBytes: 0` or `--max-response-bytes 0`) is a `DipParseError`, `GET <url>: the
+answer is too large to read as text (N bytes; the longest string is 536870888 characters).`, not a
+plain `Error` ("Unexpected error" in the CLI); an error status with such a body keeps its
+`DipApiError`, without the body. A body with a number JSON.parse cannot carry
 exactly — one out of a double's range (`1e400`, which printed as `null`), one past 2^53
 that prints as a different number, in any form (`12345678901234567890`, which prints as
 `12345678901234567000`, `12345678901234567890.0`, `9007199254740993e0`, `9007199254740992.5`),
