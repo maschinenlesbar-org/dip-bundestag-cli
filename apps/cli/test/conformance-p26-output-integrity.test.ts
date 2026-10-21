@@ -25,6 +25,8 @@ const BIN = fileURLToPath(new URL("../src/cli/index.js", import.meta.url));
 const outputArgv = (base: string, file: string, force: boolean): string[] => [
   "--base-url", base, "--api-key", "p26-test-key", "--max-retries", "0", "-o", file, ...(force ? ["--force"] : []), "vorgang", "list",
 ];
+/** argv that prints the server's answer to stdout, given the mock's base URL. */
+const stdoutArgv = (base: string): string[] => ["--base-url", base, "--api-key", "p26-test-key", "--max-retries", "0", "vorgang", "list"];
 /** An answer of about 200 kB for that command, as the server sends it (any format the API speaks). */
 const bigAnswer = (): { body: string; contentType: string } => ({
   body: JSON.stringify({ numFound: 10000, documents: Array.from({ length: 10000 }, (_, i) => ({ id: `${i}` })) }),
@@ -44,10 +46,11 @@ const STARTS_A_PROCESS = { timeout: 30_000 };
  * Node passes NODE_V8_COVERAGE to every child; under the limit the child's coverage file would
  * be cut short and break `npm run coverage`, so the shell drops it.
  */
-function runLimited(argv: string[]): Promise<{ code: number; stderr: string }> {
-  const sh = `trap '' XFSZ; ulimit -f 8; unset NODE_V8_COVERAGE; exec "$0" "$@"`;
+function runLimited(argv: string[], stdoutFile?: string): Promise<{ code: number; stderr: string }> {
+  const redirect = stdoutFile === undefined ? "" : ' > "$OUT"';
+  const sh = `trap '' XFSZ; ulimit -f 8; unset NODE_V8_COVERAGE; exec "$0" "$@"${redirect}`;
   return new Promise((resolve) =>
-    execFile("/bin/sh", ["-c", sh, process.execPath, BIN, ...argv], { env: { PATH: process.env.PATH ?? "" } }, (err, _stdout, stderr) =>
+    execFile("/bin/sh", ["-c", sh, process.execPath, BIN, ...argv], { env: { PATH: process.env.PATH ?? "", OUT: stdoutFile ?? "" } }, (err, _stdout, stderr) =>
       resolve({ code: err ? (typeof err.code === "number" ? err.code : 1) : 0, stderr }),
     ),
   );
@@ -100,6 +103,20 @@ test("P26: an existing file without --force is refused before any request", STAR
       assert.match(refused.stderr, /Refusing to overwrite existing file/);
       assert.equal(requests(), 0, "a request was sent");
       assert.equal(readFileSync(keep, "utf8"), "mine");
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("P26: stdout redirected to a file and cut short is an error (exit 1, ERROR of output), never exit 0", STARTS_A_PROCESS, async () => {
+  const dir = mkdtempSync(join(tmpdir(), `${PROGRAM}-p26-`));
+  try {
+    await withServer(async (base) => {
+      const out = join(dir, "stdout.json");
+      const cut = await runLimited(stdoutArgv(base), out);
+      assert.equal(cut.code, 1, cut.stderr);
+      assert.match(cut.stderr, new RegExp(`ERROR \\[${PROGRAM}\\.output\\] Could not write to stdout: .*EFBIG`), cut.stderr);
     });
   } finally {
     rmSync(dir, { recursive: true, force: true });

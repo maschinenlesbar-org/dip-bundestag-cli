@@ -529,7 +529,10 @@ stdout, and the next write fails with EPIPE (ENOTCONN when stdout is a socket, a
 when a Node parent spawns the CLI with piped stdio on macOS): the process exits 0 at
 once, quietly. Any other stdout write error is an ERROR record of `dip.output`
 (`Could not write to stdout: …`, in the format argv asks for: `processLogger`) and exits
-1. On stderr an EPIPE or ENOTCONN is ignored, so a failed run keeps its exit code (`2>&1 | true`
+1. When stdout is a regular file (`> out.json`), `defaultIO.out` writes every byte itself
+(`stdoutWriter`, a `writeSync` loop): Node's stream ignored a short count, so a file-size limit
+or a full disk cut the output short with exit 0; now the failure (EFBIG, ENOSPC) is that ERROR
+record with exit 1. On stderr an EPIPE or ENOTCONN is ignored, so a failed run keeps its exit code (`2>&1 | true`
 no longer turns a usage error into 0). `apps/cli/test/conformance-p7-pipes-exit-codes.test.ts`
 runs the built bin to check both.
 

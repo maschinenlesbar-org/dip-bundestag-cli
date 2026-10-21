@@ -2,7 +2,7 @@
 // tests can capture output instead of hitting the real stdout/stderr/filesystem.
 
 import { randomBytes } from "node:crypto";
-import { chmodSync, closeSync, lstatSync, openSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, fstatSync, lstatSync, openSync, realpathSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { DipError, DipUsageError } from "@maschinenlesbar.org/dip-bundestag-client/internal/errors";
 import type { DipClient, DipClientOptions } from "@maschinenlesbar.org/dip-bundestag-client/internal/client";
@@ -254,9 +254,70 @@ export function stderrAfterStdout(stdout: StdoutBacklog, write: (text: string) =
 
 const stderrLine = stderrAfterStdout(process.stdout, (text) => process.stderr.write(text + "\n"));
 
+/** A short pause for a non-blocking descriptor that is full (EAGAIN), without a busy loop. */
+const pause = new Int32Array(new SharedArrayBuffer(4));
+
+/**
+ * Write all of `data` to `fd`, or throw. `writeSync` may write less than asked (a file-size
+ * limit, a full disk): the rest is written in a loop, and the call that cannot write throws
+ * (EFBIG, ENOSPC). A descriptor the shell made non-blocking (a pipe through `/dev/fd/N`) answers
+ * EAGAIN while the reader is behind: wait a moment and go on.
+ */
+function writeAll(fd: number, data: Buffer): void {
+  for (let at = 0; at < data.length; ) {
+    try {
+      at += writeSync(fd, data, at);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "EAGAIN") throw err;
+      Atomics.wait(pause, 0, 0, 5);
+    }
+  }
+}
+
+/** What `stdoutWriter` needs of stdout. */
+interface Stdout {
+  write(text: string): unknown;
+  emit(event: "error", err: Error): unknown;
+  readonly fd?: number;
+}
+
+/**
+ * A writer for stdout that never drops a byte silently. When stdout is a regular file
+ * (`> out.json`), Node's stream wrote it with one `writeSync` and ignored a short count, so a
+ * file-size limit or a full disk cut the output short with exit 0 and nothing on stderr. Here
+ * the text is written with `writeAll`, and a failure (EFBIG, ENOSPC) is emitted as stdout's
+ * `error`, which `handleOutputErrors` turns into an ERROR record of `dip.output` and exit 1.
+ * A pipe, a socket or a terminal goes through the stream as before (EPIPE stays quiet).
+ */
+export function stdoutWriter(stdout: Stdout = process.stdout, write: (fd: number, data: Buffer) => void = writeAll): (text: string) => void {
+  let toFile: boolean | undefined;
+  return (text) => {
+    toFile ??= stdout.fd !== undefined && isRegularFile(stdout.fd);
+    if (!toFile) {
+      stdout.write(text);
+      return;
+    }
+    try {
+      write(stdout.fd as number, Buffer.from(text, "utf8"));
+    } catch (err) {
+      stdout.emit("error", err instanceof Error ? err : new Error(String(err)));
+    }
+  };
+}
+
+function isRegularFile(fd: number): boolean {
+  try {
+    return fstatSync(fd).isFile();
+  } catch {
+    return false;
+  }
+}
+
+const stdoutText = stdoutWriter();
+
 export const defaultIO: CliIO = {
   readSecret: (prompt) => readSecretFrom(process.stdin, process.stderr, prompt),
-  out: (text) => process.stdout.write(text + "\n"),
+  out: (text) => stdoutText(text + "\n"),
   // A record never lands inside the data when both streams share a pipe.
   err: stderrLine,
   writeFile: (path, data, force) => {
