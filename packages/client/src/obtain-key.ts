@@ -234,7 +234,7 @@ export async function obtainKey(options: ObtainKeyOptions = {}): Promise<Obtaine
       const response = await engine.getAbsolute(rawSourceUrl, {
         accept: "application/json, text/plain, text/markdown;q=0.9, */*;q=0.8",
       });
-      document = decodeBody(response.data, response.contentType, sourceUrl);
+      document = decodeBody(response.data, response.contentType, `GET ${sourceUrl}`);
       // After a redirect, cite the document the key was actually read from.
       if (response.url !== splitUrlForCompare(rawSourceUrl)) sourceUrl = redactUrl(response.url);
     } catch (err) {

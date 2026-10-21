@@ -37,10 +37,14 @@ import {
 } from "./validate.js";
 import { DipParseError, DipValidationError } from "./errors.js";
 
-/** `value` when `problem` accepts it, else a DipParseError naming the endpoint. */
-function expectShape<T>(value: unknown, problem: Problem<unknown>, path: string): T {
+/**
+ * `value` when `problem` accepts it, else a DipParseError naming the request
+ * (`GET <url>: unexpected response shape: …`, userinfo redacted), as the engine's own
+ * answer errors do.
+ */
+function expectShape<T>(value: unknown, problem: Problem<unknown>, request: string): T {
   const reason = problem(value);
-  if (reason !== undefined) throw new DipParseError(`Unexpected response from ${path}: ${reason}.`);
+  if (reason !== undefined) throw new DipParseError(`${request}: unexpected response shape: ${reason}.`);
   return value as T;
 }
 
@@ -143,7 +147,8 @@ class ResourceGroup {
       }
     }
     const path = `${API}/${this.path}`;
-    return expectShape<ListResult>(await this.e.getJson(path, normaliseFilterValues(params)), listResultProblem, path);
+    const query = normaliseFilterValues(params);
+    return expectShape<ListResult>(await this.e.getJson(path, query), listResultProblem, `GET ${this.e.describeUrl(path, query)}`);
   }
 
   /**
@@ -161,7 +166,7 @@ class ResourceGroup {
     assertValid(`${this.path} id`, trimmed, idProblem);
     const sent = typeof trimmed === "string" && /^\d+$/.test(trimmed) ? trimmed.replace(/^0+(?=\d)/, "") : trimmed;
     const path = `${API}/${this.path}/${enc(String(sent))}`;
-    return expectShape<Document>(await this.e.getJson(path), documentProblem, path);
+    return expectShape<Document>(await this.e.getJson(path), documentProblem, `GET ${this.e.describeUrl(path)}`);
   }
 }
 

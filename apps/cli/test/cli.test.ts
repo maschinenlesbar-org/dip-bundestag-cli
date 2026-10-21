@@ -405,7 +405,7 @@ test("an empty list response exits 1 instead of printing null", async () => {
   const code = await run(["--compact", "vorgang", "list"], cli.deps);
   assert.equal(code, 1);
   assert.deepEqual(cli.out, []);
-  assert.match(untimed(cli.err.join("\n")), /^ERROR \[dip\.api\] Empty response body from \/api\/v1\/vorgang/);
+  assert.match(untimed(cli.err.join("\n")), /^ERROR \[dip\.api\] GET https:\/\/search\.dip\.bundestag\.de\/api\/v1\/vorgang: empty response body\./);
 });
 
 test("--compact takes the gap path for an answer with a huge string, the fast path otherwise (bug 6, 2026-10-19)", async (t) => {
@@ -594,7 +594,7 @@ test("a 2xx body that is not a DIP list or document exits 1 instead of printing 
     assert.equal(await run(["-o", "out.json", ...argv], cli.deps), 1, `${argv.join(" ")} ${JSON.stringify(body)}`);
     assert.deepEqual(cli.out, []);
     assert.equal(cli.files.size, 0, "no file is written");
-    assert.match(untimed(cli.err.join("\n")), /^ERROR \[dip\.api\] Unexpected response from \/api\/v1\//);
+    assert.match(untimed(cli.err.join("\n")), /^ERROR \[dip\.api\] GET https:\/\/search\.dip\.bundestag\.de\/api\/v1\/\S+: unexpected response shape: expected a DIP /);
   }
   const ok = makeCli(() => jsonResponse({ id: "14", nachname: "Merkel" }));
   assert.equal(await run(["person", "get", "14"], ok.deps), 0);
@@ -699,7 +699,7 @@ test("a number beyond what JSON.parse carries exactly exits 1, not a rounded val
   assert.deepEqual(out, []);
   assert.equal(
     untimed(err.join("\n")),
-    "ERROR [dip.api] Unexpected response from /api/v1/vorgang: the number 12345678901234567890 cannot be represented exactly.",
+    "ERROR [dip.api] GET https://search.dip.bundestag.de/api/v1/vorgang?f.titel=x: the number 12345678901234567890 cannot be represented exactly.",
   );
 });
 

@@ -172,3 +172,14 @@ test("an API key with whitespace inside is refused, like the credentials file re
   assert.doesNotThrow(() => new DipClient({ apiKey: "  Trimmed.trimtrimtrimtrimtrimtrimtrimtrimtr \t" }));
   assert.doesNotThrow(() => new DipClient({ apiKey: "   " }));
 });
+
+test("a wrong answer shape names the request: method and URL, query included (D9, bug 2 of 2026-10-21)", async () => {
+  const mt = makeMockTransport(() => jsonResponse({ error: "bad" }));
+  const client = new DipClient({ transport: mt.transport, baseUrl: "http://u:pw@mirror.test" });
+  await assert.rejects(client.vorgaenge.list({ "f.titel": " Klima ", "f.wahlperiode": 20 }), {
+    message: 'GET http://***@mirror.test/api/v1/vorgang?f.titel=Klima&f.wahlperiode=20: unexpected response shape: expected a DIP list (numFound, documents), got an object with "error".',
+  });
+  await assert.rejects(client.personen.get(" 014 "), {
+    message: 'GET http://***@mirror.test/api/v1/person/14: unexpected response shape: expected a DIP document (an object with an id), got an object with "error".',
+  });
+});

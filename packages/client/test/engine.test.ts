@@ -350,7 +350,7 @@ test("an empty 2xx body or a 204 is a DipParseError, not null", async () => {
     const e = new RequestEngine({ transport: mt.transport });
     await assert.rejects(
       () => e.getJson("/api/v1/vorgang"),
-      (err: unknown) => err instanceof DipParseError && err.message === "Empty response body from /api/v1/vorgang",
+      (err: unknown) => err instanceof DipParseError && err.message === "GET https://search.dip.bundestag.de/api/v1/vorgang: empty response body.",
       `${status} ${JSON.stringify(body)}`,
     );
   }
@@ -651,7 +651,7 @@ test("a number the answer's JSON cannot carry exactly is a parse error, never a 
     const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(body(n), "application/json")).transport });
     await assert.rejects(e.getJson("/api/v1/vorgang/5"), (err) => {
       assert.ok(err instanceof DipParseError, n);
-      assert.equal(err.message, `Unexpected response from /api/v1/vorgang/5: the number ${n} cannot be represented exactly.`);
+      assert.equal(err.message, `GET https://search.dip.bundestag.de/api/v1/vorgang/5: the number ${n} cannot be represented exactly.`);
       return true;
     });
   }
@@ -672,7 +672,7 @@ test("a big number written as a decimal or an exponent, a fraction past 2^53 and
     const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(body(n), "application/json")).transport });
     await assert.rejects(e.getJson("/api/v1/vorgang"), (err) => {
       assert.ok(err instanceof DipParseError, n);
-      assert.equal(err.message, `Unexpected response from /api/v1/vorgang: the number ${n} cannot be represented exactly.`);
+      assert.equal(err.message, `GET https://search.dip.bundestag.de/api/v1/vorgang: the number ${n} cannot be represented exactly.`);
       return true;
     });
   }
@@ -714,4 +714,27 @@ test("a header named __proto__ is an ordinary header, never the prototype of the
   const fetchLike = new Headers([["__proto__", "x"], ["content-type", "application/json"]]);
   const f = new RequestEngine({ transport: async () => ({ status: 200, headers: fetchLike as unknown as Record<string, string>, body: Buffer.from('{"a":1}') }) });
   assert.deepEqual(await f.getJson("/x"), { a: 1 });
+});
+
+test("an answer error names the request: method and URL, userinfo redacted (D9, bug 2 of 2026-10-21)", async () => {
+  // These named only the path (`/api/v1/vorgang`): with a mirror or proxy as the base URL,
+  // nothing said which host sent the bad answer.
+  const base = "http://user:secret@mirror.test:8080";
+  const url = "GET http://***@mirror.test:8080/api/v1/vorgang?f.titel=Klima";
+  const cases: Array<[string, string, string]> = [
+    ["<html>down</html>", "text/html", `${url}: the answer is not valid JSON (expected JSON, got Content-Type "text/html").`],
+    ["{nope", "application/json", `${url}: the answer is not valid JSON.`],
+    ["", "application/json", `${url}: empty response body.`],
+    ['{"n":1e400}', "application/json", `${url}: the number 1e400 cannot be represented exactly.`],
+    ["{}", "application/json; charset=bogus", `${url}: unsupported response charset "bogus".`],
+  ];
+  for (const [body, type, message] of cases) {
+    const e = new RequestEngine({ baseUrl: base, transport: makeMockTransport(() => rawResponse(body, type)).transport });
+    await assert.rejects(e.getJson("/api/v1/vorgang", { "f.titel": "Klima" }), (err: Error) => {
+      assert.ok(err instanceof DipParseError);
+      assert.equal(err.message, message);
+      assert.ok(!err.message.includes("secret"));
+      return true;
+    });
+  }
 });

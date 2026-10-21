@@ -480,7 +480,7 @@ that prints as a different number, in any form (`12345678901234567890`, which pr
 a non-zero one too small for a double (`1e-400`, which became `0`), or a subnormal one (below
 2.2250738585072014e-308, where a double has fewer digits) that does not print as written (`3e-324`,
 which printed as `5e-324`; `5e-324` itself passes) — is a `DipParseError` too
-(`Unexpected response from <path>: the number … cannot be represented exactly.`), never a
+(`GET <url>: the number … cannot be represented exactly.`), never a
 changed value; below 2^53 a decimal fraction keeps a double's usual precision. Past 2^53 the
 check compares the number as written with the number as printed (`String(value)`), not with
 the double's exact binary value: a double a server printed in its shortest form (`1E23`,
@@ -526,7 +526,10 @@ base URL, which is a `DipValidationError`), `DipParseError`
 (bad JSON, or a 2xx body without the documented shape: `list()` requires a list
 envelope — `numFound`, `documents` — and `get()` a document with an `id`, checked
 by `listResultProblem`/`documentProblem`, so `null`, `[]`, a string or an error
-object is never printed with exit 0), `DipUsageError` (a usage error — no request made) and its subclass
+object is never printed with exit 0; every such message names the request, `GET <url>: …`
+with the base URL's userinfo as `***@`, as a network error does: `the answer is not valid JSON`
+(plus the Content-Type when it isn't JSON), `empty response body`, `unexpected response shape:
+…`, `unsupported response charset "…"`), `DipUsageError` (a usage error — no request made) and its subclass
 `DipValidationError` (the library rejected an input before any request, see
 [Library input validation](#library-input-validation)), all extending `DipError`.
 

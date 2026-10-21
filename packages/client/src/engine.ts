@@ -50,14 +50,18 @@ export const DEFAULT_USER_AGENT = "dip-bundestag-cli";
  * later re-serialised via JSON.stringify, so the rendered output (compact or pretty) is
  * always well-formed JSON.
  */
-function parseJsonBody<T>(text: string, path: string): T {
+function parseJsonBody<T>(text: string, request: string, contentType: string): T {
   try {
     return JSON.parse(text) as T;
   } catch (cause) {
     try {
       return JSON.parse(escapeRawControlCharsInStrings(text)) as T;
     } catch {
-      throw new DipParseError(`Failed to parse JSON response from ${path}`, { cause });
+      // An HTML maintenance or proxy page is the usual non-JSON answer: name its type, so it
+      // reads as an upstream problem rather than a client bug.
+      const type = sanitizeServerText(contentType.split(";")[0]?.trim() ?? "");
+      const hint = type !== "" && !/json/i.test(type) ? ` (expected JSON, got Content-Type "${cutForMessage(type)}")` : "";
+      throw new DipParseError(`${request}: the answer is not valid JSON${hint}.`, { cause });
     }
   }
 }
@@ -786,8 +790,24 @@ export class RequestEngine {
         `Invalid path segment "${dotSegment}" in ${normalizedPath}: "." and ".." cannot be used as an id.`,
       );
     }
+    return this.joinUrl(normalizedPath, query);
+  }
+
+  /** Base URL + path + query string, without buildUrl's validation. */
+  private joinUrl(path: string, query?: QueryParams): string {
+    const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     const qs = query ? buildQueryString(query) : "";
     return `${this.#baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;
+  }
+
+  /**
+   * The request URL as error messages show it: absolute (so a message names the host that
+   * gave a bad answer, which matters with a custom base URL), userinfo redacted and cut at
+   * `MAX_QUOTED_LENGTH` characters. It never throws: describing a URL for a message does not
+   * validate it (buildUrl does).
+   */
+  describeUrl(path: string, query?: QueryParams): string {
+    return cutForMessage(redactUrl(this.joinUrl(path, query)));
   }
 
   /**
@@ -1088,22 +1108,26 @@ export class RequestEngine {
     });
   }
 
-  /** Perform a GET expecting JSON and parse it into `T`. */
+  /**
+   * Perform a GET expecting JSON and parse it into `T`. Every error about the answer names the
+   * request (`GET <url>: …`, userinfo redacted), as a network error does.
+   */
   async getJson<T>(path: string, query?: QueryParams): Promise<T> {
     const res = await this.request("GET", path, { query, accept: "application/json" });
-    const text = decodeBody(res.data, res.contentType, path);
+    const request = `GET ${this.describeUrl(path, query)}`;
+    const text = decodeBody(res.data, res.contentType, request);
     // Every DIP endpoint answers with a JSON document (a list envelope or a
     // record), so an empty 2xx body (or 204 No Content) is a malformed response,
     // not `null`: printing `null` with exit 0 would let a script carry on.
     if (res.status === 204 || text.trim().length === 0) {
-      throw new DipParseError(`Empty response body from ${path}`);
+      throw new DipParseError(`${request}: empty response body.`);
     }
-    const parsed = parseJsonBody<T>(text, path);
+    const parsed = parseJsonBody<T>(text, request, res.contentType);
     // JSON.parse rounds an integer beyond 2^53 and turns an out-of-range literal into Infinity
     // (printed as null), silently: refuse the answer rather than print a changed value.
     const inexact = firstInexactNumber(text);
     if (inexact !== undefined) {
-      throw new DipParseError(`Unexpected response from ${path}: the number ${cutForMessage(inexact)} cannot be represented exactly.`);
+      throw new DipParseError(`${request}: the number ${cutForMessage(inexact)} cannot be represented exactly.`);
     }
     return parsed;
   }
@@ -1158,15 +1182,16 @@ export class RequestEngine {
  * none). TextDecoder drops a leading byte order mark, which Buffer#toString keeps and
  * JSON.parse then rejects, so a BOM added by a proxy cannot turn a valid answer into
  * a parse error, and an `iso-8859-1` body keeps its umlauts. An unknown charset label
- * is a `DipParseError` naming it and `where`.
+ * is a `DipParseError` naming it after `request`, the request it answered
+ * (`GET <url>: unsupported response charset "…".`).
  */
-export function decodeBody(body: Buffer, contentType: string, where: string): string {
+export function decodeBody(body: Buffer, contentType: string, request: string): string {
   const charset = /;\s*charset\s*=\s*"?([^";\s]+)"?/i.exec(contentType)?.[1] ?? "utf-8";
   let decoder: TextDecoder;
   try {
     decoder = new TextDecoder(charset);
   } catch {
-    throw new DipParseError(`Unsupported response charset "${cutForMessage(sanitizeServerText(charset))}" from ${where}.`);
+    throw new DipParseError(`${request}: unsupported response charset "${cutForMessage(sanitizeServerText(charset))}".`);
   }
   return decoder.decode(body);
 }
