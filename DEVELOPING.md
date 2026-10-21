@@ -323,8 +323,9 @@ What the library rejects:
 - **`get` id** (`idProblem`, in every `get(id)`, on the id trimmed of surrounding
   whitespace, which is also what is sent, an all-digit id without its leading zeros): a blank id (an empty last
   path segment would request the collection endpoint and resolve with the list
-  envelope typed as a `Document`), and `.` or `..` (`encodeURIComponent` leaves
-  them and URL parsing resolves them to the list or the API root). The message
+  envelope typed as a `Document`), `.` or `..` (`encodeURIComponent` leaves
+  them and URL parsing resolves them to the list or the API root), and an id with a `/`
+  (sent as `%2F`, which a server or proxy that decodes it reads as more path segments). The message
   names the resource (`Invalid drucksache id: An id is required, e.g. 123456.`);
   the CLI's `get <id>` has no check of its own and prints it as is.
   `RequestEngine.buildUrl` also rejects a dot segment with `DipValidationError`,

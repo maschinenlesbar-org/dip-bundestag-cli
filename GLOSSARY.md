@@ -100,7 +100,8 @@ trimmed first, so a copy-pasted `"282486 "` finds the document, and an all-digit
 leading zeros, as `--id` does (`get 0282486` asks for 282486). A blank id, `.` or `..` is rejected (CLI
 exit 2, library `DipValidationError`, same message) before any request: `get("")`
 or `get(".")` would otherwise request the collection endpoint and return the list,
-and `get("..")` the API root.
+and `get("..")` the API root. So is an id with a `/` (`a1/../a2`), which went out as `%2F`
+and could be read as more path segments.
 
 **`f.*` filters (Filter).** DIP filters are query parameters prefixed with `f.`,
 e.g. `f.titel` (title), `f.id`, `f.wahlperiode`, `f.datum.start` /

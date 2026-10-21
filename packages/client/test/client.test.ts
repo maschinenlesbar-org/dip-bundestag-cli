@@ -68,6 +68,17 @@ test("an id of . or .. is rejected before any request instead of re-targeting th
     );
     assert.equal(mt.calls.length, 0);
   }
+  // An id with a "/" went out as %2F (`vorgang/a1%2F..%2Fa2`), which a server or proxy that
+  // decodes it reads as more path segments (P24, kit rollout 2026-10-21). No DIP id has one.
+  for (const id of ["a1/../a2", "a1/", "/a1", " 1/2 "]) {
+    const mt = constantJson({ id: "x" });
+    await assert.rejects(
+      () => clientWith(mt).vorgaenge.get(id),
+      (err: unknown) => err instanceof DipValidationError && err.message === 'Invalid vorgang id: An id cannot contain "/".',
+      id,
+    );
+    assert.equal(mt.calls.length, 0, id);
+  }
   // Longer dot runs and percent forms are ordinary ids.
   const mt = constantJson({ id: "x" });
   await clientWith(mt).vorgaenge.get("...");

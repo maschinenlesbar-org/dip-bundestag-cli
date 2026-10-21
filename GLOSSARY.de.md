@@ -101,7 +101,8 @@ eine ID nur aus Ziffern verliert ihre führenden Nullen wie bei `--id` (`get 028
 Eine leere ID, `.` oder `..`
 wird vor jeder Anfrage abgelehnt (CLI Exit 2, Bibliothek `DipValidationError`, dieselbe
 Meldung): `get("")` oder `get(".")` würde sonst den Sammel-Endpoint abfragen und die
-Liste liefern, `get("..")` die API-Wurzel.
+Liste liefern, `get("..")` die API-Wurzel. Ebenso eine ID mit `/` (`a1/../a2`), die als
+`%2F` hinausging und als weitere Pfadsegmente gelesen werden konnte.
 
 **`f.*`-Filter.** DIP-Filter sind Query-Parameter mit dem Präfix `f.`, z. B. `f.titel`
 (Titel), `f.id`, `f.wahlperiode`, `f.datum.start` / `f.datum.end` (Datumsbereich),

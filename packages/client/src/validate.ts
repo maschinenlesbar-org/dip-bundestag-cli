@@ -103,8 +103,8 @@ export function assertNonBlankParams(params: QueryParams): void {
  * turns `/api/v1/vorgang/<id>` into the collection endpoint, which answers with
  * the list envelope instead of one document. Nor may it be "." or "..":
  * `encodeURIComponent` leaves both unchanged and URL parsing resolves them, so
- * they would request the list or the API root. (Longer dot runs and
- * percent-encoded forms such as "%2e%2e" are ordinary ids.)
+ * they would request the list or the API root. Nor may it hold a "/". (Longer dot
+ * runs and percent-encoded forms such as "%2e%2e" are ordinary ids.)
  */
 export const idProblem: Problem<string> = (id) => {
   if (id === undefined || id === null) return "An id is required, e.g. 123456.";
@@ -115,6 +115,9 @@ export const idProblem: Problem<string> = (id) => {
   }
   if (isBlank(String(id))) return "An id is required, e.g. 123456.";
   if (id === "." || id === "..") return '"." and ".." cannot be used as an id.';
+  // encodeURIComponent sends it as %2F, which a server or proxy that decodes it reads as more
+  // path segments ("a1/../a2" re-targets the request); no DIP id holds one.
+  if (String(id).includes("/")) return 'An id cannot contain "/".';
   return undefined;
 };
 
