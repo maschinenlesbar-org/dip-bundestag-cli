@@ -10,7 +10,7 @@ import { apiKeyProblem, normaliseApiKey, type DipClientOptions } from "@maschine
 
 /** The name the API key is stored under in the credentials file (`dip config set api-key`). */
 export const API_KEY_CREDENTIAL = "api-key";
-import { DipValidationError } from "@maschinenlesbar.org/dip-bundestag-client/internal/errors";
+import { DipValidationError, cutForMessage } from "@maschinenlesbar.org/dip-bundestag-client/internal/errors";
 import { API_KEY_PHRASE, DEFAULT_BASE_URL, baseUrlProblem, cleartextProblem, isBidiControl } from "@maschinenlesbar.org/dip-bundestag-client/internal/engine";
 import { headerValueProblem, intInRangeProblem, nonEmptyProblem } from "@maschinenlesbar.org/dip-bundestag-client/internal/validate";
 
@@ -98,10 +98,22 @@ export function parseApiKey(value: string): string {
  * commander value-parser for `-o, --output <file>`. A blank or whitespace-only path
  * is a usage error: `-o ""` used to print to stdout silently and `-o " "` created a
  * file named " ". `-` is kept as is and means stdout (see {@link action}), the
- * usual convention, rather than a file named "-".
+ * usual convention, rather than a file named "-"; any other value starting with a dash is
+ * refused as the next option.
  */
 export function parseOutputPath(value: string): string {
-  return parseNonEmpty(value);
+  parseNonEmpty(value);
+  // Any other dash-leading value is the next option, consumed because -o was left without a
+  // value: `dip vorgang list -o --compact` wrote a pretty-printed file named "--compact" with
+  // exit 0. commander hands the parser the same string for `-o -x` and `--output=-x`, so a
+  // file whose name starts with a dash is written as `./-x`.
+  if (value !== "-" && value.startsWith("-")) {
+    throw new InvalidArgumentError(
+      `looks like a missing value — "${cutForMessage(value)}" is the next option, consumed because ` +
+        "this one was left without a value. For a file whose name starts with a dash, write ./-name.",
+    );
+  }
+  return value;
 }
 
 /**

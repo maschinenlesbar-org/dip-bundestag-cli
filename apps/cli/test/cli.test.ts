@@ -822,3 +822,19 @@ test("terminal controls are escaped in chunks: the same text as one pass, across
   assert.equal(out[0], expected);
   assert.deepEqual(JSON.parse(out[0]!), { text });
 });
+
+test("-o refuses the next option as its file name, before any request; ./-name writes a dash-leading file (T13)", async () => {
+  // `dip vorgang list -o --compact` wrote a pretty-printed file named "--compact" with exit 0:
+  // commander hands a value option the next argument whatever it looks like.
+  for (const argv of [["vorgang", "list", "-o", "--compact"], ["--output=-v", "vorgang", "list"], ["-o", "--force", "vorgang", "list"]]) {
+    const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+    assert.equal(await run(argv, cli.deps), 2, argv.join(" "));
+    assert.equal(cli.mt.calls.length, 0, argv.join(" "));
+    assert.equal(cli.files.size, 0, argv.join(" "));
+    assert.match(cli.err.join("\n"), /looks like a missing value — "-[-a-z]+" is the next option/, argv.join(" "));
+    assert.match(cli.err.join("\n"), /\.\/-name/, argv.join(" "));
+  }
+  const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+  assert.equal(await run(["-o", "./-v.json", "vorgang", "list"], cli.deps), 0, cli.err.join("\n"));
+  assert.deepEqual([...cli.files.keys()], ["./-v.json"]);
+});
