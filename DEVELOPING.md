@@ -383,7 +383,8 @@ What the library rejects:
   URL argument (`credentialsIn`, which finds it whether the value parses or
   not, then `redactCredentials`) becomes `***@` on stdout and stderr. Only a value
   that starts with a scheme counts (a bare `a:b@c` is a file name, a search text or a
-  User-Agent as often as a credential), except as the `--base-url` value; the
+  User-Agent as often as a credential), except as the `--base-url` value; the value after the `=` of
+a `key=value` argument (`--filter f.titel=https://user:pw@host`) counts as a value of its own; the
   `--api-key` value, the `DIP_API_KEY` value and any argument shaped like a DIP
   key (`looksLikeApiKey`), or whose value after the first `=` is (`--filter f.titel=<key>`),
   become `***` on stderr (`redactSecrets`). Not on stdout,

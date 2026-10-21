@@ -868,3 +868,20 @@ test("a refused value is quoted with its invisible characters escaped, never raw
     }
   }
 });
+
+test("a password in a URL given as a --filter value is redacted in every message (ckan-cli 7f8b5e3 class)", async () => {
+  // `--filter f.wahlperiode=https://u:pw@host` printed the password in commander's echo and in
+  // dip's refusal: the argument starts with no scheme, so its userinfo was not found.
+  for (const argv of [
+    ["vorgang", "list", "--filter", "f.wahlperiode=https://u:secretpw@h.test/x"],
+    ["vorgang", "list", "--filter", "f.titl=https://u:secretpw@h.test/x"],
+    ["vorgang", "list", "--filter=f.wahlperiode=https://u:secretpw@h.test/x"],
+    ["vorgang", "list", "--filter", "f.wahlperiode=https://u:secret​pw@h.test/x"],
+  ]) {
+    const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+    assert.equal(await run(argv, cli.deps), 2, argv.join(" "));
+    const err = cli.err.join("\n");
+    assert.doesNotMatch(err, /secret/, err);
+    assert.match(err, /https:\/\/\*\*\*@h\.test/, err);
+  }
+});

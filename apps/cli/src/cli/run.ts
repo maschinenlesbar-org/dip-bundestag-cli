@@ -164,10 +164,12 @@ export interface Redaction {
  * exact strings can. Without secrets the text passes through unchanged.
  */
 export function redactionFor(argv: readonly string[], env: Record<string, string | undefined>): Redaction {
-  // An `--option=value` token is echoed as its value alone.
-  const values = argv.map((token) =>
-    token.startsWith("-") && token.includes("=") ? token.slice(token.indexOf("=") + 1) : token,
-  );
+  // An `--option=value` token is echoed as its value alone; a `key=value` pair (`--filter
+  // f.titel=https://user:pw@host`, `--filter=f.titel=…`) carries its value after the "=",
+  // which a URL there starts: that value is a source too.
+  const values = argv
+    .map((token) => (token.startsWith("-") && token.includes("=") ? token.slice(token.indexOf("=") + 1) : token))
+    .flatMap((value) => (value.includes("=") ? [value, value.slice(value.indexOf("=") + 1)] : [value]));
   const envKey = env[API_KEY_ENV_VAR] ?? "";
   const userinfo = new Set<string>();
   const keys = new Set<string>();
