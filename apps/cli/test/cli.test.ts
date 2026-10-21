@@ -93,6 +93,21 @@ test("DEL and C1 control characters in server data are escaped in the JSON outpu
   }
 });
 
+test("bidi controls in server data are escaped in the JSON output, on stdout and in -o (kit rollout 2026-10-21, K10)", async () => {
+  // A title holding U+202E (right-to-left override) printed raw and reversed the rest of the
+  // terminal line; DEL and C1 were escaped already.
+  const bidi = [0x061c, 0x200e, 0x200f, 0x202a, 0x202e, 0x2066, 0x2069].map((c) => String.fromCharCode(c)).join("");
+  const served = { id: "777", titel: `evil${bidi}gpj.exe` };
+  for (const format of [[], ["--compact"], ["-o", "out.json"]]) {
+    const cli = makeCli(() => jsonResponse(served));
+    assert.equal(await run([...format, "vorgang", "get", "777"], cli.deps), 0, format.join(" "));
+    const text = format[0] === "-o" ? cli.files.get("out.json")!.toString("utf8") : cli.out.join("\n");
+    assert.doesNotMatch(text, /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/, format.join(" "));
+    assert.match(text, /evil\\u061c\\u200e\\u200f\\u202a\\u202e\\u2066\\u2069gpj\.exe/, format.join(" "));
+    assert.deepEqual(JSON.parse(text), served);
+  }
+});
+
 test("--timeout accepts up to the largest timer Node supports", async () => {
   const cli = makeCli(() => jsonResponse({ id: "777" }));
   assert.equal(await run(["--timeout", "2147483647", "person", "get", "777"], cli.deps), 0);
