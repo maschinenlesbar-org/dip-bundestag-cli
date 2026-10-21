@@ -113,7 +113,10 @@ and the CLI reject a key that is not in the resource's set (the CLI with exit 2)
 `list(params, { allowUnknownFilters: true })` sends one anyway, for a filter DIP
 added later. It passes the rest on via
 `--filter key=value` (repeatable), each text value in composed Unicode (NFC), the only form
-DIP matches (a `Bürgergeld` pasted with a combining umlaut found nothing); only the first `=` splits key from value, so a
+DIP matches (a `Bürgergeld` pasted with a combining umlaut found nothing), and the value of a
+**text filter** (`TEXT_FILTERS`: `f.titel`, `f.person`, `f.urheber`, `f.deskriptor`,
+`f.sachgebiet` and the other names and terms; not the codes, document numbers or dates)
+without surrounding whitespace (`normalizeText`), since a pasted trailing space matched nothing; only the first `=` splits key from value, so a
 value may itself contain `=`. Repeating the same key sends repeated query keys
 (`?f.id=1&f.id=2`), which DIP treats as an OR set. A blank filter value, `--id`
 or `--cursor` is rejected too (exit 2), and the library's `list()` rejects a blank

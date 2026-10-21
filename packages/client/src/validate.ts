@@ -37,6 +37,16 @@ export function isBlank(value: string): boolean {
 export const nonEmptyProblem: Problem<string> = (value) =>
   typeof value !== "string" ? "Expected a string." : isBlank(value) ? "Expected a non-empty value." : undefined;
 
+/**
+ * A text filter as DIP matches it: without surrounding whitespace (Unicode whitespace,
+ * U+3000 included; a value pasted with a trailing space matched nothing) and in composed
+ * Unicode, NFC (a decomposed "Müller", u plus U+0308, matched nothing). Inner whitespace is
+ * kept. A value blank once trimmed never gets here: `assertNonBlankParams` refuses it first.
+ */
+export function normalizeText(value: string): string {
+  return value.trim().normalize("NFC");
+}
+
 /** True for a plain object (`{}`, `Object.create(null)`), not an array, class instance or primitive. */
 export function isPlainObject(value: unknown): boolean {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;

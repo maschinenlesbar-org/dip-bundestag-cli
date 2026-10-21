@@ -17,6 +17,7 @@ import type { QueryParams, QueryPrimitive } from "./query.js";
 import type { ListResult, Document } from "./types.js";
 import {
   INTEGER_FILTERS,
+  TEXT_FILTERS,
   cursorWithoutFiltersProblem,
   filterKeyProblem,
   integerFilterProblem,
@@ -30,6 +31,7 @@ import {
   idProblem,
   isBlank,
   isPlainObject,
+  normalizeText,
   listResultProblem,
   type Problem,
 } from "./validate.js";
@@ -48,20 +50,22 @@ const API = API_PATH;
 const enc = encodeURIComponent;
 
 /**
- * The query as DIP matches it, on a copy: every text value of a filter in composed Unicode
- * (NFC) — DIP matches composed text only, so a decomposed "Bürgergeld" (u + U+0308, as pasted
- * from a macOS file name) found nothing — and every integer filter (`INTEGER_FILTERS`) without
- * leading zeros: DIP compares ids as text, so `f.id=0282486` found nothing where 282486 found
- * the procedure. The cursor is opaque and sent as given.
+ * The query as DIP matches it, on a copy: every value of a text filter (`TEXT_FILTERS`)
+ * trimmed and in composed Unicode (`normalizeText`; a value pasted with a trailing space, or
+ * a decomposed "Bürgergeld", u + U+0308, found nothing), every other string value in composed
+ * Unicode (NFC), and every integer filter (`INTEGER_FILTERS`) without leading zeros: DIP
+ * compares ids as text, so `f.id=0282486` found nothing where 282486 found the procedure. The
+ * cursor is opaque and sent as given.
  */
 function normaliseFilterValues(params: QueryParams): QueryParams {
-  const text = (value: QueryPrimitive): QueryPrimitive => (typeof value === "string" ? value.normalize("NFC") : value);
+  const composed = (value: QueryPrimitive): QueryPrimitive => (typeof value === "string" ? value.normalize("NFC") : value);
+  const text = (value: QueryPrimitive): QueryPrimitive => (typeof value === "string" ? normalizeText(value) : value);
   const integer = (value: QueryPrimitive): QueryPrimitive =>
     typeof value === "string" && /^\d+$/.test(value) ? value.replace(/^0+(?=\d)/, "") : value;
   // No prototype: with allowUnknownFilters a key such as `__proto__` stays a key.
   const out = Object.create(null) as QueryParams;
   for (const [key, value] of Object.entries(params)) {
-    const one = INTEGER_FILTERS.includes(key) ? integer : text;
+    const one = INTEGER_FILTERS.includes(key) ? integer : TEXT_FILTERS.includes(key) ? text : composed;
     out[key] = key === "cursor" ? value : Array.isArray(value) ? value.map(one) : one(value);
   }
   return out;

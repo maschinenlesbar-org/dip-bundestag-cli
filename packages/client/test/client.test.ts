@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DipClient } from "../src/client.js";
 import { DipApiError, DipValidationError } from "../src/errors.js";
+import { TEXT_FILTERS } from "../src/filters.js";
+import { normalizeText } from "../src/validate.js";
 import { makeMockTransport, jsonResponse, constantJson } from "./helpers.js";
 
 function clientWith(mt: ReturnType<typeof makeMockTransport>, apiKey?: string): DipClient {
@@ -106,6 +108,30 @@ test("a filter value in decomposed Unicode is sent composed (NFC); the cursor is
   assert.equal(query.get("cursor"), "Aöx", "a cursor is opaque and sent as given");
   await client.personen.list({ "f.person": "Müller" });
   assert.equal(new URL(mt.calls[1]!.url).searchParams.get("f.person"), "Müller");
+});
+
+test("a text filter goes out trimmed and composed; codes and dates are left as given (kit rollout 2026-10-21, K6)", async () => {
+  // `--filter "f.titel= Klima"` (or a value pasted with a trailing newline) went out with the
+  // space and matched nothing. Codes, dates and the cursor are not text the API matches.
+  const mt = makeMockTransport(() => jsonResponse({ numFound: 0, documents: [], cursor: "*" }));
+  const client = clientWith(mt, "k");
+  await client.vorgaenge.list({
+    "f.titel": ["  Bu\u0308rgergeld\n", "\tKlima  schutz "],
+    "f.urheber": " Bundesregierung ",
+    "f.dokumentnummer": " 20/1234",
+    "f.datum.start": "2024-01-01 ",
+    cursor: " Aöx ",
+  });
+  const query = new URL(mt.calls[0]!.url).searchParams;
+  assert.deepEqual(query.getAll("f.titel"), ["Bürgergeld", "Klima  schutz"]);
+  assert.equal(query.get("f.urheber"), "Bundesregierung");
+  assert.equal(query.get("f.dokumentnummer"), " 20/1234", "a code is sent as given");
+  assert.equal(query.get("f.datum.start"), "2024-01-01 ", "a date is sent as given");
+  assert.equal(query.get("cursor"), " Aöx ", "a cursor is opaque");
+  await client.personen.list({ "f.person": "　Müller " });
+  assert.equal(new URL(mt.calls[1]!.url).searchParams.get("f.person"), "Müller");
+  assert.equal(normalizeText(" Mu\u0308ller\n"), "Müller");
+  assert.ok(TEXT_FILTERS.includes("f.titel") && !TEXT_FILTERS.includes("f.dokumentnummer"));
 });
 
 test("an integer filter loses its leading zeros: DIP compares ids as text (bug 9, 2026-10-15)", async () => {

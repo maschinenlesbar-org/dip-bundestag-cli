@@ -306,6 +306,12 @@ What the library rejects:
   filter and answers with the whole unfiltered list. `undefined`/`null` still
   mean "omitted". The CLI's `parseNonEmpty` and `--filter` checks use the same
   `nonEmptyProblem`/`isBlank`, as early parse-time copies.
+- **Text filters** (`normalizeText`, for the `TEXT_FILTERS` in every `list()`): the value of a
+  filter DIP matches as words or names (`f.titel`, `f.person`, `f.urheber`, `f.deskriptor`,
+  `f.sachgebiet`, …) goes out trimmed and in composed Unicode (NFC); a pasted trailing space
+  or a decomposed `Müller` matched nothing, with exit 0. Every other string value is sent
+  composed but otherwise as given: codes, document numbers, dates and the cursor. A value
+  blank once trimmed is refused first (above). The CLI's `--filter` reaches the same `list()`.
 - **Integer filters** (`integerFilterProblem`, for the `INTEGER_FILTERS` in every
   `list()`, `allowUnknownFilters` or not): a value of `f.id`, `f.wahlperiode`,
   `f.vorgang` and the other filters DIP's OpenAPI types as integers that is not a

@@ -158,6 +158,28 @@ export function integerFilterProblem(value: unknown): string | undefined {
   return Number.isSafeInteger(Number(value)) ? undefined : `Expected a whole number of at most ${Number.MAX_SAFE_INTEGER}, e.g. 21.`;
 }
 
+/**
+ * The filters whose values are text DIP matches as words or names (a title, a person, an
+ * author, a subject term): `list()` sends them trimmed and in composed Unicode
+ * (`normalizeText`). A value pasted with a trailing space or newline, or a decomposed
+ * `Müller` (u + U+0308, from a macOS file name), matched nothing. Document numbers, the
+ * GESTA, EU and question codes, `f.zuordnung`, `f.dokumentart`, the dates and the cursor
+ * are not in this list: they are sent as given (composed, as every other text value).
+ */
+export const TEXT_FILTERS: readonly string[] = [
+  "f.beratungsstand",
+  "f.deskriptor",
+  "f.drucksachetyp",
+  "f.initiative",
+  "f.person",
+  "f.ressort_fdf",
+  "f.sachgebiet",
+  "f.titel",
+  "f.urheber",
+  "f.verkuendung_fundstelle",
+  "f.vorgangstyp",
+];
+
 /** The paging parameter `list()` takes besides the resource's `f.*` filters. */
 export const LIST_PAGING_PARAMS: readonly string[] = ["cursor"];
 

@@ -28,6 +28,7 @@ export { obtainKey, looksLikeApiKey, API_KEY_ENV_VAR, KEY_SOURCE_URL } from "./o
 export type { ObtainKeyOptions, ObtainedKey } from "./obtain-key.js";
 export {
   INTEGER_FILTERS,
+  TEXT_FILTERS,
   LIST_FILTERS,
   LIST_PAGING_PARAMS,
   cursorWithoutFiltersNote,
@@ -63,6 +64,7 @@ export {
   isBlank,
   listResultProblem,
   nonEmptyProblem,
+  normalizeText,
 } from "./validate.js";
 export type { Problem } from "./validate.js";
 

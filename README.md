@@ -206,7 +206,10 @@ New to terms like *Vorgang*, *Drucksache*, *Wahlperiode* or *Vorgangstyp*? The
 | `--filter <key=value>` | DIP filter, e.g. `f.titel=Klima` — repeatable; the key must be one of the resource's `f.*` filters |
 
 `--filter` passes the key and value to DIP as given, the value in composed Unicode (NFC), the
-only form DIP matches (a `Bürgergeld` pasted with a combining umlaut found nothing). The key must be one of the
+only form DIP matches (a `Bürgergeld` pasted with a combining umlaut found nothing). The value
+of a text filter (`f.titel`, `f.person`, `f.urheber`, `f.deskriptor`, `f.sachgebiet` and the
+other names and terms) also goes out without surrounding whitespace, since one pasted with a
+trailing space or newline matched nothing; codes, document numbers and dates are sent as typed. The key must be one of the
 `f.*` filters DIP documents for that resource (the error lists them): DIP ignores
 a key it does not know and answers with the whole unfiltered list, so a typo such
 as `f.titl`, or `f.person` on `vorgang`, is a usage error (exit `2`) instead. Only the first `=` splits
