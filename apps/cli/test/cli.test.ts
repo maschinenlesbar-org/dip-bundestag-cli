@@ -7,7 +7,7 @@ import { run } from "../src/cli/run.js";
 import { readEnvApiKey } from "../src/cli/program.js";
 import { renderJson } from "../src/cli/shared.js";
 import { DipClient } from "@maschinenlesbar.org/dip-bundestag-client/internal/client";
-import type { CliDeps } from "../src/cli/io.js";
+import { OutputError, type CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "@maschinenlesbar.org/dip-bundestag-client/internal/http";
 import { makeMockTransport, jsonResponse, rawResponse, untimed } from "./helpers.js";
 import { DipError, DipNetworkError, credentialsIn } from "@maschinenlesbar.org/dip-bundestag-client/internal/errors";
@@ -522,19 +522,47 @@ test("every -o failure is an ERROR record of dip.output, exit 1 (L8)", async () 
   }
 });
 
-test("a response nested too deeply to pretty-print is a clear error, not a stack overflow", async () => {
+test("an answer nested too deeply is a clean error; it suggests --compact only where --compact prints it (D7, bug 3 of 2026-10-21)", async () => {
+  // A hostile or broken answer: JSON.parse reads it, the pretty printer's recursion can't.
+  // Whether the compact printer can depends on the Node version (iterative from Node 26) and
+  // the stack: probed here, never assumed. On Node 22 and 24 "try --compact" was wrong advice.
   const depth = 200_000;
   // Nested inside a valid list envelope, which the client checks first.
-  const body = Buffer.from(`{"numFound":1,"documents":[{"id":"1","x":${"[".repeat(depth)}${"]".repeat(depth)}}]}`);
-  const deep = () => ({ status: 200, headers: { "content-type": "application/json" }, body });
+  const body = `{"numFound":1,"documents":[{"id":"1","x":${"[".repeat(depth)}${"]".repeat(depth)}}]}`;
+  let compactPrints = true;
+  try {
+    JSON.stringify(JSON.parse(body));
+  } catch {
+    compactPrints = false;
+  }
+  const deep = () => ({ status: 200, headers: { "content-type": "application/json" }, body: Buffer.from(body) });
   const pretty = makeCli(deep);
   assert.equal(await run(["vorgang", "list"], pretty.deps), 1);
   assert.deepEqual(pretty.out, []);
-  assert.match(untimed(pretty.err.join("\n")), /^ERROR \[dip\.cli\] The response is nested too deeply to pretty-print; try --compact\./);
-  // Compact output needs far less stack: it either prints or fails with the compact message.
+  assert.equal(
+    untimed(pretty.err.join("\n")),
+    `ERROR [dip.output] The answer is nested too deeply to pretty-print${compactPrints ? "; try --compact" : ""}.`,
+  );
   const compact = makeCli(deep);
-  const code = await run(["--compact", "vorgang", "list"], compact.deps);
-  if (code !== 0) assert.match(untimed(compact.err.join("\n")), /^ERROR \[dip\.cli\] The response is nested too deeply to print\./);
+  assert.equal(await run(["--compact", "vorgang", "list"], compact.deps), compactPrints ? 0 : 1);
+  if (!compactPrints) assert.equal(untimed(compact.err.join("\n")), "ERROR [dip.output] The answer is nested too deeply to print.");
+});
+
+test("an answer too large to print is called too large, not too deep; the hint only where --compact prints (D7)", (t) => {
+  const { deps } = makeCli(() => jsonResponse({}));
+  const real = JSON.stringify;
+  // V8's own error for a text past its longest string, stood in for: a real one needs 512 MB.
+  const tooLarge = (gap: unknown): boolean => gap === 2 || gap === "big";
+  t.mock.method(JSON, "stringify", (value: unknown, replacer: never, gap: unknown) => {
+    if (tooLarge(gap) || (gap === undefined && (value as { all?: boolean }).all === true)) throw new RangeError("Invalid string length");
+    return real(value, replacer, gap as number);
+  });
+  assert.throws(() => renderJson(deps, {}, { id: "1" }), (err: Error) =>
+    err instanceof OutputError && /^The answer is too large \(more than \d+ characters of JSON\) to pretty-print; try --compact\.$/.test(err.message));
+  assert.throws(() => renderJson(deps, {}, { all: true }), (err: Error) =>
+    /^The answer is too large \(more than \d+ characters of JSON\) to pretty-print\.$/.test(err.message));
+  assert.throws(() => renderJson(deps, { compact: true }, { all: true }), (err: Error) =>
+    /^The answer is too large \(more than \d+ characters of JSON\) to print\.$/.test(err.message));
 });
 
 test("a plain-http base URL is warned about, naming a key or userinfo; loopback and https are not", async () => {

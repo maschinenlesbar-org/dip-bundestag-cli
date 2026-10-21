@@ -1,6 +1,7 @@
 // Shared helpers used across CLI command groups: option parsers, the global
 // option resolver, and the two result-rendering paths (JSON and raw download).
 
+import { constants } from "node:buffer";
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import { OutputError, isDirectoryMessage, logOf, outputPathState, refuseOverwrite, type CliDeps } from "./io.js";
@@ -9,7 +10,7 @@ import { apiKeyProblem, normaliseApiKey, type DipClientOptions } from "@maschine
 
 /** The name the API key is stored under in the credentials file (`dip config set api-key`). */
 export const API_KEY_CREDENTIAL = "api-key";
-import { DipError, DipValidationError } from "@maschinenlesbar.org/dip-bundestag-client/internal/errors";
+import { DipValidationError } from "@maschinenlesbar.org/dip-bundestag-client/internal/errors";
 import { API_KEY_PHRASE, DEFAULT_BASE_URL, baseUrlProblem, cleartextProblem, isBidiControl } from "@maschinenlesbar.org/dip-bundestag-client/internal/engine";
 import { headerValueProblem, intInRangeProblem, nonEmptyProblem } from "@maschinenlesbar.org/dip-bundestag-client/internal/validate";
 
@@ -181,56 +182,85 @@ export function escapeControlChars(json: string): string {
   return from === 0 ? json : result + json.slice(from);
 }
 
-/** A string (or key) at least this long sends `--compact` through the gap path (see stringifyJson): a quarter of where Node 26's fast stringifier aborts. */
-const HUGE_STRING_LENGTH = 64 * 1024 * 1024;
-
-/** Whether `value` holds a string or key of `HUGE_STRING_LENGTH` or more. Iterative, so nesting costs no stack. */
-function holdsHugeString(value: unknown): boolean {
-  const stack: unknown[] = [value];
-  while (stack.length > 0) {
-    const item = stack.pop();
-    if (typeof item === "string") {
-      if (item.length >= HUGE_STRING_LENGTH) return true;
-    } else if (Array.isArray(item)) {
-      for (const element of item) if (typeof element === "string" || (typeof element === "object" && element !== null)) stack.push(element);
-    } else if (typeof item === "object" && item !== null) {
-      for (const [key, element] of Object.entries(item)) {
-        if (key.length >= HUGE_STRING_LENGTH) return true;
-        if (typeof element === "string" || (typeof element === "object" && element !== null)) stack.push(element);
-      }
-    }
-  }
-  return false;
-}
+/** The longest string V8 makes (2^29 - 24 characters on 64-bit): a longer JSON text can't be printed at once. */
+const MAX_TEXT_LENGTH = constants.MAX_STRING_LENGTH;
 
 /**
- * JSON.stringify, pretty or compact. A deeply nested value (a hostile or broken
- * response) overflows the stack — the pretty form far sooner than the compact one,
- * which is why the message suggests --compact. The RangeError becomes a DipError so
- * the CLI prints a clear message instead of "Unexpected error: Maximum call stack
- * size exceeded".
+ * JSON.stringify, pretty or compact. Printing can fail two ways, both an OutputError (exit 1, an
+ * ERROR record of `dip.output`) that names the cause, never "Unexpected error":
+ * - an answer nested too deeply (hostile or broken) overflows the stack: "nested too deeply";
+ * - a text longer than V8's longest string ("Invalid string length"): "too large to print".
+ * "try --compact" is added only when the compact form of this very answer prints: it is probed,
+ * not assumed, because whether compact output survives deep nesting depends on the Node version
+ * (on Node 26 only the fast path is iterative) and on the machine's stack. On Node 22 and 24 the
+ * hint was wrong advice: --compact failed at the same depth.
  *
- * An answer holding a huge string (`HUGE_STRING_LENGTH`) is printed compact through the
- * gap path (an empty gap, the same text): on Node 26 V8's fast stringifier, taken when there
- * is no gap, aborts the process ("Zone Allocation failed", exit 134, a native dump on stderr)
- * on a string of some 250 MB that JSON.parse made. Every other answer keeps the fast path,
- * which on Node 26 is iterative and prints nesting the gap path refuses (~7,000 levels).
+ * Compact output takes V8's fast path (no gap) unless the answer holds a huge string: on Node 26
+ * the fast path aborts the process ("Zone Allocation failed", exit 134, a native dump on stderr)
+ * on a string of some 250 MB that JSON.parse made, while the gap path (an empty gap, the same
+ * text) prints it. The fast path stays the default because on Node 26 only it is iterative and
+ * prints nesting the gap path refuses (~7,000 levels).
  */
 function stringifyJson(value: unknown, compact: boolean): string {
   try {
-    if (!compact) return JSON.stringify(value, null, 2);
-    return holdsHugeString(value) ? JSON.stringify(value, null, "") : JSON.stringify(value);
+    return compact ? stringifyCompact(value) : JSON.stringify(value, null, 2);
   } catch (err) {
-    if (err instanceof RangeError) {
-      throw new DipError(
-        compact
-          ? "The response is nested too deeply to print."
-          : "The response is nested too deeply to pretty-print; try --compact.",
-        { cause: err },
-      );
-    }
-    throw err;
+    if (!(err instanceof RangeError)) throw err;
+    const deep = /call stack/i.test(err.message);
+    const cause = deep ? "nested too deeply" : `too large (more than ${MAX_TEXT_LENGTH} characters of JSON)`;
+    const hint = !compact && compactPrints(value) ? "; try --compact" : "";
+    throw new OutputError(`The answer is ${cause} to ${compact ? "print" : "pretty-print"}${hint}.`, { cause: err });
   }
+}
+
+/** Compact JSON: the fast path, or the gap path for an answer holding a huge string. */
+function stringifyCompact(value: unknown): string {
+  return holdsHugeString(value) ? JSON.stringify(value, null, "") : JSON.stringify(value);
+}
+
+/** Whether `--compact` prints this answer on this runtime (the hint after a failed pretty-print). */
+function compactPrints(value: unknown): boolean {
+  try {
+    return stringifyCompact(value).length <= MAX_TEXT_LENGTH;
+  } catch {
+    return false;
+  }
+}
+
+/** A string or key this long sends --compact through the gap path: a quarter of where Node 26's fast path aborts. */
+const HUGE_STRING_LENGTH = 64 * 1024 * 1024;
+
+/**
+ * Whether `value` holds a string or key of HUGE_STRING_LENGTH or more. Iterative, so nesting
+ * costs no stack, linear, and without an allocation per value: an array is walked by index, an
+ * object by `for…in` (own keys only: an answer's objects have none inherited), and only nested
+ * objects and arrays are kept for later. (`Object.entries` made a pair per element: on an array
+ * of 48M numbers that took 7 GB and crashed.)
+ */
+function holdsHugeString(value: unknown): boolean {
+  if (typeof value === "string") return value.length >= HUGE_STRING_LENGTH;
+  const pending: object[] = [];
+  if (typeof value === "object" && value !== null) pending.push(value);
+  for (let item = pending.pop(); item !== undefined; item = pending.pop()) {
+    if (Array.isArray(item)) {
+      for (let i = 0; i < item.length; i++) {
+        const element: unknown = item[i];
+        if (typeof element === "string") {
+          if (element.length >= HUGE_STRING_LENGTH) return true;
+        } else if (typeof element === "object" && element !== null) pending.push(element);
+      }
+      continue;
+    }
+    const record = item as Record<string, unknown>;
+    for (const key in record) {
+      if (key.length >= HUGE_STRING_LENGTH) return true;
+      const element = record[key];
+      if (typeof element === "string") {
+        if (element.length >= HUGE_STRING_LENGTH) return true;
+      } else if (typeof element === "object" && element !== null) pending.push(element);
+    }
+  }
+  return false;
 }
 
 /**
