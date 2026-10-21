@@ -161,6 +161,14 @@ export function toEngineOptions(global: GlobalOptions): DipClientOptions {
   return options;
 }
 
+/** True for a UTF-16 unit `escapeControlChars` writes as `\uXXXX`. */
+function escaped(c: number): boolean {
+  return (c >= 0x7f && c <= 0x9f) || isBidiControl(c);
+}
+
+/** How many input characters `escapeControlChars` turns into one piece of output at a time. */
+const ESCAPE_CHUNK = 1 << 16;
+
 /**
  * Escape the characters JSON.stringify leaves raw although a terminal acts on them. It
  * escapes C0 (including ESC) but not DEL, the C1 range U+0080–U+009F (U+009B is the 8-bit
@@ -168,18 +176,36 @@ export function toEngineOptions(global: GlobalOptions): DipClientOptions {
  * follows. The output is server data, so escape them; the result is equivalent, valid JSON
  * (these characters only occur inside strings). Checked by char code so the source stays
  * free of control bytes.
+ *
+ * Each such character becomes six, so the output is measured first: one longer than V8's
+ * longest string is an OutputError ("too large to print"), before anything is built. Then the
+ * output is built in chunks of ESCAPE_CHUNK characters, each made flat at once, and joined
+ * once: one `+=` per character made a rope of 100 M pieces on an answer of DEL characters, and
+ * the process died of a heap out-of-memory crash.
  */
 export function escapeControlChars(json: string): string {
-  let result = "";
-  let from = 0;
-  for (let i = 0; i < json.length; i++) {
-    const c = json.charCodeAt(i);
-    if ((c >= 0x7f && c <= 0x9f) || isBidiControl(c)) {
-      result += json.slice(from, i) + "\\u" + c.toString(16).padStart(4, "0");
+  let count = 0;
+  for (let i = 0; i < json.length; i++) if (escaped(json.charCodeAt(i))) count++;
+  if (count === 0) return json;
+  const length = json.length + 5 * count;
+  if (length > MAX_TEXT_LENGTH) {
+    throw new OutputError(`The answer is too large to print (${length} characters once its control characters are escaped).`);
+  }
+  const chunks: string[] = [];
+  for (let start = 0; start < json.length; start += ESCAPE_CHUNK) {
+    const end = Math.min(start + ESCAPE_CHUNK, json.length);
+    const parts: string[] = [];
+    let from = start;
+    for (let i = start; i < end; i++) {
+      const c = json.charCodeAt(i);
+      if (!escaped(c)) continue;
+      parts.push(json.slice(from, i), "\\u" + c.toString(16).padStart(4, "0"));
       from = i + 1;
     }
+    parts.push(json.slice(from, end));
+    chunks.push(parts.join(""));
   }
-  return from === 0 ? json : result + json.slice(from);
+  return chunks.join("");
 }
 
 /** The longest string V8 makes (2^29 - 24 characters on 64-bit): a longer JSON text can't be printed at once. */

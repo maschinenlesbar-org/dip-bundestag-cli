@@ -802,3 +802,17 @@ test("COMMAND_NAMES lists exactly the program's commands", async () => {
   const program = buildProgram({ io: { out: () => {}, err: () => {}, writeFile: () => {}, outBinary: () => {} }, env: {}, createClient: () => assert.fail() } as CliDeps);
   assert.deepEqual([...COMMAND_NAMES].sort(), [...program.commands.map((c) => c.name()), "help"].sort());
 });
+
+test("terminal controls are escaped in chunks: the same text as one pass, across chunk edges (D7)", () => {
+  const DEL = String.fromCharCode(0x7f);
+  const C1 = String.fromCharCode(0x9b);
+  const RLO = String.fromCharCode(0x202e);
+  // Controls right before, at and after the 64 Ki edges, and a run of them.
+  const text = ["a".repeat(65535), DEL, C1, "b".repeat(65534), RLO, DEL.repeat(70000), "ü😀", C1].join("");
+  const { deps, out } = makeCli(() => jsonResponse({}));
+  renderJson(deps, { compact: true }, { text });
+  const expected = JSON.stringify({ text }).replace(/[\u007f-\u009f؜‎‏‪-‮⁦-⁩]/g,
+    (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`);
+  assert.equal(out[0], expected);
+  assert.deepEqual(JSON.parse(out[0]!), { text });
+});
