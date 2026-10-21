@@ -72,6 +72,11 @@ new DipClient({
 });
 ```
 
+`bigIntegerKeys` (a set of member names, default none) declares members whose numbers may pass
+2^53: such a value is delivered as its exact literal, as a string (`"1858054135406919680"`), whatever
+its size; every other number stays exact or a `DipParseError` (see *RawResponse*). DIP sends no
+such member, so the client declares none.
+
 Every option may be omitted or given as `undefined`, which means the same (the default),
 so the example above compiles under `exactOptionalPropertyTypes` too.
 
