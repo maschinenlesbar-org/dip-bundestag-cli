@@ -177,7 +177,7 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
   const passwords = new Set<string>();
   // A base URL typed without its scheme is read as if it had one.
   const baseUrls = flagValues(argv, BASE_URL_FLAGS).map((value) => (/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value) ? value : `http://${value}`));
-  for (const source of [...values, envKey, ...baseUrls]) {
+  for (const source of [...values.flatMap(urlsWithin), envKey, ...baseUrls]) {
     for (const secret of credentialsIn(source)) {
       userinfo.add(secret);
       userinfo.add(JSON.stringify(secret).slice(1, -1));
@@ -230,6 +230,33 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
       keyList = sortedKeys();
     },
   };
+}
+
+/** The most URLs `urlsWithin` reads inside one argument, after the one it may start with. */
+const MAX_URLS_WITHIN = 64;
+
+/** A character a URL scheme may hold after its first letter. */
+const SCHEME_CHAR = /[A-Za-z0-9+.-]/;
+
+/**
+ * `value` and the rest of it from each place a URL starts inside it (`<scheme>://`, the scheme
+ * starting with a letter), for `credentialsIn`, which reads a URL at the start of its input only.
+ * A filter value is sent trimmed and a refusal quotes it whole, so a padded
+ * `f.titel= https://user:pw@host`, one after a dash or inside a phrase (`f.titel=Klima https://…`)
+ * reached the request URL and the messages that quote the value. Each `://` is found with
+ * indexOf and its scheme by walking back, never by a pattern retried at every position
+ * (quadratic in a long argument); at most MAX_URLS_WITHIN are read from one argument, since each
+ * is parsed whole.
+ */
+function urlsWithin(value: string): string[] {
+  const found = [value];
+  for (let at = value.indexOf("://"); at !== -1 && found.length <= MAX_URLS_WITHIN; at = value.indexOf("://", at + 3)) {
+    let start = at;
+    while (start > 0 && SCHEME_CHAR.test(value[start - 1] as string)) start--;
+    while (start < at && !/[A-Za-z]/.test(value[start] as string)) start++;
+    if (start > 0 && start < at) found.push(value.slice(start));
+  }
+  return found;
 }
 
 /**

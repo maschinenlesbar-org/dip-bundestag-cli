@@ -885,3 +885,74 @@ test("a password in a URL given as a --filter value is redacted in every message
     assert.match(err, /https:\/\/\*\*\*@h\.test/, err);
   }
 });
+
+// T15 of the 2026-10-21 fix round (jobsuche-cli 28be809, ladesaeulenregister-cli 001c48d,
+// abgeordnetenwatch-cli 6d136ad): a URL with a password anywhere in an argument — a filter
+// value, padded, after a dash, inside a phrase, an id, an option value, commander's echo — must
+// never reach stderr, neither raw in a refusal, a note or the server's message, nor
+// percent-encoded in the request URL of an error record.
+test("a password in a URL inside any argument is redacted on stderr, raw or percent-encoded (T15)", async () => {
+  const url = "https://bob:s3cretpw@host.example/x";
+  const argvs = [
+    ["vorgang", "list", "--filter", `f.titel=${url}`],
+    ["vorgang", "list", "--filter", `f.titel= ${url}`],
+    ["vorgang", "list", "--filter", `f.titel=Klima ${url}`],
+    ["vorgang", "list", "--filter", `f.titel=-${url}`],
+    ["vorgang", "list", "--filter", ` f.titel=${url}`],
+    ["vorgang", "list", "--filter", `f.titel=\u0007${url}`],
+    ["vorgang", "list", "--filter", `f.wahlperiode= ${url}`],
+    ["vorgang", "list", "--filter", `f.datum.start= ${url}`],
+    ["vorgang", "list", "--filter", `f.dokumentnummer= ${url}`],
+    ["vorgang", "list", "--filter", `f.zz=Klima ${url}`],
+    ["vorgang", "list", "--filter", `Klima ${url}`],
+    ["vorgang", "list", "--id", ` ${url}`],
+    ["vorgang", "list", "--cursor", ` ${url}`],
+    ["vorgang", "list", "--cursor", `AoJ ${url}`],
+    ["drucksache-text", "list", "--filter", `f.titel=Klima ${url}`],
+    ["person", "list", "--filter", `f.person=Koch ${url}`],
+    ["vorgang", "get", ` ${url}`],
+    ["vorgang", "get", url],
+    ["vorgang", ` ${url}`],
+    [` ${url}`],
+    [url],
+    ["vorgang", "list", "--filter", `f.titel=${url}`, "--bogus"],
+    ["vorgang", "list", `--filter=f.titel=Klima ${url}`],
+    ["vorgang", "list", "-o", ` -${url}`],
+    ["--base-url", `x ${url}`, "vorgang", "list"],
+    ["--timeout", ` ${url}`, "vorgang", "list"],
+  ];
+  const answers: Array<() => HttpResponse> = [
+    () => jsonResponse({ code: 400, message: `bad value ${url}` }, 400),
+    () => jsonResponse({ code: 404, message: `not found ${url}` }, 404),
+    () => jsonResponse({}, 500),
+    () => rawResponse("busy", "text/plain", 503),
+    () => rawResponse(`<html>${url}</html>`, "text/html", 200),
+    () => jsonResponse({ numFound: 0, documents: [], cursor: "AoJ" }),
+    () => {
+      throw Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" });
+    },
+  ];
+  const leaks: string[] = [];
+  for (const argv of argvs) {
+    for (const answer of answers) {
+      const cli = makeCli(answer);
+      await run(["--max-retries", "0", ...argv], cli.deps);
+      const err = cli.err.join("\n");
+      if (/s3cretpw|bob%3As3|s3cretpw%40/.test(err)) leaks.push(`${JSON.stringify(argv)}: ${err}`);
+    }
+  }
+  assert.deepEqual(leaks, []);
+});
+
+// The URL search of T15 runs once per argument on every run: a pattern retried at every
+// position of a long argument without "://" took seconds; indexOf keeps it linear.
+test("the URL search of the redaction is linear: a 1 MB argument without :// is read fast (T15)", async () => {
+  // 40 000 scheme characters took ~3 s with the pattern: this one fails, not hangs, under it.
+  for (const big of ["b".repeat(40_000), "a:".repeat(512 * 1024), "b".repeat(1024 * 1024)]) {
+    const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
+    const started = performance.now();
+    await run(["vorgang", "list", "--filter", `f.titel=${big}`], cli.deps);
+    const took = performance.now() - started;
+    assert.ok(took < 1000, `${big.length} characters took ${Math.round(took)} ms`);
+  }
+});

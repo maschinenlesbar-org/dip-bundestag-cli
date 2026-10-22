@@ -390,10 +390,15 @@ What the library rejects:
   is never touched, and a secret with DEL, C1 or bidi characters is matched in its
   raw form. The userinfo of every
   URL argument (`credentialsIn`, which finds it whether the value parses or
-  not, then `redactCredentials`) becomes `***@` on stdout and stderr. Only a value
-  that starts with a scheme counts (a bare `a:b@c` is a file name, a search text or a
+  not, then `redactCredentials`) becomes `***@` on stdout and stderr. Only a URL
+  with a scheme counts (a bare `a:b@c` is a file name, a search text or a
   User-Agent as often as a credential), except as the `--base-url` value; the value after the `=` of
-a `key=value` argument (`--filter f.titel=https://user:pw@host`) counts as a value of its own; the
+a `key=value` argument (`--filter f.titel=https://user:pw@host`) counts as a value of its own, and a
+  URL is found wherever it starts inside an argument (`urlsWithin`): padded (a filter value is
+  sent trimmed), after a dash or inside a phrase (`f.titel=Klima https://…`). Each `://` is
+  found with `indexOf` and its scheme by walking back, so the search stays linear in a long
+  argument, and at most 64 URLs are read from one argument; the percent-encoded userinfo, as
+  a request URL carries it, is replaced too. The
   `--api-key` value, the `DIP_API_KEY` value and any argument shaped like a DIP
   key (`looksLikeApiKey`), or whose value after the first `=` is (`--filter f.titel=<key>`),
   become `***` on stderr (`redactSecrets`). Not on stdout,
