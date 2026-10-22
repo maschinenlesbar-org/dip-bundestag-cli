@@ -353,12 +353,30 @@ function linkTarget(path: string): string {
 function writeInPlace(path: string, data: Buffer): void {
   // Append: on a descriptor path that leads to a file (`-o /dev/stdout >> log`), the shell's
   // own mode stands; on a device or a FIFO it makes no difference.
-  const fd = openSync(path, "a");
+  let fd: number;
+  try {
+    fd = openSync(path, "a");
+  } catch (err) {
+    // Linux can't open a socket through its descriptor path (ENXIO), and a process started
+    // with socket stdio (Node's child_process, a service manager) has one: `-o /dev/stdout` is
+    // then written to the descriptor the process already holds, which stays open.
+    const own = descriptorOf(path);
+    if ((err as NodeJS.ErrnoException).code !== "ENXIO" || own === undefined) throw err;
+    return writeAll(own, data);
+  }
   try {
     writeAll(fd, data);
   } finally {
     closeSync(fd);
   }
+}
+
+/** The descriptor a descriptor path names (`/dev/stdout` 1, `/dev/fd/63` 63), else undefined. */
+function descriptorOf(path: string): number | undefined {
+  if (path === "/dev/stdout") return 1;
+  if (path === "/dev/stderr") return 2;
+  const n = /^\/(?:dev|proc\/self)\/fd\/(\d+)$/.exec(path)?.[1];
+  return n === undefined ? undefined : Number(n);
 }
 
 /** What `stderrAfterStdout` needs of stdout: its backlog, and the events that end one. */
