@@ -208,7 +208,8 @@ plain `YYYY-MM-DD` date.)
 the JSON output to a file. It **refuses to overwrite an existing file**
 (a usage error, exit 2, before any request) so a mistyped path cannot clobber your data;
 add `--force` to overwrite deliberately (through a symlink, to the file it points at, which is
-created if the link dangles). A directory, and a file whose directory is missing or not
+created if the link dangles; not through a link another user made in a directory others can
+write to, such as `/tmp`, which is a usage error). A directory, and a file whose directory is missing or not
 writable, are refused either way before any request, and `--force` without `-o` is a usage
 error. The file is written beside the target and renamed over it when complete, so a write
 that fails part-way (a full disk) or is interrupted (Ctrl-C, `SIGTERM`, `SIGHUP`: exit `130`,
@@ -258,7 +259,7 @@ and `dip vorgang list --compact` are the same):
 | `--compact` | Print JSON on a single line instead of pretty-printed |
 | `--log-format <format>` | How errors, warnings and notes are written to stderr: `text` (default; log4j style, `2026-10-09T14:03:12.481Z WARN  [dip.http] …`) or `jsonl` (one JSON object per line: `ts`, `level`, `topic`, `msg`). stdout is not affected |
 | `-o, --output <file>` | Write output to this file instead of stdout (`-` = stdout; any other value starting with a dash is refused as the next option, so write a file named `-x` as `./-x`). An existing file is refused before any request (exit `2`) unless `--force` is given; a directory, a blank path and a file whose directory is missing or not writable are refused either way. The file is replaced only once complete; an interrupted run leaves no half-written or temporary file. A device, a FIFO or `/dev/stdout` is written in place, without `--force` |
-| `--force` | With `-o`, overwrite the output file if it already exists (through a symlink, to the file it points at, which is created if the link dangles); without `-o` a usage error |
+| `--force` | With `-o`, overwrite the output file if it already exists (through a symlink, to the file it points at, which is created if the link dangles); a link another user made in a directory others can write to, such as `/tmp`, is not followed (a usage error); without `-o` a usage error |
 | `-h, --help` | Show help (also available per command, e.g. `dip vorgang list --help`, or as `dip help vorgang list`; an unknown name there is the same usage error as `dip nope`: `error: unknown command 'nope'`, exit `2`) |
 
 **Commands:** `vorgang`, `vorgangsposition`, `drucksache`, `drucksache-text`,

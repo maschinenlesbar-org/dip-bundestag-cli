@@ -697,13 +697,20 @@ bad JSON, the wrong shape, an empty body), `http` (the connection, the cleartext
 suggests `--compact` only when the compact form of that answer prints, and a stdout write error). A `-o` target refused before any request
 (`checkOutputTarget` in `action()`: an existing path without `--force`, a dangling link
 included, a directory, `--force` without `-o`, a file whose directory is missing or not
-writable or whose links loop, `outputParentProblem`) is a usage error of `cli`, exit 2; the write
+writable or whose links loop, `outputParentProblem`; a path that can't be inspected, EACCES,
+which `outputPathState` throws instead of calling it existing) is a usage error of `cli`, exit 2; the write
 checks again, so a file that appears during the request is an `OutputError`. `defaultIO.writeFile`
 writes a stream (a character device, a FIFO, a socket, `/dev/stdout`, `/dev/fd/N`) in place, with
 no claim, no temporary file and no `--force` needed; a file atomically (an exclusive claim of the
 name without `--force`, a temporary file within NAME_MAX renamed over it), and from the first
 file write on SIGINT, SIGTERM and SIGHUP remove the claim and the temporary file and exit 130,
-143 or 129. `--force` through a link writes the file it names, created if the link dangles. Code logs through `logOf(deps)` and never writes diagnostics
+143 or 129. `--force` through a link writes the file it names, created if the link dangles. A
+link is followed only when the caller or its directory's owner made it, or only the directory's
+owner can write there (neither sticky nor writable by others): Linux's fs.protected_symlinks
+rule, at every hop, because the CLI reads the links itself and the kernel never applies its own
+check (`linkTarget`). The owners come through `LinkOwners` (`nodeFilesFor(owners)`, which gives
+`CliIO`'s `outputState`, `outputParentProblem` and `writeFile`; `nodeFiles` is the process's own
+user and backs `defaultIO`), so a test can be another user without root. Code logs through `logOf(deps)` and never writes diagnostics
 with `io.err` directly. `run()` builds the logger from argv before commander parses it
 (`logFormatFromArgv`, used only for the records of a parse error; a `preAction` hook then
 sets the format commander parsed, so `--user-agent --log-format=jsonl` logs text),

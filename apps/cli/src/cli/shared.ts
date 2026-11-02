@@ -4,7 +4,7 @@
 import { constants } from "node:buffer";
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
-import { OutputError, isDirectoryMessage, logOf, outputParentProblem, outputPathState, refuseOverwrite, type CliDeps } from "./io.js";
+import { OutputError, isDirectoryMessage, logOf, outputParentProblem, outputPathState, refuseOverwrite, type CliDeps, type OutputPathState } from "./io.js";
 import type { RawResponse, RetryEvent } from "@maschinenlesbar.org/dip-bundestag-client/internal/engine";
 import { apiKeyProblem, normaliseApiKey, type DipClientOptions } from "@maschinenlesbar.org/dip-bundestag-client/internal/client";
 
@@ -317,8 +317,9 @@ function writeOutputFile(deps: CliDeps, path: string, data: Buffer, force: boole
 /**
  * Check `-o` before any request, so a refused target costs none: `--force` without `-o`, a
  * directory, an existing path (a dangling link too) without `--force`, and a file whose
- * directory is missing or not writable are usage errors (exit 2, an ERROR record of
- * `dip.cli`). A stream (`/dev/null`, a FIFO, `/dev/stdout`, `>(…)`) needs no `--force`: it is
+ * directory is missing or not writable, a path that can't be inspected (EACCES), and with
+ * `--force` a link another user made in a directory others can write to are usage errors (exit
+ * 2, an ERROR record of `dip.cli`). A stream (`/dev/null`, a FIFO, `/dev/stdout`, `>(…)`) needs no `--force`: it is
  * written in place, and nothing in it can be lost. `-o -` is stdout. The write checks again: a
  * file that appears during the request is not overwritten either (an OutputError then, exit 1).
  */
@@ -327,7 +328,13 @@ export function checkOutputTarget(deps: CliDeps, global: GlobalOptions): void {
     throw new DipValidationError("--force needs --output (it only allows overwriting the -o file).");
   }
   if (global.output === undefined || global.output === "-") return;
-  const state = (deps.io.outputState ?? outputPathState)(global.output);
+  let state: OutputPathState;
+  try {
+    state = (deps.io.outputState ?? outputPathState)(global.output);
+  } catch (err) {
+    // A path that can't be told (EACCES on the way) is refused as that, before any request.
+    throw new DipValidationError(err instanceof Error ? err.message : String(err));
+  }
   if (state === "directory") throw new DipValidationError(isDirectoryMessage(global.output));
   if (state === "stream") return;
   if (state === "exists" && global.force !== true) throw new DipValidationError(refuseOverwrite(global.output));
