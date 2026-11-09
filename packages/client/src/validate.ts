@@ -279,11 +279,21 @@ export function assertHeaderValue(name: string, value: string): string {
   return assertValid(name, value, headerValueProblem);
 }
 
-/** A short, safe description of a JSON value's kind, for a message. */
-function kindOf(value: unknown): string {
+/** How a shape problem quotes a member name of an answer: a function of the value as it came. */
+export type QuoteKey = (key: string) => string;
+
+/** The default {@link QuoteKey}: JSON-quoted, cut at MAX_QUOTED_LENGTH. */
+const quoteKey: QuoteKey = (key) => JSON.stringify(cutForMessage(key));
+
+/**
+ * A short, safe description of a JSON value's kind, for a message. Up to five member names of an
+ * object are quoted with `quote`: the client passes `RequestEngine.quoteServerValue`, which scrubs
+ * the base URL's credentials and the API key from a name before it is cut.
+ */
+function kindOf(value: unknown, quote: QuoteKey): string {
   if (value === null) return "null";
   if (Array.isArray(value)) return "an array";
-  if (typeof value === "object") return `an object with ${Object.keys(value as object).slice(0, 5).map((k) => JSON.stringify(cutForMessage(k))).join(", ") || "no keys"}`;
+  if (typeof value === "object") return `an object with ${Object.keys(value as object).slice(0, 5).map(quote).join(", ") || "no keys"}`;
   return `a ${typeof value}`;
 }
 
@@ -294,15 +304,15 @@ function kindOf(value: unknown): string {
  * error object (`{"error": …}`) with HTTP 200 must not be printed as an empty or valid
  * result with exit 0.
  */
-export const listResultProblem: Problem<unknown> = (value) => {
+export const listResultProblem = (value: unknown, quote: QuoteKey = quoteKey): string | undefined => {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return `expected a DIP list (numFound, documents), got ${kindOf(value)}`;
+    return `expected a DIP list (numFound, documents), got ${kindOf(value, quote)}`;
   }
   const v = value as Record<string, unknown>;
   const numFound = v["numFound"];
   const documents = v["documents"];
   if (typeof numFound !== "number" || !Number.isFinite(numFound) || !Array.isArray(documents)) {
-    return `expected a DIP list (numFound, documents), got ${kindOf(value)}`;
+    return `expected a DIP list (numFound, documents), got ${kindOf(value, quote)}`;
   }
   if (documents.some((d) => typeof d !== "object" || d === null || Array.isArray(d))) {
     return "expected a DIP list whose documents are objects";
@@ -315,13 +325,13 @@ export const listResultProblem: Problem<unknown> = (value) => {
  * Why a 2xx body is not a DIP document, or `undefined` when it is: an object with an
  * `id` (every DIP resource has one), not a list envelope or an error object.
  */
-export const documentProblem: Problem<unknown> = (value) => {
+export const documentProblem = (value: unknown, quote: QuoteKey = quoteKey): string | undefined => {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return `expected a DIP document (an object with an id), got ${kindOf(value)}`;
+    return `expected a DIP document (an object with an id), got ${kindOf(value, quote)}`;
   }
   const id = (value as Record<string, unknown>)["id"];
   if ((typeof id !== "string" && typeof id !== "number") || String(id).trim() === "") {
-    return `expected a DIP document (an object with an id), got ${kindOf(value)}`;
+    return `expected a DIP document (an object with an id), got ${kindOf(value, quote)}`;
   }
   return undefined;
 };

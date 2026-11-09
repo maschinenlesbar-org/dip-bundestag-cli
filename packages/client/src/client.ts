@@ -38,6 +38,7 @@ import {
   textProblem,
   tokenProblem,
   type Problem,
+  type QuoteKey,
 } from "./validate.js";
 import { DipParseError, DipValidationError } from "./errors.js";
 
@@ -46,8 +47,9 @@ import { DipParseError, DipValidationError } from "./errors.js";
  * (`GET <url>: unexpected response shape: …`, userinfo redacted), as the engine's own
  * answer errors do.
  */
-function expectShape<T>(value: unknown, problem: Problem<unknown>, request: string): T {
-  const reason = problem(value);
+function expectShape<T>(value: unknown, problem: (value: unknown, quote: QuoteKey) => string | undefined, request: string, engine: RequestEngine): T {
+  // A member name the message quotes is server text: scrubbed of the credentials before the cut.
+  const reason = problem(value, (key) => engine.quoteServerValue(key));
   if (reason !== undefined) throw new DipParseError(`${request}: unexpected response shape: ${reason}.`);
   return value as T;
 }
@@ -179,7 +181,7 @@ class ResourceGroup {
     assertCanonicalValues(params);
     const path = `${API}/${this.path}`;
     const query = normaliseFilterValues(params);
-    return expectShape<ListResult>(await this.e.getJson(path, query), listResultProblem, `GET ${this.e.describeUrl(path, query)}`);
+    return expectShape<ListResult>(await this.e.getJson(path, query), listResultProblem, `GET ${this.e.describeUrl(path, query)}`, this.e);
   }
 
   /**
@@ -199,7 +201,7 @@ class ResourceGroup {
     const token = typeof trimmed === "string" ? normalizeToken(trimmed) : trimmed;
     const sent = typeof token === "string" && /^\d+$/.test(token) ? token.replace(/^0+(?=\d)/, "") : token;
     const path = `${API}/${this.path}/${enc(String(sent))}`;
-    return expectShape<Document>(await this.e.getJson(path), documentProblem, `GET ${this.e.describeUrl(path)}`);
+    return expectShape<Document>(await this.e.getJson(path), documentProblem, `GET ${this.e.describeUrl(path)}`, this.e);
   }
 }
 

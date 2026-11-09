@@ -959,3 +959,96 @@ test("escapeRawControlCharsInStrings repairs millions of raw control characters 
   assert.equal(escapeRawControlCharsInStrings('{"a":"x\ty\\"\n","b":"\u0001"}\n'), '{"a":"x\\u0009y\\"\\u000a","b":"\\u0001"}\n');
   assert.equal(escapeRawControlCharsInStrings('{"a":1}'), '{"a":1}');
 });
+
+test("an error body keeps its spelling unless a credential hides behind an escape (security audit class D)", async () => {
+  const base = "https://alice:s3cret-pw@mirror.example";
+  const bodyOf = async (body: string): Promise<string> => {
+    const e = new RequestEngine({ baseUrl: base, transport: async () => rawResponse(body, "application/json", 500) });
+    const err = await e.getJson("/x").catch((caught: unknown) => caught);
+    assert.ok(err instanceof DipApiError, String(err));
+    return err.body;
+  };
+  // No credential, or one spelled as sent: the body as sent (scrubbed), escapes kept.
+  assert.equal(await bodyOf('{"m":"caf\\u00e9 \\"x\\""}'), '{"m":"caf\\u00e9 \\"x\\""}');
+  assert.equal(await bodyOf('{"m":"pw s3cret-pw \\u00e9"}'), '{"m":"pw *** \\u00e9"}');
+  // Escaped: written again decoded, scrubbed in that spelling.
+  assert.equal(await bodyOf('{"m":"pw s3cret\\u002dpw \\u00e9"}'), '{"m":"pw *** é"}');
+  // Not JSON: nobody decodes it, it stays as sent.
+  assert.equal(await bodyOf("pw s3cret\\u002dpw"), "pw s3cret\\u002dpw");
+  // Deeply nested: written again where this runtime can, else left out (probed, not assumed:
+  // whether JSON.stringify recurses depends on the Node version).
+  const deep = `${"[".repeat(200_000)}"s3cret\\u002dpw"${"]".repeat(200_000)}`;
+  let parses = true;
+  let writes = true;
+  try {
+    const value: unknown = JSON.parse(deep);
+    try {
+      JSON.stringify(value);
+    } catch {
+      writes = false;
+    }
+  } catch {
+    parses = false;
+  }
+  if (parses) {
+    const body = await bodyOf(deep);
+    assert.ok(!body.includes("s3cret"), body.slice(199_990, 200_030));
+    assert.equal(body === "", !writes);
+  }
+});
+
+test("a value quoted from an answer is scrubbed before it is cut, so no part of a credential stays (security audit class D)", async () => {
+  const pw = "s3cret-Pw-long";
+  const e = new RequestEngine({ baseUrl: `https://alice:${pw}@mirror.example` });
+  for (const at of [0, 190, 195, 199]) {
+    const quoted = e.quoteServerValue(`${"x".repeat(at)}${pw}${"y".repeat(600)}`);
+    assert.ok(!quoted.includes("s3cret"), `${at}: ${quoted}`);
+  }
+  assert.equal(new RequestEngine().quoteServerValue("a\"b"), '"a\\"b"');
+  // The client quotes a member name of a refused 2xx answer this way: the API key and the
+  // password are gone from the message, also where the old cut at 200 left a prefix.
+  const key = "OSOegLs.PR2lwJ1dwCeje9vTj7FPOt3hvpYKtwKkhw";
+  for (const name of [pw, key, `${"x".repeat(190)}${pw}`, `${"x".repeat(195)}${key}`]) {
+    const client = new DipClient({
+      apiKey: key,
+      baseUrl: `https://alice:${pw}@mirror.example`,
+      transport: async () => rawResponse(JSON.stringify({ [name]: 1 }), "application/json"),
+    });
+    const err = await client.vorgaenge.get("1").catch((caught: unknown) => caught);
+    assert.ok(err instanceof DipParseError && /unexpected response shape/.test(err.message), String(err));
+    for (const part of ["s3cret", key.slice(0, 7)]) assert.ok(!err.message.includes(part), err.message);
+  }
+});
+
+test("an echo of the request URL as sent is scrubbed, a short password too (security audit class D)", async () => {
+  // Typed raw; WHATWG spells it `p%22%C3%A4` in the URL, which a server echoes.
+  const e = new RequestEngine({
+    baseUrl: 'https://alice:p"ä@mirror.example',
+    transport: async () => rawResponse(JSON.stringify({ message: "no access: https://alice:p%22%C3%A4@mirror.example/x" }), "application/json", 403),
+  });
+  const err = await e.getJson("/x").catch((caught: unknown) => caught);
+  assert.ok(err instanceof DipApiError, String(err));
+  for (const text of [err.message, err.detail ?? "", err.body]) {
+    assert.ok(!text.includes("p%22%C3%A4@") && !text.includes('p"ä@'), text);
+  }
+});
+
+test("the API key and the base URL's Basic value echoed with JSON escapes are scrubbed from the message, the detail and the decoded body (security audit class D)", async () => {
+  const key = "OSOegLs.PR2lwJ1dwCeje9vTj7FPOt3hvpYKtwKkhw";
+  const pw = "pä\"s's-W0rd";
+  const escaped = (text: string): string => `"${[...text].map((ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`).join("")}"`;
+  const basics = [Buffer.from(`alice:${pw}`, "latin1").toString("base64"), Buffer.from(`alice:${pw}`, "utf8").toString("base64")];
+  for (const echo of [escaped(key), escaped(`bad key ${key}`), ...basics.map((b) => escaped(`Basic ${b}`)), JSON.stringify(`Basic ${basics[1]}`)]) {
+    const client = new DipClient({
+      apiKey: key,
+      baseUrl: `https://alice:${encodeURIComponent(pw)}@mirror.example`,
+      transport: async () => rawResponse(`{"message":${echo}}`, "application/json", 401),
+    });
+    const err = await client.vorgaenge.get("1").catch((caught: unknown) => caught);
+    assert.ok(err instanceof DipApiError && err.status === 401, String(err));
+    const decoded = JSON.parse(err.body) as { message: string };
+    for (const text of [err.message, err.detail ?? "", err.body, decoded.message]) {
+      for (const secret of [key, ...basics]) assert.ok(!text.includes(secret), `${echo}: ${text}`);
+    }
+  }
+});

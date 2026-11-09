@@ -418,11 +418,17 @@ a `key=value` argument (`--filter f.titel=https://user:pw@host`) counts as a val
 - **Secrets in the library's objects and errors.** The engine keeps the base URL
   and the default headers (with the API key) in real `#private` fields, so
   `console.log(client)`, `util.inspect` and `JSON.stringify` never show them. The
-  base URL's userinfo (raw and percent-decoded), the forms a server echoes it back
-  in (the `Basic` value, the decoded `user:password`, the password alone from 4
-  characters: `echoedCredentialForms`) and the key are scrubbed from
+  base URL's userinfo (as typed and as WHATWG spells it in the request URL, raw and
+  percent-decoded), the forms a server echoes it back in (the `Basic` value, in Latin-1 as the
+  engine sends it and in UTF-8, the decoded `user:password`, the password alone from 4
+  characters: `echoedCredentialForms`) and the key, each also percent-encoded, are scrubbed from
   error bodies and details, from transport error text and from the `cause` chain
-  (`scrub`/`scrubCause`). `obtainKey` names a source URL without its userinfo, in
+  (`scrub`/`scrubCause`). A `detail` is scrubbed again once JSON-decoded, and
+  `DipApiError.body` is the decoded JSON written again, scrubbed, when an escape (`\"`,
+  `\u00e4`) hid a secret from the scrub of the body as sent (`scrubBody`; a body that doesn't
+  parse stays as sent, one too deep to write again is ""). A value the client quotes from a 2xx
+  answer (a member name of a refused shape, a number literal, the Content-Type) is scrubbed
+  before it is cut (`RequestEngine.quoteServerValue`). `obtainKey` names a source URL without its userinfo, in
   its errors and in `ObtainedKey.sourceUrl`.
   `apps/cli/test/conformance-p2-library-redaction.test.ts` is the shared check.
 
