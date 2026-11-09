@@ -416,7 +416,9 @@ a `key=value` argument (`--filter f.titel=https://user:pw@host`) counts as a val
   where `obtain-key` prints the key. The forms a server echoes a userinfo back in
   are replaced too: the `Basic` value and the decoded `user:password` on stdout and
   stderr, the password alone (4 characters or more) on stderr only, since it may
-  well occur in the data. `apps/cli/test/conformance-p1-cli-redaction.test.ts`
+  well occur in the data. A userinfo without a password (`https://TOKEN@host`,
+  `https://TOKEN:@host`) is a token: its echoed forms are the Basic value of `TOKEN:`,
+  `TOKEN:` and the token itself. `apps/cli/test/conformance-p1-cli-redaction.test.ts`
   is the shared check (ten passwords, seven URL shapes, every echo path, plus the
   key by flag, by environment and typed without its flag).
 - **Secrets in the library's objects and errors.** The engine keeps the base URL
