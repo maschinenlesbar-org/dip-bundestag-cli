@@ -376,12 +376,16 @@ What the library rejects:
 - **Base URL** (`validateBaseUrl`/`baseUrlProblem`, in the `RequestEngine`
   constructor, so in `obtainKey` too whenever `baseUrl` is given, on the raw value
   before the trailing-slash strip): a value that does not parse as an absolute
-  URL, a scheme other than `http:`/`https:`, a query or fragment (paths are
-  appended to the raw string), surrounding whitespace, whitespace or a control
-  character inside (`new URL()` would hide both), a `%` in the user name or
+  URL, a scheme other than `http:`/`https:`, a query or fragment (paths are appended to the base URL as a string), a
+  backslash (WHATWG ends an http(s) host at one, text-based code reads on), surrounding
+  whitespace, whitespace or a control character inside (`new URL()` would hide both), a
+  scheme not followed by exactly `//` and the host (`http:host`, `http:///host`, which
+  WHATWG repairs silently), a `%` in the user name or
   password that is not an escape (Node would fail to decode it at request time),
   and a path ending in `/api/v1`
-  (the client adds it; the message suggests the value without it). All of these
+  (the client adds it; the message suggests the value without it). No reason quotes a part
+  of the value. The engine then requests the URL as WHATWG parses it (`URL#href`: host
+  lower-cased, a default port dropped), the reading every check makes. All of these
   are a `DipValidationError` (a configuration error), not a `DipNetworkError`;
   that class stays for the default transport's per-hop checks. Only `undefined`
   selects `DEFAULT_BASE_URL`. The CLI's `parseBaseUrl` only wraps

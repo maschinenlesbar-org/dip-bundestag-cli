@@ -536,12 +536,17 @@ export function validateLimits(limits: EngineLimits): void {
  * - no query or fragment: request paths are appended to the base URL as a
  *   string, so `http://h/?x=1` would request `/?x=1/api/v1/...` and `http://h/#f`
  *   would request `/`;
+ * - no backslash: WHATWG ends an http(s) host at one, as at a `/`, while text-based code
+ *   reads on, so `https://u:pw@a.example\@b.example` could be checked as one host and its
+ *   credentials sent to another;
  * - a `%` in the user name or password must start a valid escape (`%25` for a
  *   literal one): the userinfo is decoded for the Authorization header;
- * - no surrounding whitespace and no whitespace or control character inside.
- *   `new URL()` trims the first and drops tab/CR/LF inside, but the engine
- *   appends paths to the raw string, so `"https://h "` would request
- *   `https://h /api/v1/...`;
+ * - no surrounding whitespace and no whitespace or control character inside:
+ *   `new URL()` trims the first and drops tab/CR/LF inside silently, so the URL
+ *   requested would not be the one typed;
+ * - the scheme followed by exactly `//` and the host (not `http:host`, `http:/host` or
+ *   `http:///host`): WHATWG skips any slashes after an http(s) scheme and repairs the URL
+ *   silently, so the host requested would not be the one typed either;
  * - the path must not end in `/api/v1`, which the client appends itself
  *   (`/api/v1/api/v1/...` is a 404).
  *
@@ -559,6 +564,9 @@ export const baseUrlProblem: Problem<string> = (value) => {
     return `Unsupported scheme "${url.protocol}". Expected an http(s) URL.`;
   }
   if (/[?#]/.test(value)) return "A base URL cannot have a query (?) or fragment (#).";
+  // WHATWG reads a "\" in an http(s) URL as "/", so it ends the host: in
+  // `https://u:pw@a.example\@b.example` every reader of the base URL has to agree where.
+  if (value.includes("\\")) return 'A base URL cannot contain a backslash (\\); write "/" instead.';
   // Node decodes the userinfo for the Authorization header and throws "URI malformed"
   // for a "%" that isn't an escape — at request time, as a network error. Reject it here.
   for (const part of [url.username, url.password]) {
@@ -572,6 +580,9 @@ export const baseUrlProblem: Problem<string> = (value) => {
   if (/[\u0000-\u0020\u007f]/.test(value)) {
     return "A base URL cannot contain whitespace or control characters.";
   }
+  // WHATWG skips any slashes after "http:" and repairs `http:host`, `http:/host` and
+  // `http:///host` into `http://host` silently: the host requested would not be the one typed.
+  if (!/^https?:\/\/[^/]/i.test(value)) return 'Expected an absolute http(s) URL ("https://" and the host).';
   const path = url.pathname.replace(/\/+$/, "");
   if (path.endsWith(API_PATH)) {
     // (url.origin carries no userinfo, so nothing secret is echoed.)
@@ -640,8 +651,11 @@ export function cleartextCredentialsProblem(baseUrl: string, hasKey: boolean): s
 }
 
 /**
- * Check a configured base URL (`baseUrlProblem`) and return it without trailing
- * slashes. Throws `DipValidationError` (`Invalid baseUrl: ...`): a bad base URL
+ * Check a configured base URL (`baseUrlProblem`) and return it as WHATWG parses it
+ * (`URL#href`: the host lower-cased, a default port dropped, the path percent-encoded where
+ * WHATWG does it), without trailing slashes: requests go to the URL every check of it reads
+ * (the host, the cleartext warning, the credentials' origin), and a transport that reads the
+ * URL as text reaches the same host. Throws `DipValidationError` (`Invalid baseUrl: ...`): a bad base URL
  * is a configuration error, not a transport failure (`DipNetworkError` is kept
  * for the default transport's per-hop checks). Called by the `RequestEngine`
  * constructor (so `DipClient` and `obtainKey` too) on the raw value, before any
@@ -649,7 +663,7 @@ export function cleartextCredentialsProblem(baseUrl: string, hasKey: boolean): s
  */
 export function validateBaseUrl(raw: string): string {
   assertValid("baseUrl", raw, baseUrlProblem);
-  return raw.replace(/\/+$/, "");
+  return new URL(raw).href.replace(/\/+$/, "");
 }
 
 /** Why `value` is not a usable HttpResponse, or undefined when it is. */
@@ -882,11 +896,11 @@ export class RequestEngine {
     // consumer that injects a custom transport would otherwise get no gating at
     // all, and could be steered to a non-http(s) scheme. Only `undefined`
     // selects the default.
-    this.#baseUrl =
-      options.baseUrl === undefined ? DEFAULT_BASE_URL : validateBaseUrl(options.baseUrl);
+    const typed = options.baseUrl === undefined ? DEFAULT_BASE_URL : options.baseUrl;
+    this.#baseUrl = validateBaseUrl(typed);
     // The userinfo as typed and as sent (WHATWG percent-encodes some of its characters: a server
     // that echoes the request URL echoes that spelling).
-    const userinfos = [...new Set([...credentialsIn(this.#baseUrl), ...credentialsIn(new URL(this.#baseUrl).href)])];
+    const userinfos = [...new Set([...credentialsIn(typed), ...credentialsIn(this.#baseUrl)])];
     this.#credentials = userinfos.flatMap((raw) => {
       try {
         return [raw, decodeURIComponent(raw)];

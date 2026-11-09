@@ -24,6 +24,7 @@ import {
   TextBuilder,
   cutText,
   echoedCredentialForms,
+  credentialsIn,
   toWellFormed,
 } from "../src/errors.js";
 import type { HttpResponse } from "../src/http.js";
@@ -1138,4 +1139,67 @@ test("a token as the base URL's user name is scrubbed from library errors in eve
       }
     }
   }
+});
+
+test("baseUrlProblem refuses a backslash, a repaired scheme and a scheme-less userinfo, never echoing a part of the value (security audit class F)", () => {
+  const cases: Array<[string, string | undefined]> = [
+    ["https://alice:s3cret@api.example\\@evil.example", 'A base URL cannot contain a backslash (\\); write "/" instead.'],
+    ["https://api.example\\evil", 'A base URL cannot contain a backslash (\\); write "/" instead.'],
+    ["https:\\\\alice:s3cret@h.example", 'A base URL cannot contain a backslash (\\); write "/" instead.'],
+    ["http:alice:s3cret@h.example", 'Expected an absolute http(s) URL ("https://" and the host).'],
+    ["http:/h.example", 'Expected an absolute http(s) URL ("https://" and the host).'],
+    ["http:///alice:s3cret@h.example", 'Expected an absolute http(s) URL ("https://" and the host).'],
+    ["HTTPS:h.example", 'Expected an absolute http(s) URL ("https://" and the host).'],
+    // A query keeps its own reason, a typed scheme too.
+    ["http:///h.example/?q=1", "A base URL cannot have a query (?) or fragment (#)."],
+    ["ftp://h.example", 'Unsupported scheme "ftp:". Expected an http(s) URL.'],
+    ["HTTPS://H.example", undefined],
+  ];
+  for (const [value, reason] of cases) {
+    const problem = baseUrlProblem(value);
+    assert.equal(problem, reason, value);
+    assert.ok(!(problem ?? "").toLowerCase().includes("s3cret"), problem);
+  }
+});
+
+test("requests go to the base URL as WHATWG parses it, an @ in its path included (security audit class F)", async () => {
+  for (const [base, sent] of [
+    ["https://API.Example:443/v1", "https://api.example/v1/api/v1/vorgang"],
+    ["https://alice:pw@api.example/v1/@evil.example/", "https://api.example/v1/@evil.example/api/v1/vorgang"],
+  ] as const) {
+    const mt = makeMockTransport(() => jsonResponse({ numFound: 0, documents: [] }));
+    await new DipClient({ baseUrl: base, transport: mt.transport }).vorgaenge.list({ "f.titel": "x" });
+    assert.equal(mt.last().url.split("?")[0], sent, base);
+  }
+});
+
+test("credentialsIn ends the authority of a special scheme at a backslash, as WHATWG does (security audit class F)", () => {
+  for (const scheme of ["http", "https", "HTTPS", "ws", "wss", "ftp"]) {
+    assert.deepEqual(credentialsIn(`${scheme}://u:p@a.example\\@b.example/x`), ["u:p"], scheme);
+    assert.equal(new URL(`${scheme}://u:p@a.example\\@b.example/x`).password, "p", scheme);
+  }
+  // Another scheme's authority runs on to "/", "?" or "#".
+  assert.deepEqual(credentialsIn("foo://u:p@a.example\\@b.example/x"), ["u:p@a.example\\"]);
+  assert.deepEqual(credentialsIn("https://u:p@a.example/x\\@y"), ["u:p"]);
+});
+
+test("credentialsIn skips the slashes and backslashes WHATWG skips after a special scheme (security audit class F3)", () => {
+  // `http:///u:pw@h`, `https:\\u:pw@h` and `http:u:pw@h` all carry `u:pw` for WHATWG; read
+  // after "://", the userinfo was missed, so a refused --base-url echoed the password in clear.
+  for (const value of [
+    "http:alice:pw@h.example",
+    "http:/alice:pw@h.example",
+    "http:///alice:pw@h.example/x",
+    "https:////alice:pw@h.example",
+    "HTTPS:\\\\alice:pw@h.example",
+    "wss:\\/alice:pw@h.example",
+    "ftp:alice:pw@h.example",
+  ]) {
+    assert.deepEqual(credentialsIn(value), ["alice:pw"], value);
+    assert.equal(new URL(value).password, "pw", value);
+  }
+  // Another scheme needs "//" before an authority: `foo:u:p@h` and `foo:///u:p@h` carry none.
+  assert.deepEqual(credentialsIn("foo:u:p@h.example"), []);
+  assert.deepEqual(credentialsIn("foo:///u:p@h.example"), []);
+  assert.equal(new URL("foo:///u:p@h.example").password, "");
 });
