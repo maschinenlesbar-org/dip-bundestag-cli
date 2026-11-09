@@ -79,10 +79,17 @@ export function describeNetworkError(err: Error): string {
   return typeof code === "string" && code !== "" ? code : "network error";
 }
 
+/** The most received chunks the default transport keeps unjoined. */
+const COALESCE_CHUNKS = 1024;
+/** The bytes of unjoined chunks at which the default transport joins them into one Buffer. */
+const COALESCE_BYTES = 64 * 1024;
+
 /**
  * Default transport. Resolves with the raw response (including non-2xx) — status
  * interpretation is the client's job. Rejects only on transport-level failures
- * (connection errors, timeouts, malformed URLs).
+ * (connection errors, timeouts, malformed URLs). Small chunks of the body are joined as they
+ * arrive (at most COALESCE_CHUNKS of them or COALESCE_BYTES unjoined), so the memory it keeps
+ * follows the bytes of an answer, not the number of chunks a server sends.
  */
 export const nodeHttpTransport: Transport = (request) =>
   new Promise<HttpResponse>((resolve, reject) => {
@@ -118,7 +125,12 @@ export const nodeHttpTransport: Transport = (request) =>
     const fail = settle(reject);
 
     const onResponse = (res: http.IncomingMessage): void => {
+      // Small chunks are joined as they arrive (`pending`, at most COALESCE_CHUNKS of them or
+      // COALESCE_BYTES), so the Buffers kept follow the bytes, not the number of chunks a server
+      // chooses to send: a Buffer per one-byte chunk held ~210 bytes of heap each.
       const chunks: Buffer[] = [];
+      let pending: Buffer[] = [];
+      let pendingBytes = 0;
       let received = 0;
       let aborted = false;
 
@@ -131,14 +143,20 @@ export const nodeHttpTransport: Transport = (request) =>
           fail(new DipNetworkError(sizeLimitMessage(maxBytes)));
           return;
         }
-        chunks.push(chunk);
+        pending.push(chunk);
+        pendingBytes += chunk.length;
+        if (pending.length >= COALESCE_CHUNKS || pendingBytes >= COALESCE_BYTES) {
+          chunks.push(pending.length === 1 ? chunk : Buffer.concat(pending, pendingBytes));
+          pending = [];
+          pendingBytes = 0;
+        }
       });
       res.on("end", () => {
         if (aborted) return;
         done({
           status: res.statusCode ?? 0,
           headers: res.headers,
-          body: Buffer.concat(chunks),
+          body: Buffer.concat([...chunks, ...pending]),
         });
       });
       res.on("error", (err) => {

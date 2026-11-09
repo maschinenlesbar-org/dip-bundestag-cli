@@ -6,6 +6,8 @@
 // - An answer full of DEL characters, each printed as six (`\u007f`), prints under a small heap,
 //   or, past V8's longest string, is an ERROR record of <bin>.output that says it is too large;
 //   one `+=` per character made a rope of 100 M pieces and crashed.
+// - An answer in millions of tiny chunks (transfer-encoding: chunked) is read under a small heap:
+//   the default transport kept one Buffer per chunk until the end, memory by the chunk count.
 // - A lone surrogate in an answer (`"\ud800"`) and bytes that are not valid UTF-8 are replaced
 //   with U+FFFD, with one WARN record of <bin>.api naming the count and the request; the output is
 //   well-formed and the run succeeds (one bad character never sinks a whole answer).
@@ -17,7 +19,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import type { AddressInfo } from "node:net";
+import net, { type AddressInfo } from "node:net";
 
 // ---- adapter (per repo) -------------------------------------------------------------
 /** The built bin, relative to this compiled test file (dist/test/…). */
@@ -53,11 +55,25 @@ interface Run {
 }
 
 /** Serve `body` (as JSON) to one run of the bin with a heap of `heapMb`, then stop. */
-async function runWithAnswer(body: Buffer, heapMb: number, argv: string[] = []): Promise<Run> {
+function runWithAnswer(body: Buffer, heapMb: number, argv: string[] = []): Promise<Run> {
   const server = http.createServer((_req, res) => {
     res.setHeader("content-type", "application/json");
     res.end(body);
   });
+  return runAgainst(server, heapMb, argv);
+}
+
+/** Send `wire` (a whole HTTP answer, as bytes) to one run of the bin with a heap of `heapMb`, then stop. */
+function runWithRawAnswer(wire: Buffer, heapMb: number, argv: string[] = []): Promise<Run> {
+  const server = net.createServer((socket) => {
+    socket.once("data", () => socket.end(wire));
+    socket.on("error", () => {});
+  });
+  return runAgainst(server, heapMb, argv);
+}
+
+/** One run of the bin against `server` (listening on a loopback port for it) with a heap of `heapMb`. */
+async function runAgainst(server: net.Server, heapMb: number, argv: string[]): Promise<Run> {
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   try {
     const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -111,6 +127,23 @@ test("P27: an answer that escaped would pass V8's longest string is an ERROR rec
   assert.equal(run.code, OUTPUT_EXIT, run.stderr.slice(0, 500));
   assert.equal(run.stdout.length, 0);
   assert.match(run.stderr, new RegExp(`ERROR \\[${PROGRAM}\\.output\\] The answer is too large to print`), run.stderr.slice(0, 500));
+});
+
+test("P27: an answer in two million one-byte chunks is read within a small heap", STARTS_A_PROCESS, async () => {
+  // Node emits one 'data' event per transfer-encoding chunk; the default transport kept a Buffer
+  // per event until the end (about 210 bytes of heap per byte, far below the byte cap), so 9 MB on
+  // the wire as one-byte chunks exhausted a 256 MB heap.
+  const chunk = (text: string): string => `${Buffer.byteLength(text).toString(16)}\r\n${text}\r\n`;
+  const [head = "", tail = ""] = bodyWith('"\u0000"').split("\u0000");
+  const wire = Buffer.from(
+    "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ntransfer-encoding: chunked\r\nconnection: close\r\n\r\n" +
+      chunk(head) + "1\r\na\r\n".repeat(2_000_000) + chunk(tail) + "0\r\n\r\n",
+    "utf8", // as Buffer.byteLength counts the chunk sizes, so a non-ASCII body fits too
+  );
+  const run = await runWithRawAnswer(wire, 256, ["--compact"]);
+  noCrash(run, "tiny chunks");
+  assert.equal(run.code, 0, run.stderr.slice(0, 500));
+  assert.equal(fromCli(run.stdout.toString("utf8")), "a".repeat(2_000_000));
 });
 
 /** The body with the string value `a<bytes>b`, the bytes as they are. */

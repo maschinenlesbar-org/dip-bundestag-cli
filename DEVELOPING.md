@@ -517,7 +517,10 @@ port drops them for the rest of the chain (see *Redirect safety*), so the key is
 never forwarded to another host.
 
 **maxResponseBytes.** A cap on the response body size in bytes (`0` =
-unlimited; default 100 MiB), guarding against unbounded responses.
+unlimited; default 100 MiB), guarding against unbounded responses. The default transport joins
+small chunks as they arrive (at most 1024 of them or 64 KiB unjoined), so the memory it holds
+follows the bytes, not the number of chunks: two million one-byte chunks, far under the cap,
+kept a Buffer each and exhausted a 256 MB heap.
 
 **RawResponse.** The engine's raw-response shape: `{ data: Buffer,
 contentType, status, url, credentialsDropped? }` — raw bytes, never lossily
@@ -642,7 +645,7 @@ everything that drives the CLI is in `apps/cli/test/`.
   P25 use `kitParity`, dip's `parity` in the shape the shared bodies expect. **P27** big and odd
 answers (`conformance-p27-big-and-odd-answers.test.ts`: a large flat answer and one full of DEL
 characters print within a small heap, or past V8's longest string are one ERROR record of
-`dip.output`; a lone surrogate or invalid bytes are replaced with U+FFFD and a WARN; it starts the
+`dip.output`; an answer in two million one-byte chunks is read within a small heap; a lone surrogate or invalid bytes are replaced with U+FFFD and a WARN; it starts the
 bin, 30 s).
 - **Parity tests** use `parity()` from `apps/cli/test/helpers.ts`: one input goes through
   `run()` and through a library call on one recording mock transport, and the
