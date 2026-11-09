@@ -301,7 +301,14 @@ What the library rejects:
   for `obtainKey` that is not an absolute http(s) URL.
   `apps/cli/test/conformance-p8-p9-p13-responses-and-errors.test.ts` is the shared check
   (its bad calls use an offline transport, so a call that slipped through could never
-  reach the live API). A server `detail` is cut at 500 characters in a message, never inside a surrogate
+  reach the live API). Server text bound for a message (a `detail`, a Content-Type, a charset, a
+  redirect target, a transport's text) goes through `sanitizeServerText` (engine.ts): it reads at
+  most the first 16 384 characters, drops whole terminal escape sequences, the remaining C0/C1
+  controls and DEL and every format character, and folds whitespace to one line, each step a
+  linear regex replace (a 16 MB error detail, cleaned one character at a time, exhausted a small
+  heap). Answer text the engine rebuilds (`scanNumbers`, the lone-surrogate repair,
+  `escapeRawControlCharsInStrings`) is put together in a `TextBuilder` (errors.ts), never one
+  `+=` per piece. A server `detail` is cut at 500 characters in a message, never inside a surrogate
   pair (`cutText`), so the message stays well-formed; any other value an own message
   quotes from a server answer or the user's input (a redirect target, a charset or
   Content-Type, a key, an unknown filter, a `--filter` value) at `MAX_QUOTED_LENGTH`
