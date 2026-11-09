@@ -647,6 +647,21 @@ answers (`conformance-p27-big-and-odd-answers.test.ts`: a large flat answer and 
 characters print within a small heap, or past V8's longest string are one ERROR record of
 `dip.output`; an answer in two million one-byte chunks is read within a small heap; a lone surrogate or invalid bytes are replaced with U+FFFD and a WARN; it starts the
 bin, 30 s).
+  **P28–P31** (security audit 2026-10-27, reference `create-cli-template`): **P28** hostile error
+  answers (a number with a long run of zeros checked in linear time; server text cut before it
+  is cleaned; a 16 MB error message one ERROR record and millions of lone surrogates repaired
+  within a small heap, both in the bin, 30 s; the base URL's credentials scrubbed from decoded
+  error text, from a member name of a refused 2xx shape and from a redirect's Location, whose
+  302 loop ends at dip's redirect limit), **P29** base-URL credentials (a token userinfo
+  scrubbed, a backslash and a repaired scheme refused, requests to the parsed host, linear
+  stdout redaction; the glued-URL case is skipped: dip's stdout redaction matches argv's
+  userinfo exactly and has no pattern pass), **P30** output links (`--force` follows no other
+  user's link in a shared directory, EACCES isn't "exists", a stream checked on its descriptor;
+  the adapter maps the kit's `state`/`write` onto dip's `outputState`/`writeFile`, and the case
+  that reads back a bare array is skipped, `output-links.test.ts` checks it with dip's answer),
+  **P31** the release pipeline (read as text). The API key is scrubbed by the same code; the
+  client's `engine.test.ts` checks it for the escaped echo, a quoted member name and the
+  Location.
 - **Parity tests** use `parity()` from `apps/cli/test/helpers.ts`: one input goes through
   `run()` and through a library call on one recording mock transport, and the
   test asserts the same outcome (both reject with no request, or both send the
