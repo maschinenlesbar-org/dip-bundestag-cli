@@ -94,9 +94,15 @@ function exactAtTheEdges(literal: string, value: number): boolean {
 /** A decimal literal as sign, significant digits (no leading or trailing zeros) and exponent: digits × 10^exponent. */
 function decimalOf(text: string): { negative: boolean; digits: string; exponent: number } {
   const [, sign = "", whole = "", fraction = "", exp = "0"] = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(text) ?? [];
-  const all = (whole + fraction).replace(/^0+/, "");
-  const digits = all.replace(/0+$/, "");
-  return { negative: sign === "-", digits, exponent: Number(exp) - fraction.length + (all.length - digits.length) };
+  // The zeros are counted with index loops: `/0+$/` tried a match at every zero of a run that
+  // doesn't end the text, quadratic in the run, and one `1.<64 000 zeros>1e300` in an answer held
+  // the CLI for seconds, past --timeout (the scan runs once the answer is in).
+  const all = whole + fraction;
+  let start = 0;
+  while (start < all.length && all.charCodeAt(start) === 0x30) start++;
+  let end = all.length;
+  while (end > start && all.charCodeAt(end - 1) === 0x30) end--;
+  return { negative: sign === "-", digits: all.slice(start, end), exponent: Number(exp) - fraction.length + (all.length - end) };
 }
 
 /** A JSON number token as the grammar allows it, matched at a given position (sticky). */

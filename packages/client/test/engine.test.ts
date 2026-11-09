@@ -845,3 +845,18 @@ test("an answer longer than V8's longest string is a DipParseError naming the re
   const failing = new RequestEngine({ maxResponseBytes: 0, transport: makeMockTransport(() => rawResponse(huge, "text/plain", 500)).transport });
   await assert.rejects(failing.getJson("/api/v1/vorgang"), (err: unknown) => err instanceof DipApiError && err.status === 500 && err.body === "");
 });
+
+test("a number with a long run of zeros is checked in linear time (security audit class A)", async () => {
+  // `/0+$/` tried a match at every zero of a run that doesn't end the literal: quadratic, and
+  // 1.<100 000 zeros>1e300 held the scan for about 15 s after the answer was in.
+  const literal = `1.${"0".repeat(100_000)}1e300`;
+  const start = performance.now();
+  assert.equal(firstInexactNumber(`{"a":${literal}}`), literal);
+  const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(`{"id":"1","x":${literal}}`, "application/json")).transport });
+  await assert.rejects(e.getJson("/api/v1/vorgang/1"), (err: unknown) => err instanceof DipParseError && /cannot be represented exactly/.test(err.message) && err.message.length < 1000);
+  const ms = performance.now() - start;
+  assert.ok(ms < 1000, `${Math.round(ms)} ms`);
+  // Leading and trailing zeros still count as before: exact at the edges, inexact past them.
+  assert.equal(firstInexactNumber('{"a":0.000,"b":-0e5,"c":9007199254740992000e-3,"d":1000000000000000000000}'), undefined);
+  assert.equal(firstInexactNumber('{"a":00012345678901234567890}'), "00012345678901234567890");
+});
