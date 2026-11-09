@@ -1153,6 +1153,9 @@ test("baseUrlProblem refuses a backslash, a repaired scheme and a scheme-less us
     // A query keeps its own reason, a typed scheme too.
     ["http:///h.example/?q=1", "A base URL cannot have a query (?) or fragment (#)."],
     ["ftp://h.example", 'Unsupported scheme "ftp:". Expected an http(s) URL.'],
+    // Without `<scheme>://` the "scheme" is the user name: never named.
+    ["T0kenS3cret:@h.example", "Expected an absolute http(s) URL."],
+    ["alice:s3cret@h.example", "Expected an absolute http(s) URL."],
     ["HTTPS://H.example", undefined],
   ];
   for (const [value, reason] of cases) {

@@ -550,7 +550,10 @@ export function validateLimits(limits: EngineLimits): void {
  * - the path must not end in `/api/v1`, which the client appends itself
  *   (`/api/v1/api/v1/...` is a 404).
  *
- * The reason never echoes the value: a base URL may carry a password.
+ * The reason never echoes the value, nor a part of it: a base URL may carry a password. A
+ * scheme is named (`Unsupported scheme "ftp:"`) only when the value spells one
+ * (`<scheme>://`), since a scheme-less `user:password@host` parses with the user name as its
+ * scheme.
  */
 export const baseUrlProblem: Problem<string> = (value) => {
   if (typeof value !== "string") return "Expected an absolute http(s) URL string.";
@@ -561,6 +564,10 @@ export const baseUrlProblem: Problem<string> = (value) => {
     return "Expected an absolute http(s) URL.";
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
+    // `user:password@host` without a scheme parses as a URL whose scheme is the user name
+    // ("t0kens3cret:"), lower-cased, which the CLI's exact-string redaction can't match: name a
+    // scheme only when the value spells one, `<scheme>://`.
+    if (!/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value)) return "Expected an absolute http(s) URL.";
     return `Unsupported scheme "${url.protocol}". Expected an http(s) URL.`;
   }
   if (/[?#]/.test(value)) return "A base URL cannot have a query (?) or fragment (#).";

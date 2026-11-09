@@ -376,7 +376,9 @@ What the library rejects:
 - **Base URL** (`validateBaseUrl`/`baseUrlProblem`, in the `RequestEngine`
   constructor, so in `obtainKey` too whenever `baseUrl` is given, on the raw value
   before the trailing-slash strip): a value that does not parse as an absolute
-  URL, a scheme other than `http:`/`https:`, a query or fragment (paths are appended to the base URL as a string), a
+  URL, a scheme other than `http:`/`https:` (named only when the value spells
+  `<scheme>://`: a scheme-less `user:password@host` parses with the user name as its
+  scheme), a query or fragment (paths are appended to the base URL as a string), a
   backslash (WHATWG ends an http(s) host at one, text-based code reads on), surrounding
   whitespace, whitespace or a control character inside (`new URL()` would hide both), a
   scheme not followed by exactly `//` and the host (`http:host`, `http:///host`, which

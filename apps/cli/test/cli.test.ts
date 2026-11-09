@@ -957,13 +957,15 @@ test("the URL search of the redaction is linear: a 1 MB argument without :// is 
   }
 });
 
-test("a refused --base-url never echoes its password or token, however the scheme is spelled (security audit classes F, F3)", async () => {
+test("a refused --base-url never echoes its password or token, however the scheme is spelled (security audit classes F, F3, F5)", async () => {
   for (const [baseUrl, secret, reason] of [
     ["https:\\\\alice:pw1-s3cret@127.0.0.1:9", "pw1-s3cret", /backslash/],
     ["http:///alice:pw1-s3cret@127.0.0.1:9", "pw1-s3cret", /"https:\/\/" and the host/],
     ["http:///alice:pw1-s3cret@h.example/?q=1", "pw1-s3cret", /query/],
     ["http:alice:pw1-s3cret@h.example", "pw1-s3cret", /"https:\/\/" and the host/],
     ["https://alice:pw1-s3cret@api.example\\@evil.example", "pw1-s3cret", /backslash/],
+    ["T0kenS3cret:@h.example", "t0kens3cret", /Expected an absolute http\(s\) URL\./],
+    ["alice:s3cret-pw@h.example", "s3cret-pw", /Expected an absolute http\(s\) URL\./],
   ] as const) {
     const cli = makeCli(() => jsonResponse({ numFound: 0, documents: [] }));
     assert.equal(await run(["--base-url", baseUrl, "vorgang", "list"], cli.deps), 2, baseUrl);
