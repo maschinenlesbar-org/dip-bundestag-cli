@@ -11,6 +11,7 @@
 // without -o sets HAS_OUTPUT_OPTION to false and the tests are skipped. Shared across the *-cli
 // repos; only the adapter differs.
 
+import { test } from "node:test";
 import assert from "node:assert/strict";
 import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -18,7 +19,6 @@ import { join } from "node:path";
 import type { HttpRequest } from "@maschinenlesbar.org/dip-bundestag-client/internal/http";
 
 // ---- adapter (per repo) -------------------------------------------------------------
-import { test as nodeTest, type TestOptions } from "node:test";
 import { run as cliRun } from "../src/cli/run.js";
 import { nodeFilesFor as dipFilesFor, type CliDeps, type CliIO, type LinkOwners, type OutputPathState } from "../src/cli/io.js";
 import { DipClient as Client } from "@maschinenlesbar.org/dip-bundestag-client/internal/client";
@@ -61,23 +61,12 @@ const HAS_OUTPUT_OPTION = true;
 const outputArgv = (file: string, force: boolean): string[] => [
   "--api-key", "p30-test-key", "--max-retries", "0", "-o", file, ...(force ? ["--force"] : []), "vorgang", "list", "--filter", "f.titel=x",
 ];
-/** A 2xx answer for that GET: dip writes the list's documents, `[{ "id": "a1" }]` as the body expects. */
+/** A 2xx answer for that GET. */
 const answer = () => jsonResponse({ numFound: 1, documents: [{ id: "a1" }] });
+/** What the CLI writes to the file for that answer, parsed as JSON (read back after a followed link). */
+const written: unknown = { numFound: 1, documents: [{ id: "a1" }] };
 /** The exit code of a usage error in this repo (commander's default is 1; most repos use 2). */
 const USAGE_EXIT = 2;
-/**
- * One case reads back what -o wrote as `[{ "id": "a1" }]`; dip writes an answer as the API sent it
- * (a list envelope or a document, never a bare array), so it can't be that. The same rule is
- * checked with dip's own answer in output-links.test.ts ("--force still follows the caller's own
- * links …").
- */
-const SKIPPED: Record<string, string> = {
-  "P30: --force still follows the caller's own links, the directory owner's, and any link in a directory only its owner writes":
-    "dip writes an envelope or a document, never the bare array the case reads back; output-links.test.ts checks the rule with dip's answer",
-};
-const test = (name: string, options: TestOptions, fn: () => void | Promise<void>): void => {
-  void nodeTest(name, SKIPPED[name] === undefined ? options : { ...options, skip: SKIPPED[name] }, fn);
-};
 // --------------------------------------------------------------------------------------
 
 const skip = !HAS_OUTPUT_OPTION;
@@ -178,7 +167,7 @@ test("P30: --force still follows the caller's own links, the directory owner's, 
     try {
       const o = await runWith(nodeFilesFor(who(t)), outputArgv(t.link, true));
       assert.equal(o.code, 0, `${label}: ${o.err}`);
-      assert.deepEqual(JSON.parse(readFileSync(t.victim, "utf8")), [{ id: "a1" }], label);
+      assert.deepEqual(JSON.parse(readFileSync(t.victim, "utf8")), written, label);
       assert.ok(lstatSync(t.link).isSymbolicLink(), label);
     } finally {
       t.done();

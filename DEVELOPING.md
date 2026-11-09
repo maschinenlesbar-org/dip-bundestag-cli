@@ -657,8 +657,8 @@ bin, 30 s).
   stdout redaction; the glued-URL case is skipped: dip's stdout redaction matches argv's
   userinfo exactly and has no pattern pass), **P30** output links (`--force` follows no other
   user's link in a shared directory, EACCES isn't "exists", a stream checked on its descriptor;
-  the adapter maps the kit's `state`/`write` onto dip's `outputState`/`writeFile`, and the case
-  that reads back a bare array is skipped, `output-links.test.ts` checks it with dip's answer),
+  the adapter maps the kit's `state`/`write` onto dip's `outputState`/`writeFile`, and
+  `written` is the list envelope dip writes for the answer),
   **P31** the release pipeline (read as text). The API key is scrubbed by the same code; the
   client's `engine.test.ts` checks it for the escaped echo, a quoted member name and the
   Location.
