@@ -726,7 +726,9 @@ writable or whose links loop, `outputParentProblem`; a path that can't be inspec
 which `outputPathState` throws instead of calling it existing) is a usage error of `cli`, exit 2; the write
 checks again, so a file that appears during the request is an `OutputError`. `defaultIO.writeFile`
 writes a stream (a character device, a FIFO, a socket, `/dev/stdout`, `/dev/fd/N`) in place, with
-no claim, no temporary file and no `--force` needed; a file atomically (an exclusive claim of the
+no claim, no temporary file and no `--force` needed. The descriptor decides, not the name: the
+path is opened without O_CREAT and `fstat`ed, and one that is no stream by then (a link switched
+to a regular file) is written as a file, so without `--force` it is refused; a file atomically (an exclusive claim of the
 name without `--force`, a temporary file within NAME_MAX renamed over it), and from the first
 file write on SIGINT, SIGTERM and SIGHUP remove the claim and the temporary file and exit 130,
 143 or 129. `--force` through a link writes the file it names, created if the link dangles. A

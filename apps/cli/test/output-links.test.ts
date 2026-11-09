@@ -149,3 +149,27 @@ test("an -o path that can't be inspected is reported as such, not as an existing
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("a stream target is written only when the descriptor opened is a stream (G2, 2026-10-27)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "dip-links-"));
+  try {
+    const victim = join(dir, "victim.txt");
+    writeFileSync(victim, "keep me\n");
+    const link = join(dir, "out.json");
+    symlinkSync(victim, link);
+    // The path was a stream when it was classified and is a regular file (through a link) when
+    // it is opened: without --force it is refused, and the file is not touched.
+    const switched = nodeFilesFor();
+    switched.outputState = () => "stream";
+    assert.throws(() => switched.writeFile(link, Buffer.from("appended\n"), false), /Refusing to overwrite/);
+    assert.equal(readFileSync(victim, "utf8"), "keep me\n");
+    // Nor is a stream path created when nothing is there by the time it is opened (no O_CREAT).
+    const gone = join(dir, "gone.json");
+    assert.throws(() => switched.writeFile(gone, Buffer.from("x"), false), /Could not write/);
+    assert.throws(() => statSync(gone));
+    // A real stream is still written in place.
+    assert.doesNotThrow(() => nodeFilesFor().writeFile("/dev/null", Buffer.from("x"), false));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
