@@ -3,12 +3,17 @@ name: Release
 # Fires when a version tag is pushed, e.g. created by `npm run bump -- <patch|minor|major>`
 # (which bumps apps/cli/package.json, commits and creates the matching tag). The repository
 # is an npm workspace: the released package is apps/cli, which bundles packages/client.
+#
+# Three jobs, so no third-party code shares a job with the tarball or the write token:
+#  - pack:    test, build the tarball, record its sha256 (contents: read);
+#  - sbom:    the CycloneDX SBOMs, with the tool locked in tools/sbom (contents: read);
+#  - release: check the tarball against the pack job's digest, then only `gh` (contents: write).
 on:
   push:
     tags:
       - 'v*'
 
-# Default to read-only; the release job is granted contents: write below.
+# Default to read-only; only the release job is granted contents: write below.
 permissions:
   contents: read
 
@@ -18,11 +23,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Create GitHub Release
+  pack:
+    name: Test and pack
     runs-on: ubuntu-latest
-    permissions:
-      contents: write # create the GitHub Release and upload its assets
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tarball: ${{ steps.pack.outputs.tarball }}
+      tarball-sha256: ${{ steps.pack.outputs.tarball-sha256 }}
+      notes: ${{ steps.changelog.outputs.notes }}
+      notes-sha256: ${{ steps.changelog.outputs.notes-sha256 }}
 
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
@@ -67,10 +76,11 @@ jobs:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
           mkdir -p dist-artifacts
-          out="dist-artifacts/dip-bundestag-cli-${VERSION}.changelog.md"
-          node .github/scripts/changelog.mjs "$GITHUB_REF_NAME" > "$out"
-          echo "path=$out" >> "$GITHUB_OUTPUT"
-          cat "$out"
+          notes="dip-bundestag-cli-${VERSION}.changelog.md"
+          node .github/scripts/changelog.mjs "$GITHUB_REF_NAME" > "dist-artifacts/$notes"
+          echo "notes=$notes" >> "$GITHUB_OUTPUT"
+          echo "notes-sha256=$(sha256sum "dist-artifacts/$notes" | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+          cat "dist-artifacts/$notes"
 
       - name: Install
         run: npm ci
@@ -78,60 +88,141 @@ jobs:
       - name: Test
         run: npm test
 
-      # CycloneDX SBOMs with exact, pinned versions and the full transitive
-      # closure, read from the installed tree (npm ci ran above). Two files:
-      #  - *.cdx.json      runtime/production graph — what consumers install
-      #  - *.dev.cdx.json  full graph incl. devDependencies — the build env
-      #
-      # Both are scoped to the apps/cli workspace (the dev one adds the root's
-      # devDependencies, the build toolchain). The SBOM's main component is the private
-      # workspace root, whose one dependency is the released package; that package
-      # depends on commander (bundled). The workspace packages ship inside it as files
-      # (dist/node_modules), so they are part of the released package, not dependencies.
-      #
-      # Runs BEFORE `npm pack`: the pinned-but-transitively-unpinned cyclonedx tool
-      # must not execute while a built .tgz already sits in dist-artifacts/, where a
-      # compromised transitive dep could tamper it before the Release upload. It only
-      # reads the installed tree and writes its own JSON, so the tarball does not yet
-      # exist when it runs. (npm publishing is unaffected: publish.yml rebuilds from
-      # the tag.)
-      - name: Generate SBOMs (CycloneDX)
+      # `npm pack` produces the npm-native package tarball (.tgz). The app's prepack bundles
+      # packages/client and commander into it. Its sha256 becomes a job output, which the
+      # release job checks the downloaded tarball against.
+      - name: Pack npm tarball
+        id: pack
         env:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
-          mkdir -p dist-artifacts
-          base="dist-artifacts/dip-bundestag-cli-${VERSION}"
-          npx --yes @cyclonedx/cyclonedx-npm@4.2.1 \
+          npm pack --workspace apps/cli --pack-destination dist-artifacts
+          tarball="maschinenlesbar.org-dip-bundestag-cli-${VERSION}.tgz"
+          test -f "dist-artifacts/$tarball"
+          echo "tarball=$tarball" >> "$GITHUB_OUTPUT"
+          echo "tarball-sha256=$(sha256sum "dist-artifacts/$tarball" | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+          ls -la dist-artifacts
+
+      - name: Upload the tarball and the notes
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: package
+          path: |
+            dist-artifacts/${{ steps.pack.outputs.tarball }}
+            dist-artifacts/${{ steps.changelog.outputs.notes }}
+          if-no-files-found: error
+          retention-days: 1
+
+  # CycloneDX SBOMs with exact, pinned versions and the full transitive closure, read from the
+  # installed tree. Two files:
+  #  - *.cdx.json      runtime/production graph — what consumers install
+  #  - *.dev.cdx.json  full graph incl. devDependencies — the build env
+  #
+  # Both are scoped to the apps/cli workspace (the dev one adds the root's devDependencies, the
+  # build toolchain). The SBOM's main component is the private workspace root, whose one
+  # dependency is the released package; that package depends on commander (bundled). The
+  # workspace packages ship inside it as files (dist/node_modules), so they are part of the
+  # released package, not dependencies.
+  #
+  # The tool and its whole tree are locked in tools/sbom/package-lock.json and installed without
+  # their install scripts; it runs in a job of its own, with a read-only token and no tarball, so
+  # a compromised dependency can neither change what the pack job built nor touch the Release.
+  sbom:
+    name: SBOMs
+    needs: pack
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22.x
+          # No cache restoration on tag-triggered runs (cache-poisoning hardening).
+          package-manager-cache: false
+
+      # The SBOM describes the installed tree; no lifecycle script is needed for it.
+      - name: Install the workspace
+        run: npm ci --ignore-scripts
+
+      - name: Install the SBOM tool (locked in tools/sbom)
+        run: npm ci --ignore-scripts --prefix tools/sbom
+
+      - name: Generate SBOMs (CycloneDX)
+        env:
+          VERSION: ${{ needs.pack.outputs.version }}
+        run: |
+          mkdir -p sbom
+          base="sbom/dip-bundestag-cli-${VERSION}"
+          tools/sbom/node_modules/.bin/cyclonedx-npm \
             --workspace apps/cli \
             --omit dev \
             --spec-version 1.6 \
             --output-format JSON \
             --output-file "${base}.cdx.json"
-          npx --yes @cyclonedx/cyclonedx-npm@4.2.1 \
+          tools/sbom/node_modules/.bin/cyclonedx-npm \
             --workspace apps/cli \
             --include-workspace-root \
             --spec-version 1.6 \
             --output-format JSON \
             --output-file "${base}.dev.cdx.json"
-          ls -la dist-artifacts
+          ls -la sbom
 
-      # `npm pack` produces the npm-native package tarball (.tgz), ready to upload.
-      # Packed last so the SBOM tool above never runs with a built tarball present.
-      # The app's prepack bundles packages/client and commander into it.
-      - name: Pack npm tarball
+      - name: Upload the SBOMs
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sbom
+          path: |
+            sbom/dip-bundestag-cli-${{ needs.pack.outputs.version }}.cdx.json
+            sbom/dip-bundestag-cli-${{ needs.pack.outputs.version }}.dev.cdx.json
+          if-no-files-found: error
+          retention-days: 1
+
+  # The only job with a write token: no checkout, no npm, no Node, only the runner's
+  # preinstalled gh CLI on files it has checked.
+  release:
+    name: Create GitHub Release
+    needs: [pack, sbom]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the GitHub Release and upload its assets
+
+    steps:
+      - name: Download the tarball and the notes
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: package
+          path: package
+
+      - name: Download the SBOMs
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sbom
+          path: sbom
+
+      # The pack job's digests are job outputs, recorded by the runner: an artifact changed
+      # after its upload (by the SBOM job, say) fails here, before anything is published.
+      - name: Verify the tarball and the notes against the pack job's digests
+        env:
+          TARBALL: ${{ needs.pack.outputs.tarball }}
+          TARBALL_SHA256: ${{ needs.pack.outputs.tarball-sha256 }}
+          NOTES: ${{ needs.pack.outputs.notes }}
+          NOTES_SHA256: ${{ needs.pack.outputs.notes-sha256 }}
         run: |
-          mkdir -p dist-artifacts
-          npm pack --workspace apps/cli --pack-destination dist-artifacts
-          ls -la dist-artifacts
+          printf '%s  %s\n' "$TARBALL_SHA256" "package/$TARBALL" "$NOTES_SHA256" "package/$NOTES" | sha256sum --check --strict -
 
-      # The runner's preinstalled gh CLI rather than a third-party action, so no
-      # extra code runs with contents: write. With assets, gh creates the release
-      # as a draft, uploads them, then publishes it.
+      # With assets, gh creates the release as a draft, uploads them, then publishes it.
+      # The assets are named one by one, so nothing else an artifact may hold is attached.
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          NOTES_PATH: ${{ steps.changelog.outputs.path }}
+          VERSION: ${{ needs.pack.outputs.version }}
+          TARBALL: ${{ needs.pack.outputs.tarball }}
+          NOTES: ${{ needs.pack.outputs.notes }}
         # No PRs land in this repo (see CONTRIBUTING.md), so GitHub's own
         # generated notes have nothing to list — --generate-notes only adds the
         # "Full Changelog: vX...vY" compare link after our own notes above.
@@ -139,8 +230,9 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             --verify-tag \
             --title "$GITHUB_REF_NAME" \
-            --notes-file "$NOTES_PATH" \
+            --notes-file "package/$NOTES" \
             --generate-notes \
-            dist-artifacts/*.tgz \
-            dist-artifacts/*.cdx.json \
-            dist-artifacts/*.changelog.md
+            "package/$TARBALL" \
+            "sbom/dip-bundestag-cli-${VERSION}.cdx.json" \
+            "sbom/dip-bundestag-cli-${VERSION}.dev.cdx.json" \
+            "package/$NOTES"

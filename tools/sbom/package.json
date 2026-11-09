@@ -1,0 +1,8 @@
+{
+  "name": "sbom-toolchain",
+  "private": true,
+  "description": "Isolated, lockfile-pinned CycloneDX toolchain for release.yml's SBOM job: the tool and its whole dependency tree are locked here, not resolved by npx at release time. CI installs it with `npm ci --ignore-scripts --prefix tools/sbom` and runs tools/sbom/node_modules/.bin/cyclonedx-npm.",
+  "devDependencies": {
+    "@cyclonedx/cyclonedx-npm": "4.2.1"
+  }
+}
