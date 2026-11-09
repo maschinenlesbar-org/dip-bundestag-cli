@@ -179,7 +179,11 @@ the verification rule). Only 301/302/303/307/308 with a parseable
 `Location` are followed, up to `maxRedirects` (5); anything else — another 3xx, a
 missing or malformed `Location`, or the limit — is a `DipApiError` whose message
 names the target: `redirect to <url> not followed`, plus `(stopped after 5
-redirects)` when the limit ended a loop.
+redirects)` when the limit ended a loop. After a redirect, every message names the request as
+the engine shows it, not as it was sent: the `Location` with the base URL's credentials and the
+API key scrubbed as the server sent it, then resolved (`shownTarget`). Resolving first would
+spell an echoed password anew (`'` as `%27` in a query), which no scrub matches. The request
+itself still goes to the `Location` as sent.
 
 ## Architecture
 

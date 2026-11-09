@@ -1052,3 +1052,60 @@ test("the API key and the base URL's Basic value echoed with JSON escapes are sc
     }
   }
 });
+
+test("a credential or the API key echoed in a redirect's Location never names the request in a message (security audit class D2)", async () => {
+  // A password with characters a URL's query percent-encodes in a spelling of its own (`'` as %27).
+  const pw = "pä\"s's-W0rd";
+  const key = "OSOegLs.PR2lwJ1dwCeje9vTj7FPOt3hvpYKtwKkhw";
+  const basic = Buffer.from(`alice:${pw}`, "utf8").toString("base64");
+  const secrets = [pw, `alice:${pw}`, basic, key];
+  const percentDecoded = (text: string): string =>
+    text.replace(/(?:%[0-9a-fA-F]{2})+/g, (run) => {
+      try {
+        return decodeURIComponent(run);
+      } catch {
+        return run;
+      }
+    });
+  const locations = [
+    `https://elsewhere.example/login?user=alice&pw=${encodeURIComponent(pw)}`,
+    `https://elsewhere.example/login?pw=${pw}`,
+    `https://elsewhere.example/${encodeURIComponent(`alice:${pw}`)}/x`,
+    `https://elsewhere.example/auth?basic=${basic}`,
+    `/relative/${pw}`,
+    `https://elsewhere.example/k?apikey=${key}`,
+  ];
+  for (const location of locations) {
+    // Every request answered with a 302 there: the redirect limit, naming the last request and target.
+    const looping = new DipClient({
+      apiKey: key,
+      baseUrl: `https://alice:${encodeURIComponent(pw)}@mirror.example`,
+      maxRetries: 0,
+      transport: async () => ({ status: 302, headers: { location }, body: Buffer.alloc(0) }),
+    });
+    const loop = await looping.vorgaenge.get("1").catch((caught: unknown) => caught);
+    assert.ok(loop instanceof DipApiError && /^HTTP 302 .*\(stopped after 5 redirects\)$/.test(loop.message), String(loop));
+    // One redirect, then a 401 and then a reset: the request named is the followed one.
+    for (const after of ["401", "reset"] as const) {
+      let calls = 0;
+      const once = new DipClient({
+        apiKey: key,
+        baseUrl: `https://alice:${encodeURIComponent(pw)}@mirror.example`,
+        maxRetries: 0,
+        transport: async () => {
+          calls += 1;
+          if (calls === 1) return { status: 302, headers: { location }, body: Buffer.alloc(0) };
+          if (after === "reset") throw Object.assign(new Error("socket hang up"), { code: "ECONNRESET" });
+          return rawResponse("{}", "application/json", 401);
+        },
+      });
+      const err = await once.vorgaenge.get("1").catch((caught: unknown) => caught);
+      assert.ok(err instanceof DipApiError || err instanceof DipNetworkError, String(err));
+      const e = err as DipApiError;
+      const seen = percentDecoded([e.message, e.url ?? "", e.location ?? "", JSON.stringify(e.credentialsDropped ?? {})].join("\n"));
+      for (const secret of secrets) assert.ok(!seen.includes(secret), `${location} ${after}: ${seen}`);
+    }
+    const seen = percentDecoded([loop.message, loop.url, loop.location ?? ""].join("\n"));
+    for (const secret of secrets) assert.ok(!seen.includes(secret), `${location}: ${seen}`);
+  }
+});

@@ -438,7 +438,7 @@ export interface RetryEvent {
   delayMs: number;
   /** The HTTP status that caused the retry; absent for a reset connection. */
   status?: number;
-  /** The URL being retried, userinfo redacted. */
+  /** The URL being retried, userinfo redacted (after a redirect, credentials echoed in it scrubbed). */
   url: string;
 }
 
@@ -948,7 +948,10 @@ export class RequestEngine {
     }
   }
 
-  /** Tell `onRetry` about a retry, then wait. A throwing callback never breaks the request. */
+  /**
+   * Tell `onRetry` about a retry (`url` as messages show it: userinfo redacted, credentials
+   * scrubbed), then wait. A throwing callback never breaks the request.
+   */
   private async backOff(attempt: number, delayMs: number, url: string, status?: number): Promise<void> {
     try {
       this.onRetry?.({
@@ -956,7 +959,7 @@ export class RequestEngine {
         maxRetries: this.maxRetries,
         delayMs,
         ...(status !== undefined ? { status } : {}),
-        url: redactUrl(url),
+        url,
       });
     } catch {
       // a logging hook is no reason to fail the request
@@ -1068,6 +1071,10 @@ export class RequestEngine {
     const credentialOrigin = originOf(start.url);
     let dropped: CredentialsDropped | undefined;
     let url = start.url;
+    // The URL as messages name it: after a redirect, the Location as the server sent it with the
+    // credentials scrubbed, then resolved (`shownTarget`). Resolving first would percent-encode an
+    // echoed password in a new spelling (`'` as `%27` in a query) no scrub matches.
+    let shown = redactUrl(url);
 
     // Only an idempotent request is sent again: request() is public, and a POST re-sent
     // after a reset or a 503 may be applied twice. The client itself sends GETs only.
@@ -1094,7 +1101,7 @@ export class RequestEngine {
         // not retried — a slow upstream should not be asked again at once.
         if (idempotent && hasTransientCode(cause) && attempt < this.maxRetries) {
           attempt += 1;
-          await this.backOff(attempt, this.retryDelayMs * attempt, url);
+          await this.backOff(attempt, this.retryDelayMs * attempt, shown);
           continue;
         }
         // A reset names only itself ("socket hang up"): say which request it broke off and,
@@ -1104,11 +1111,11 @@ export class RequestEngine {
           const reason = cause instanceof Error && cause.message.trim() !== "" ? cause.message : "connection reset";
           const retries = attempt === 0 ? "" : ` (after ${attempt} ${attempt === 1 ? "retry" : "retries"})`;
           throw new DipNetworkError(
-            `${method} ${redactUrl(url)} failed: ${sanitizeServerText(this.scrub(reason))}${retries}`,
+            `${method} ${shown} failed: ${sanitizeServerText(this.scrub(reason.split(redactUrl(url)).join(shown)))}${retries}`,
             { cause: this.scrubCause(cause) },
           );
         }
-        throw this.toNetworkError(method, url, cause);
+        throw this.toNetworkError(method, url, shown, cause);
       }
 
       // An injected transport may resolve with anything; a malformed HttpResponse would
@@ -1116,7 +1123,7 @@ export class RequestEngine {
       const invalid = responseProblem(raw);
       if (invalid !== undefined) {
         throw new DipNetworkError(
-          `${method} ${redactUrl(url)} failed: the transport returned an invalid response (${invalid}).`,
+          `${method} ${shown} failed: the transport returned an invalid response (${invalid}).`,
         );
       }
       // A transport that followed a redirect itself (fetch's default) took the request
@@ -1125,8 +1132,8 @@ export class RequestEngine {
       const reported = (raw as { url?: unknown }).url;
       if (typeof reported === "string" && reported !== "" && originOf(reported) !== originOf(url)) {
         throw new DipNetworkError(
-          `${method} ${redactUrl(url)} failed: the transport followed a redirect to ` +
-            `${originOf(reported) ?? "an unparseable URL"}, another origin. A transport must not ` +
+          `${method} ${shown} failed: the transport followed a redirect to ` +
+            `${sanitizeServerText(this.scrub(originOf(reported) ?? "an unparseable URL"))}, another origin. A transport must not ` +
             `follow redirects (HttpRequest.redirect is "manual"); the engine follows them and ` +
             `decides where credentials may go.`,
         );
@@ -1137,7 +1144,7 @@ export class RequestEngine {
       // The size cap holds whatever the transport did: the default one aborts early, a
       // custom one may have read everything.
       if (this.maxResponseBytes > 0 && body.byteLength > this.maxResponseBytes) {
-        throw new DipNetworkError(`${method} ${redactUrl(url)} failed: ${sizeLimitMessage(this.maxResponseBytes)}`);
+        throw new DipNetworkError(`${method} ${shown} failed: ${sizeLimitMessage(this.maxResponseBytes)}`);
       }
       const response = { status, headers: responseHeaders, body };
 
@@ -1156,7 +1163,7 @@ export class RequestEngine {
           await this.backOff(
             attempt,
             retryAfter === undefined ? backoff : Math.max(retryAfter, backoff),
-            url,
+            shown,
             status,
           );
           continue;
@@ -1173,7 +1180,7 @@ export class RequestEngine {
       if (next !== undefined && redirects >= this.maxRedirects) {
         // A loop (or a long chain): say how far it got rather than a bare 3xx.
         // (With maxRedirects 0 nothing was followed; the plain text says enough.)
-        throw this.toApiError(method, url, status, response.body, location, redirects || undefined, dropped);
+        throw this.toApiError(method, shown, status, response.body, location, redirects || undefined, dropped);
       }
       if (next !== undefined) {
         // SECURITY: the credentials (`Authorization: ApiKey <key>`, the base URL's
@@ -1185,8 +1192,9 @@ export class RequestEngine {
         next.username = "";
         next.password = "";
         if (hasCredentials && dropped === undefined && next.origin !== credentialOrigin) {
-          dropped = { from: originOf(url) ?? "", to: next.origin };
+          dropped = { from: originOf(url) ?? "", to: sanitizeServerText(this.scrub(next.origin)) };
         }
+        shown = this.shownTarget(location as string, shown);
         url = next.href;
         redirects += 1;
         continue;
@@ -1198,7 +1206,7 @@ export class RequestEngine {
       // attacker-controlled and may later be echoed into a message.
       const contentType = sanitizeServerText(this.scrub(String(headerValue(response.headers["content-type"]) ?? "")));
       if (status < 200 || status >= 300) {
-        throw this.toApiError(method, url, status, response.body, location, undefined, dropped, retryAfterTooLong);
+        throw this.toApiError(method, shown, status, response.body, location, undefined, dropped, retryAfterTooLong);
       }
 
       return {
@@ -1256,6 +1264,23 @@ export class RequestEngine {
   }
 
   /**
+   * A redirect's `Location` as messages name it: the credentials and the API key scrubbed as sent,
+   * before resolving it against `from` (the current request as shown) percent-encodes what is
+   * left of them in a new spelling; then userinfo redacted and control and format characters
+   * dropped (`sanitizeServerText`). A value that doesn't resolve is shown cleaned as it came.
+   */
+  private shownTarget(location: string, from: string): string {
+    const sent = this.scrub(location);
+    let target: string;
+    try {
+      target = redactUrl(new URL(sent, from).href);
+    } catch {
+      target = redactUrl(sent);
+    }
+    return sanitizeServerText(target);
+  }
+
+  /**
    * A transport failure as the `cause` of the error the engine raises: the original
    * when its text carries no secret, otherwise a copy with them scrubbed (message,
    * `code` and the cause chain kept), so logging the error with its causes can't
@@ -1308,14 +1333,15 @@ export class RequestEngine {
    * fetch, a string, null), which is wrapped naming the request, with the original as
    * `cause`, so every failure stays a `DipError`.
    */
-  private toNetworkError(method: string, url: string, cause: unknown): DipError {
+  private toNetworkError(method: string, url: string, shown: string, cause: unknown): DipError {
     if (cause instanceof DipNetworkError) {
       // The built-in transport's own errors (a timeout, the size cap, a refused connection)
       // and the engine's deadline carry no URL: name the request, as for a reset, with the
       // original as the cause. Scrub anyway, in case a custom transport built one from a
       // server's text.
-      const message = this.scrub(cause.message);
-      const prefix = `${method} ${redactUrl(url)} failed: `;
+      // A transport's text names the URL it was given; a message names the one shown.
+      const message = this.scrub(cause.message.split(redactUrl(url)).join(shown));
+      const prefix = `${method} ${shown} failed: `;
       if (message.startsWith(prefix)) {
         const inner = this.scrubCause(cause.cause);
         if (message === cause.message && inner === cause.cause) return cause;
@@ -1330,7 +1356,7 @@ export class RequestEngine {
         : typeof cause === "string" && cause.trim() !== ""
           ? cause
           : "the transport failed without a message";
-    return new DipNetworkError(`${method} ${redactUrl(url)} failed: ${sanitizeServerText(this.scrub(reason))}`, {
+    return new DipNetworkError(`${method} ${shown} failed: ${sanitizeServerText(this.scrub(reason.split(redactUrl(url)).join(shown)))}`, {
       cause: this.scrubCause(cause),
     });
   }
@@ -1414,7 +1440,7 @@ export class RequestEngine {
     if (detail !== undefined) detail = cleanDetail(this.scrub(detail));
     // Name the target of a redirect that was not followed.
     const location =
-      status >= 300 && status < 400 && locationHeader ? redirectTarget(url, locationHeader) : undefined;
+      status >= 300 && status < 400 && locationHeader ? this.shownTarget(locationHeader, url) || undefined : undefined;
     return new DipApiError({
       status,
       url,
@@ -1565,15 +1591,4 @@ function resolveLocation(location: string | undefined, base: string): URL | unde
   } catch {
     return undefined;
   }
-}
-
-/**
- * The absolute, printable form of a `Location` header: resolved against the request
- * URL, userinfo redacted, control characters stripped (it is server text bound for
- * stderr). An unparseable value is shown sanitised as it came.
- */
-function redirectTarget(requestUrl: string, location: string): string | undefined {
-  const resolved = resolveLocation(location, requestUrl);
-  const clean = sanitizeServerText(resolved ? redactUrl(resolved.href) : location).trim();
-  return clean === "" ? undefined : clean;
 }
