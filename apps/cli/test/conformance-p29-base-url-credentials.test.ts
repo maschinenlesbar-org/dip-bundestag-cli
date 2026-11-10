@@ -14,7 +14,8 @@
 //   `http:/host`, `http:///host`, `https:\\host`) is refused too: WHATWG skips the slashes and
 //   backslashes there and repairs the URL silently, so the host requested was not the one typed.
 //   The userinfo of such a value starts after them, so a refused one is never echoed with its
-//   password (it was: `http:///alice:pw@host`).
+//   password (it was: `http:///alice:pw@host`), nor is one whose scheme is missing or mistyped
+//   (`http//alice:pw@host`, `htp:/alice:pw@host`, `alice:pw@host`).
 // - The userinfo redaction of what the CLI prints (when an argument carries a URL with
 //   userinfo, every stdout text) is linear: the scheme regex it replaces was quadratic on a run of
 //   scheme characters (`a.a.a.…`) in an answer and held the run for seconds.
@@ -163,6 +164,31 @@ test("P29: a base URL whose scheme is not followed by exactly // and the host is
   for (const base of [`http:alice:${pw}@mirror.example`, `https:/mirror.example`, `http:///mirror.example`]) {
     const o = await parity(["--base-url", base, ...call], (t) => lib(new Client({ baseUrl: base, transport: t })));
     assert.match(o.cli.err, /"https:\/\/" and the host/, base);
+  }
+});
+
+test("P29: a base URL with its scheme missing or mistyped is refused by --base-url, never echoing the password or token", async () => {
+  // Commander quotes the rejected value; the run's redaction knew the userinfo only after a
+  // scheme with its colon, so `http//alice:pw@host` (the colon left out) was echoed in clear.
+  const pw = "s3cret-Pw";
+  for (const base of [
+    `http//alice:${pw}@127.0.0.1:9`,
+    `https//alice:${pw}@127.0.0.1:9/v1`,
+    `http/alice:${pw}@127.0.0.1:9`,
+    `htp:/alice:${pw}@127.0.0.1:9`,
+    `http\\\\alice:${pw}@127.0.0.1:9`,
+    `http//alice:${pw}/x@127.0.0.1:9`,
+    `alice:${pw}@127.0.0.1:9`,
+    `my_user:${pw}@127.0.0.1:9`,
+    `${TOKEN}:@127.0.0.1:9`,
+  ]) {
+    for (const argv of [["--base-url", base], [`--base-url=${base}`]]) {
+      const o = await parity([...argv, ...call], (t) => lib(new Client({ baseUrl: base, transport: t })));
+      assert.equal(o.cli.code, USAGE_EXIT, `${base}: ${o.cli.err}`);
+      assert.equal(o.cli.requests.length, 0);
+      const printed = o.cli.err + o.cli.out;
+      assert.ok(!printed.includes(pw) && !printed.toLowerCase().includes(TOKEN.toLowerCase()), printed);
+    }
   }
 });
 

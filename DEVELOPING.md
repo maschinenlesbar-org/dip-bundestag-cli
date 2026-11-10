@@ -444,6 +444,11 @@ a `key=value` argument (`--filter f.titel=https://user:pw@host`) counts as a val
   its errors and in `ObtainedKey.sourceUrl`.
   `apps/cli/test/conformance-p2-library-redaction.test.ts` is the shared check.
 
+  A base URL (`--base-url`, and the environment variable where the CLI reads one) is read as
+  a URL however its scheme is typed (`typedUrlCredentials`): missing (`alice:pw@host`) or
+  mistyped (`http//alice:pw@host`, the colon left out, whose userinfo is everything between the
+  first slashes and the last `@`), so commander's echo of a refused one shows no password.
+
 ### Library / technical terms
 
 **API client.** [`DipClient`](packages/client/src/client.ts) — the typed,
