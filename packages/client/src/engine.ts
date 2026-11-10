@@ -930,7 +930,8 @@ export class RequestEngine {
       assertValid("header name", name, headerNameProblem);
       assertHeaderValue(`${name} header`, value);
     }
-    // The secret part of a credential header (`ApiKey <key>` → the key), never echoed.
+    // A credential header's value whole (an X-API-Key with an inner space included) and its
+    // secret part (`ApiKey <key>` → the key), never echoed.
     // And the forms a server echoes a base URL's userinfo in: the Basic value, the
     // decoded `user:password`, the password alone.
     const echoed = userinfos.map(echoedCredentialForms);
@@ -938,7 +939,7 @@ export class RequestEngine {
       ...new Set(
         Object.entries(this.#defaultHeaders)
           .filter(([name]) => CREDENTIAL_HEADERS.has(name.toLowerCase()))
-          .map(([, value]) => value.replace(/^\S+\s+/, "").trim())
+          .flatMap(([, value]) => [value.trim(), value.replace(/^\S+\s+(?=\S)/, "").trim()])
           .concat(echoed.flat())
           // The Basic value in UTF-8 too: the engine sends Latin-1, Node's http and most servers UTF-8.
           .concat(echoed.flatMap(([, pair]) => (pair === undefined ? [] : [Buffer.from(pair, "utf8").toString("base64")])))

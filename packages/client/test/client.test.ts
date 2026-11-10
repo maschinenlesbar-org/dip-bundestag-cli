@@ -206,3 +206,17 @@ test("a code, document number or date is a token: trimmed and composed, or refus
   await assert.rejects(client.vorgaenge.list({ "f.titel": "\u200b" }), { message: "Invalid f.titel: Expected a non-empty value." });
   assert.equal(mt.calls.length, 2, "no refused value was sent");
 });
+
+test("a credential header's value with an inner space is scrubbed whole from an error, not from its second word on", async () => {
+  // As jobsuche-cli found (security audit 2026-10-27, D detail): the secret was the value after
+  // its first word (`Bearer <token>` → the token), so an X-API-Key "Zq9xWv first-part" echoed
+  // back by a server kept "Zq9xWv" in the message, the detail and the body.
+  // `apiKey` refuses a key with whitespace inside; a caller's own header is only checked as a header value.
+  const spaced = "Zq9xWv first-part";
+  for (const options of [{ defaultHeaders: { "X-API-Key": spaced } }]) {
+    const c = new DipClient({ ...options, maxRetries: 0, transport: async () => jsonResponse({ message: `bad key ${spaced}` }, 401) });
+    const caught = await c.drucksachen.list().catch((e: unknown) => e);
+    assert.ok(caught instanceof DipApiError, String(caught));
+    for (const text of [caught.message, caught.detail ?? "", caught.body]) assert.ok(!text.includes("Zq9xWv"), text);
+  }
+});
