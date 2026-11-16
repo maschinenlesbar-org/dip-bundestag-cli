@@ -17,11 +17,11 @@
     "serve": "npm run build:assets && bundle exec jekyll serve --livereload"
   },
   "devDependencies": {
-    "@fylgja/badge": "2.0.0",
-    "@fylgja/base": "2.1.6",
-    "@fylgja/card": "2.0.2",
-    "@fylgja/tokens": "2.2.1",
-    "@fylgja/utilities": "2.1.4",
-    "banira": "0.6.0"
+    "@fylgja/badge": "2.1.0",
+    "@fylgja/base": "2.2.0",
+    "@fylgja/card": "2.0.3",
+    "@fylgja/tokens": "2.3.0",
+    "@fylgja/utilities": "2.2.0",
+    "banira": "0.6.1"
   }
 }
