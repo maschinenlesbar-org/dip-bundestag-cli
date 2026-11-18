@@ -1,0 +1,27 @@
+{%- comment -%}
+  schema.org JSON-LD on the home pages: the CLI as a SoftwareApplication, published by the
+  organisation that maschinenlesbar.org's own website describes (same @id). Called from
+  default.html, which sets `r`, `desc` and `image`.
+{%- endcomment -%}
+{%- if page.layout == "home" %}
+  <script type="application/ld+json">
+  {"@context": "https://schema.org", "@type": "SoftwareApplication",
+    "name": {{ r.name | jsonify }},
+    "alternateName": {{ r.package | jsonify }},
+    "description": {{ desc | jsonify }},
+    "url": {{ page.url | absolute_url | jsonify }},
+    "inLanguage": {{ page.lang | jsonify }},
+    "image": {{ image | jsonify }},
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": {{ "Node.js " | append: r.node | append: "+" | jsonify }},
+    "softwareVersion": {{ r.version | jsonify }},
+    {%- if r.license %}
+    "license": {{ "https://spdx.org/licenses/" | append: r.license | append: ".html" | jsonify }},
+    {%- endif %}
+    "downloadUrl": {{ r.npm_url | jsonify }},
+    "sameAs": [{{ r.github_url | jsonify }}, {{ r.npm_url | jsonify }}],
+    "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"},
+    "publisher": {"@type": "Organization", "@id": {{ site.org_url | append: '#organization' | jsonify }}, "name": "maschinenlesbar.org", "url": {{ site.org_url | jsonify }}}
+  }
+  </script>
+{%- endif %}

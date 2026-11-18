@@ -73,6 +73,21 @@ doc:
   note: ""
   source: View the source on GitHub
 
+# For search engines and link previews: the Open Graph locale, and the alt text of the
+# preview image, which the organisation website serves (assets/img/social-<lang>.png).
+meta:
+  locale: en_US
+  image_alt: "maschinenlesbar.org: German public-sector information, searchable and machine-readable."
+
+notfound:
+  title: Page not found
+  text: >-
+    There is nothing at this address on the <code>%bin%</code> website. The page may have
+    moved, or the link may have a typo in it.
+  home: "%bin% home page"
+  org: maschinenlesbar.org
+  tools: Every tool and its website
+
 copy:
   label: Copy
   copied: Copied

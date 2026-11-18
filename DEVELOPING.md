@@ -720,6 +720,10 @@ find it through `robots.txt` at the root of maschinenlesbar.org, which only the
 organisation website can serve; its `site/_data/sites.yml` lists every site's sitemap, so a
 new CLI gets a line there.
 
+Every page carries a description and Open Graph tags for link previews, and the home
+pages schema.org JSON-LD (`SoftwareApplication`); the preview image and the icons are the
+organisation website's. `site/404.html` is this site's not-found page, in both languages.
+
 ```bash
 npm run build                        # the CLI, for the command reference
 cd site && npm ci && bundle install  # once (Node >= 22.12, Ruby 3.4, Bundler)

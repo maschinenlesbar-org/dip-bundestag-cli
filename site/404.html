@@ -1,0 +1,31 @@
+---
+# The page GitHub Pages serves for a missing URL under this website. It can appear at any
+# path, so every link in it is absolute. In both languages, since the path says nothing
+# about the reader's. Not indexed, not in the sitemap.
+layout: default
+lang: en
+title: Page not found
+ref: notfound
+permalink: /404.html
+robots: noindex
+sitemap: false
+---
+{%- assign r = site.data.repo -%}
+{%- for lang in site.languages %}
+{%- assign s = site.data.i18n[lang].notfound -%}
+{%- if lang == site.default_lang -%}{%- assign home = '/' -%}{%- assign plugins_home = site.plugins_url -%}{%- else -%}{%- assign home = '/' | append: lang | append: '/' -%}{%- assign plugins_home = site.plugins_url | append: lang | append: '/' -%}{%- endif %}
+<section class="hero flow" lang="{{ lang }}">
+  {%- if forloop.first %}
+  <p class="eyebrow">404</p>
+  <h1>{{ s.title }}</h1>
+  {%- else %}
+  <h2>{{ s.title }}</h2>
+  {%- endif %}
+  <p class="intro">{{ s.text | replace: "%bin%", r.bin }}</p>
+  <p class="link-row">
+    <a href="{{ home | relative_url }}">{{ s.home | replace: "%bin%", r.bin }} →</a>
+    <a href="{{ plugins_home }}">{{ s.tools }} →</a>
+    <a href="{{ site.org_url }}{% unless lang == site.default_lang %}{{ lang }}/{% endunless %}">{{ s.org }} →</a>
+  </p>
+</section>
+{%- endfor %}

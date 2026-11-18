@@ -76,6 +76,19 @@ doc:
   note: Dieses Dokument gibt es nur auf Englisch.
   source: Quelle auf GitHub ansehen
 
+meta:
+  locale: de_DE
+  image_alt: "maschinenlesbar.org: Staat und Verwaltung, durchsuchbar und maschinenlesbar."
+
+notfound:
+  title: Seite nicht gefunden
+  text: >-
+    Unter dieser Adresse gibt es auf der Website von <code>%bin%</code> nichts. Vielleicht
+    ist die Seite umgezogen, oder der Link enthält einen Tippfehler.
+  home: "Startseite von %bin%"
+  org: maschinenlesbar.org
+  tools: Alle Tools und ihre Websites
+
 copy:
   label: Kopieren
   copied: Kopiert

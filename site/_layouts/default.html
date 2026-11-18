@@ -7,20 +7,78 @@
   {%- assign home = '/' | append: page.lang | append: '/' -%}
 {%- endif -%}
 {%- assign alternates = site.pages | where: "ref", page.ref -%}
+{%- comment -%}
+  Title, description and link preview. The home page is titled after the repository and
+  its package description; a page can set `description`. German pages without one take
+  the first sentence of the German intro (cut at a word if it is long). The preview image
+  and the icons are the organisation website's (site.org_url): assets/img/social-<lang>.png,
+  favicon.*, apple-touch-icon.png.
+{%- endcomment -%}
+{%- if page.title -%}
+  {%- assign share_title = page.title | append: ' — ' | append: r.name -%}
+{%- elsif page.lang == site.default_lang -%}
+  {%- assign share_title = r.name | append: ': ' | append: r.description -%}
+{%- else -%}
+  {%- assign share_title = r.name | append: ': ' | append: t.home.eyebrow -%}
+{%- endif -%}
+{%- if page.description -%}
+  {%- assign desc = page.description -%}
+{%- elsif page.layout == "commands" -%}
+  {%- assign desc = t.commands.intro | replace: "%bin%", r.bin | replace: "%version%", r.version -%}
+{%- elsif page.lang == site.default_lang -%}
+  {%- assign desc = r.description -%}
+{%- else -%}
+  {%- assign intro_text = r.intro[page.lang].markdown | markdownify | strip_html | normalize_whitespace -%}
+  {%- assign desc = intro_text | split: ". " | first | strip -%}
+  {%- if desc.size > 160 -%}
+    {%- assign words = desc | truncate: 154, "" | split: " " | pop -%}
+    {%- assign last_word = words | last -%}
+    {%- if last_word == "–" or last_word == "-" -%}{%- assign words = words | pop -%}{%- endif -%}
+    {%- assign desc = words | join: " " | append: " …" -%}
+  {%- else -%}
+    {%- assign last_char = desc | slice: -1 -%}
+    {%- unless last_char == "." -%}{%- assign desc = desc | append: "." -%}{%- endunless -%}
+  {%- endif -%}
+{%- endif -%}
+{%- assign desc = desc | strip_html | normalize_whitespace -%}
+{%- assign image = site.org_url | append: 'assets/img/social-' | append: page.lang | append: '.png' -%}
 <html lang="{{ page.lang }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% if page.title %}{{ page.title }} — {% endif %}{{ r.name }}</title>
-  <meta name="description" content="{{ page.description | default: r.description | strip_newlines | escape }}">
+  <title>{{ share_title | escape }}</title>
+  <meta name="description" content="{{ desc | escape }}">
+  {%- if page.robots %}
+  <meta name="robots" content="{{ page.robots }}">
+  {%- else %}
   <link rel="canonical" href="{{ page.url | absolute_url }}">
+  {%- endif %}
   {%- for alt in alternates %}
   <link rel="alternate" hreflang="{{ alt.lang }}" href="{{ alt.url | absolute_url }}">
   {%- if alt.lang == site.default_lang %}
   <link rel="alternate" hreflang="x-default" href="{{ alt.url | absolute_url }}">
   {%- endif %}
   {%- endfor %}
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230b5e8e'/><text x='16' y='22' font-family='monospace' font-size='15' font-weight='700' text-anchor='middle' fill='white'>&gt;_</text></svg>">
+  <link rel="icon" href="{{ site.org_url }}favicon.ico" sizes="32x32">
+  <link rel="icon" href="{{ site.org_url }}favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="{{ site.org_url }}apple-touch-icon.png">
+  <meta property="og:site_name" content="{{ r.name }}">
+  <meta property="og:title" content="{{ share_title | escape }}">
+  <meta property="og:description" content="{{ desc | escape }}">
+  <meta property="og:url" content="{{ page.url | absolute_url }}">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="{{ t.meta.locale }}">
+  {%- for alt in alternates %}
+  {%- unless alt.lang == page.lang %}
+  <meta property="og:locale:alternate" content="{{ site.data.i18n[alt.lang].meta.locale }}">
+  {%- endunless %}
+  {%- endfor %}
+  <meta property="og:image" content="{{ image }}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="{{ t.meta.image_alt | escape }}">
+  <meta name="twitter:card" content="summary_large_image">
+  {%- include structured-data.html %}
   {%- assign sheets = "tokens,base,theme,utilities,card,badge" | split: "," %}
   {%- for sheet in sheets %}
   <link rel="stylesheet" href="{{ '/assets/vendor/fylgja/' | append: sheet | append: '.css' | relative_url }}">
