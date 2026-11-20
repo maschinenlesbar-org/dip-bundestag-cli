@@ -14,6 +14,7 @@ import {
   DRUCKSACHEN_20_6875,
   DRUCKSACHEN_KLIMASCHUTZ_WP21,
   PERSON_1502,
+  PERSON_224,
   PERSONEN_BAERBOCK_WP21,
   PERSONEN_SCHMIDT_WP21,
   PLENARPROTOKOLLE_20_120,
@@ -262,6 +263,14 @@ test("profileMember: a minister has no Fraktion in DIP, and the note says why; a
   assert.deepEqual(answer.person.ministries, ["Auswärtiges Amt"]);
   const unknown = await profileMember(client(dip({})), { id: "1" });
   assert.equal(unknown.status, "empty");
+});
+
+test("profileMember: a role the record names nothing for says so, rather than an empty entry", async () => {
+  const answer = await profileMember(client(dip({ "person/224": PERSON_224 })), { id: 224 });
+  if (answer.status !== "ok") return assert.fail(answer.status);
+  assert.deepEqual(answer.earlierRoles[0], { terms: [21], note: "The record names no ministry, Fraktion or office for this role: what it was is not in DIP's data." });
+  assert.equal(answer.earlierRoles[1]?.ministry, "Bundesministerium für Ernährung und Landwirtschaft");
+  assert.equal(answer.earlierRoles[1]?.note, undefined);
 });
 
 // ---- readDocument

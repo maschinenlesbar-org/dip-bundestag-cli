@@ -540,6 +540,8 @@ export interface MemberRole {
   /** The name held then, when it differs from today's. */
   name?: string;
   nameSuffix?: string;
+  /** Said when the record names nothing the role was. */
+  note?: string;
 }
 
 /** One activity of a person (`aktivitaet`). */
@@ -627,7 +629,7 @@ function profileOf(raw: JsonObject): MemberProfile {
 
 function roleOf(raw: JsonObject, current: string): MemberRole {
   const name = [text(raw, "vorname"), text(raw, "namenszusatz"), text(raw, "nachname")].filter(Boolean).join(" ");
-  return defined({
+  const role = defined({
     terms: strings(raw, "wahlperiode_nummer").map(Number),
     parliamentaryGroup: text(raw, "fraktion"),
     ministry: text(raw, "ressort_titel"),
@@ -636,6 +638,12 @@ function roleOf(raw: JsonObject, current: string): MemberRole {
     name: name !== "" && name !== current ? name : undefined,
     nameSuffix: text(raw, "wahlkreiszusatz"),
   }) as MemberRole;
+  // DIP has roles with a name and terms only (Julia Klöckner's in WP 21): the record doesn't say
+  // what the role was, and the answer says so rather than giving an empty entry.
+  if (role.parliamentaryGroup === undefined && role.ministry === undefined && role.office === undefined && role.state === undefined) {
+    role.note = "The record names no ministry, Fraktion or office for this role: what it was is not in DIP's data.";
+  }
+  return role;
 }
 
 function activityOf(raw: JsonObject): MemberActivity {
