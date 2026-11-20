@@ -40,6 +40,64 @@ Check it works:
 dip --help
 ```
 
+## Docker
+
+From 0.10.0 every release is also a container image for linux/amd64 and linux/arm64 on the
+GitHub Container Registry, made from the same tarball as the npm package. It needs no Node.js and no
+install. Pass the key through the environment (the image has no credentials file):
+
+```bash
+docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
+  -e DIP_API_KEY ghcr.io/maschinenlesbar-org/dip-bundestag-cli:latest vorgang get 298723
+```
+
+The image's entrypoint is the program, so the command follows the image name directly;
+`… dip-bundestag-cli:latest dip vorgang get …` works too. `obtain-key` works in the image as well:
+`DIP_API_KEY=$(docker run --rm ghcr.io/maschinenlesbar-org/dip-bundestag-cli:latest obtain-key)`.
+
+In a container with a memory limit (`--memory`) the default `--max-response-bytes` is an eighth
+of that limit (at most the usual 100 MiB), so an oversized answer is refused with a clear
+error instead of the container being killed for memory. The CLI needs at least 12 processes and
+threads (`--pids-limit 12`): below that it refuses with an error, and with 4 or fewer Node.js
+itself hangs before the CLI can check.
+
+`latest` is the newest release. For scripts, name a release and pin its digest, which the
+[release notes](https://github.com/maschinenlesbar-org/dip-bundestag-cli/releases) give:
+`…/dip-bundestag-cli:0.10.0@sha256:<digest>`. Each image carries signed build provenance;
+check it with
+
+```bash
+gh attestation verify oci://ghcr.io/maschinenlesbar-org/dip-bundestag-cli:latest \
+  --repo maschinenlesbar-org/dip-bundestag-cli
+```
+
+## MCP server
+
+From 0.10.0 DIP is also an [MCP](https://modelcontextprotocol.io/) server for AI agents,
+`@maschinenlesbar.org/dip-bundestag-mcp` (command `dip-mcp`, image
+`ghcr.io/maschinenlesbar-org/dip-bundestag-mcp`): five read-only tools, to track a legislative
+procedure end to end (its steps in Bundestag and Bundesrat, the votes, the committees), profile a
+member or another person (current function and Fraktion, earlier roles, activities), read a
+Drucksache or Plenarprotokoll in passages or find the passages of an agenda item, and search or
+get any record with DIP's filters, on stdio or Streamable HTTP. The tools handle the skills'
+traps: the title filter matches whole words only and a law's popular name is often not in its
+title; several matches are reported, never picked; a referral or a procedural motion is not a
+vote, and only promulgation means enacted; names match only in full; a sitting's protocol is the
+whole day; the heavy text endpoint is never listed. The server finds the key by itself:
+`DIP_API_KEY`, else the key stored with `dip config set api-key`, else the published public key,
+obtained at the first call and verified against the live API (never bundled). Setup for Claude
+Code, Claude Desktop and VS Code:
+[MCP.md](https://github.com/maschinenlesbar-org/dip-bundestag-cli/blob/main/MCP.md).
+
+```bash
+npm i -g @maschinenlesbar.org/dip-bundestag-mcp
+claude mcp add dip -- dip-mcp
+```
+
+Every result carries the Bundestag's terms for DIP: the source "Deutscher Bundestag – DIP",
+documents cited by type and number and left unaltered; running the server as a service for others
+may need the Bundestag's permission.
+
 ## API key
 
 **DIP requires an API key** — it is not bundled. The Bundestag publishes a public
@@ -409,6 +467,7 @@ last one wins"; only `--filter` and `--id` of `list` repeat (an OR set).
 - **[Usage.md](https://github.com/maschinenlesbar-org/dip-bundestag-cli/blob/main/Usage.md)** — full use-case-driven cookbook.
 - **[GLOSSARY.md](https://github.com/maschinenlesbar-org/dip-bundestag-cli/blob/main/GLOSSARY.md)** — every domain term and filter explained.
 - **[DEVELOPING.md](https://github.com/maschinenlesbar-org/dip-bundestag-cli/blob/main/DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
+- **[MCP.md](https://github.com/maschinenlesbar-org/dip-bundestag-cli/blob/main/MCP.md)** — the MCP server: tools, setup, the API key.
 
 ## Data license
 

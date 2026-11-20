@@ -95,8 +95,10 @@ returns `401`. Precedence is **`--api-key` > `DIP_API_KEY` > the credentials
 file > none**; no key is bundled, so without one supplied the `Authorization` header
 is omitted entirely and requests return `401`.
 
-The credentials file is the CLI's, not the library's: `apps/cli/src/cli/credentials.ts`
-(`CredentialStore`, the same mechanism as openka-cli's `ka config`) and `dip config`
+The credentials file is written by the CLI only; its store lives with the client as an internal
+module, so the MCP server can read it too: `packages/client/src/credentials.ts` (`CredentialStore`,
+the same mechanism as openka-cli's `ka config`, not part of the library's public surface;
+`apps/cli/src/cli/credentials.ts` re-exports it) and `dip config`
 (`apps/cli/src/cli/commands/config.ts`). It reaches the CLI through `CliDeps.credentials`, which
 only `defaultDeps` sets, so a test that does not ask for one never reads the user's
 file; `action()` (`apps/cli/src/cli/shared.ts`) reads it only when neither the flag nor the env
@@ -199,13 +201,17 @@ apps/cli/            # @maschinenlesbar.org/dip-bundestag-cli — the published 
   test/              # CLI tests and every conformance-*.test.ts
 packages/client/     # @maschinenlesbar.org/dip-bundestag-client — private, shipped inside the CLI's tarball
   src/               # the API client (below)
-  test/              # tests that only touch the client, + the transport helpers
+  test/              # tests that only touch the client, + the transport helpers and fixtures (recorded.ts: recorded answers)
+apps/mcp/            # @maschinenlesbar.org/dip-bundestag-mcp — the MCP server, released with the CLI
+packages/log/        # the log records (text/jsonl), shared by both apps
+tools/image/         # the container images of both apps (build, push, smoke, SBOM)
+tools/interop/       # the built MCP server against the official MCP client (own lockfile)
 tools/pack/          # prepack/postpack: ship the client (dist/node_modules) and commander in the tarball
-tools/bump.mjs       # version bump + commit + tag (npm run bump)
+tools/bump.mjs       # version bump + commit + tag of every published app (npm run bump)
 tsconfig.docs.json   # TypeDoc only: the package entry, with the client read from its sources
 ```
 
-- **The client is its own package** so a later MCP app can share it with the CLI. It is
+- **The client is its own package** so the MCP app shares it with the CLI. It is
   never published on its own: `apps/cli`'s `prepack` copies it into
   `apps/cli/dist/node_modules/`, where the CLI's imports find it, and the tarball ships it
   as plain files — so npm lists only commander (bundled) as a dependency, never the
@@ -219,11 +225,12 @@ tsconfig.docs.json   # TypeDoc only: the package entry, with the client read fro
   tests (not bundled). Only `"."` is part of the library.
 - **Dependencies point one way:** the app depends on the client, the client on nothing
   in the workspace. `obtain-key` is split the same way: reading and verifying the key
-  (`obtainKey`) is the client's, the `dip obtain-key` command, `dip config` and the
-  credentials file are the CLI's.
-- **The version lives in `apps/cli/package.json`.** The root has none; a plain
-  `npm version` at the root is refused. Release with `npm run bump -- <patch|minor|major>`,
-  which bumps the app, commits (the bare version as the message) and tags `vX.Y.Z`.
+  (`obtainKey`) and the credentials file's store are the client's, which both apps use; the
+  `dip obtain-key` and `dip config` commands are the CLI's.
+- **The version lives in `apps/cli/package.json`** (and, the same, in `apps/mcp/package.json`).
+  The root has none; a plain `npm version` at the root is refused. Release with
+  `npm run bump -- <patch|minor|major>`, which bumps every published app together, commits (the
+  bare version as the message) and tags `vX.Y.Z`.
 - **TypeScript:** `tsconfig.base.json` holds the compiler options; every workspace has a
   `tsconfig.json` (`src/`) and a `tsconfig.test.json` (`test/`), and the root
   `tsconfig.json`/`tsconfig.test.json` reference them, built with `tsc -b`.
@@ -240,10 +247,15 @@ packages/client/src/
     engine.ts    # URL building, retry/backoff, redirects, default headers (auth), decoding, errors
     errors.ts    # DipError / DipApiError / DipNetworkError / DipParseError / DipUsageError / DipValidationError
     client.ts    # DipClient — one generic ResourceGroup per resource (injects Authorization)
+    obtain-key.ts # obtainKey(): reads the published key and verifies it against the live API
+    credentials.ts # CredentialStore — the credentials file behind `dip config` (internal)
+    operations.ts # the skills' use cases: trackProcedure / profileMember / readDocument, listRecords / getRecord
     index.ts     # the client's public surface (the library entry re-exports it)
 apps/cli/src/cli/
     io.ts        # injectable I/O seam (stdout/stderr/file), the logger and the clock
     log.ts       # the stderr log: records with ts, level, topic; --log-format text|jsonl
+    credentials.ts # re-exports the client's CredentialStore
+    limits.ts    # the container's cgroup limits (memory -> response cap, pids)
     shared.ts    # option parsers, global-option resolver (incl. --api-key), JSON renderer
     commands/    # the eight resource command groups (list / get)
     program.ts   # assembles the commander program from injectable deps
@@ -676,9 +688,12 @@ bin, 30 s).
 
 GitHub Actions workflows under `.github/workflows/`:
 
-- **ci.yml** — type-check, build and test on Node 22/24/26 for every push and PR; then pack the
-  real tarball, check the pack left nothing behind, install it globally with the registry out
-  of reach and run the bin.
+- **ci.yml** — type-check, build and test on Node 22/24/26 for every push and PR; then pack each
+  published app (the CLI and the MCP server), check the pack left nothing behind, install it
+  globally with the registry out of reach and run its bins; its `interop` job runs the MCP server
+  against the official client.
+- **images.yml** — builds, smoke-tests and scans both container images on every push and weekly
+  (see [Container image](#container-image)).
 - **release.yml** — on a `v*` tag (made by `npm run bump`), three jobs, so no third-party code
   shares a job with the tarball or the write token: `pack` (contents: read) verifies the tag
   matches `apps/cli/package.json`, writes the changelog, tests, runs
@@ -690,14 +705,128 @@ GitHub Actions workflows under `.github/workflows/`:
   the SBOM tool, change its version in `tools/sbom/package.json` and run
   `npm install --package-lock-only --ignore-scripts` there; don't chain that install into an
   npm script (the `tools/docs` rule).
-- **publish.yml** — manual dispatch from the release tag (`gh workflow run publish.yml --ref vX.Y.Z`; the version is the tag's): `npm publish --workspace apps/cli` via OIDC **Trusted
-  Publishing** (no stored `NPM_TOKEN`) with provenance.
+  The release also carries both apps' tarballs, both image archives, their SBOMs, `SHA256SUMS`
+  and signed provenance (P32 checks the image pipeline).
+- **publish.yml** — manual dispatch from the release tag (`gh workflow run publish.yml --ref vX.Y.Z`; the version is the tag's): publishes the release's own files, each checked first
+  against the immutable release and the provenance `release.yml` signed: both tarballs to npm via
+  OIDC **Trusted Publishing** (no stored `NPM_TOKEN`) with provenance, and both images to ghcr.io.
 - **docs.yml** — build the project website (`site/`, English and German) with the TypeDoc API docs
   under `/api/`, and deploy both to GitHub Pages on each `v*`
   tag.
   TypeDoc runs from the isolated, lockfile-pinned `tools/docs/` toolchain because it
   needs the TypeScript 6 compiler API, which TypeScript 7 no longer ships; locally,
   run `npm ci --prefix tools/docs` once before `npm run docs`.
+
+## MCP server (apps/mcp)
+
+`apps/mcp` is the second published app, `@maschinenlesbar.org/dip-bundestag-mcp` (bin `dip-mcp`),
+released in lockstep with the CLI: `npm run bump` bumps every published app under `apps/`
+together, one version, one tag. Its npm README is the root `MCP.md` (prepack packs `<APP>.md` for
+an app that has one).
+
+**The API key.** The kit's credentials hook (`apps/mcp/src/mcp/credentials.ts`) asks `api.ts`'s
+`findCredentials` once, at the first tool call that needs the client, and builds the client with
+what it returns. `findCredentials` takes `DIP_API_KEY` from the server's environment (checked with
+`apiKeyProblem`), else (only when the server runs from its bin, never in a test) the `api-key` of
+the credentials file through the client's `CredentialStore.usable` (a stored value the CLI would
+refuse is an error naming the file and the fix, never skipped), else the published key through
+the client's `obtainKey` **with its verification** (as `dip obtain-key`: the help document, then
+the README it falls back to, each candidate tried against `GET /api/v1/vorgang` until DIP accepts
+one), over the server's limited transport and inside the call's deadline; a failure there says how
+to set the key instead (the CLI's `--no-verify` hint is taken out). A lookup that fails is tried
+again at the next call. Not at start: the handshake, the tool list, the image's smoke test and the
+tests that start the bin need neither the network nor a credentials file. One INFO record of
+`dip-mcp.config` names the source, never the key; every form of the key is a secret from then on,
+replaced with `***` in every record the server logs (`redactingLog`), every result
+(`Secrets.redactAll`) and every error message. The server has no option for the key (argv shows in
+`ps`), and HTTP needs no authentication for the public key. A 401 is a tool error that says the
+Bundestag renews its public key and how to get the current one (`withKeyHint` in `tools.ts`); the
+server does not obtain a new key by itself while it runs (a restart does). The verification always
+asks DIP's own host, also under `--base-url` (the credential context carries no base URL).
+
+| Module | Role |
+|---|---|
+| `packages/client/src/operations.ts` | The skills' use cases as library functions, with their traps built in. `trackProcedure`: a Vorgang by id or whole words of its title (one is tracked, several `ambiguous`, laws first, then newest; a note when only questions match: the popular name is often not in the title), its positions read with `f.vorgang` page after page with the same filter (`collect`), sorted oldest first; each decision classified by `decisionKind` (vote only for an adoption or rejection in the 2./3. Beratung; referral, procedural, opinion, bundesrat, resolution, other); `votes`, the lead committees per chamber, `enacted` only from `verkuendung`/`inkrafttreten`; the abstract without HTML (`plainText`). `profileMember`: by id, or by name (the surname sent as `f.person`, the people holding every given word kept, academic titles and "Last, First" handled; a name `f.person` misses looked for in the term's whole list), the top-level state, `person_roles` as earlier roles (a ministry, no role title), a note when a non-MdB has no Fraktion, the activities of a term on request. `readDocument`: by id (text endpoint at once), number or title (metadata endpoint first, never a list of the `-text` endpoint; several `ambiguous`, newest first), the text in verbatim passages of at most 1500 characters cut at line ends (`splitPassages`), `find` across line breaks and line-end hyphenation, the citation (`BT-Drs.`, `BT-PlPr.`, `BR-…`), a note to read the PDF when no text is extracted, the whole-sitting note for a Plenarprotokoll. `listRecords`/`getRecord`: the six metadata resources, filters checked against `LIST_FILTERS`, `f.aktualisiert.*` sent as date and time and `f.datum.*` as a date, read in pages of 100 behind an offset (at most `maxPages`), a 404 as `empty`. Public API of both packages. |
+| `packages/log` | The log records (text/jsonl), shared by both apps; `createLogger({ program })`. |
+| `src/mcp/tools.ts` | This repo's: the five tools (flat input schemas with limits, no root combinators; one object output schema each; descriptions under 2000 characters), the instructions, the licence (the Bundestag's "Nutzungsbedingungen für DIP" in short with the link), the hints the server's messages give, `withKeyHint`. `readDocument` pages its passages and `searchRecords` its records (offset, limit, `nextOffset`). |
+| `src/mcp/api.ts` | This repo's: how the kit reaches the client (`DipClient` as `Client`, `DipError` as `ClientError`, `DipNetworkError` as `NetworkError`, `apiBase` with `/api/v1`) and `findCredentials` (the key, above). |
+| `src/mcp/credentials.ts` | The kit's credentials hook: `findCredentials` read from `api.ts` when it exports one, `Secrets` (the values never shown), `redactingLog`. |
+| `src/mcp/server.ts` | The McpServer factory (the client built at the first call once the credentials are found), the tool types, `callTool`: deadline (`--call-timeout`) plus the client's cancellation, cleaned, redacted and fitted answers, failures as `isError` results. |
+| `src/mcp/result.ts` | `cleanStrings` (control, bidi, zero-width characters dropped in the value; strings cut at 2000 characters, hence the passages), `fitResult` (whole list entries dropped under `--max-result-chars`, `nextOffset`). |
+| `src/mcp/limiter.ts` | One per process around the upstream transport: 2 in flight, 120 a minute, pause on 429, a bounded queue. DIP documents no request limit; its terms say overloading can get a key blocked. |
+| `src/mcp/http.ts` | node:http adapter for the SDK's `createMcpHandler`: POST /mcp, /healthz, Host and Origin checks (the SDK does neither), 1 MiB body, 8 requests at once, timeouts. |
+| `src/mcp/config.ts`, `run.ts`, `index.ts` | Options (`node:util` parseArgs), argv -> exit code, the bin (console into log records, SIGINT/SIGTERM, stdin's end; the environment and the credentials file for the key, from here only). |
+
+The protocol is the SDK's: `@modelcontextprotocol/server` 2.4.0, bundled with its core and zod
+(prepack). It serves the 2026-07-28 revision and the 2025 handshake (2025-11-25, 2025-06-18)
+statelessly, on stdio (`serveStdio`) and HTTP. The SDK bundles AJV 8.18 into its own code to
+validate tool arguments against the input schemas; an SBOM doesn't list that copy.
+
+**The kit.** Everything in `apps/mcp` but `tools.ts`, `api.ts`, `test/helpers.ts`,
+`test/tools.test.ts` and the conformance tests' adapter blocks, plus `packages/log`,
+`apps/cli/src/cli/limits.ts`, `tools/image/` (but `smoke.json`), `tools/interop/` (but
+`interop.json`), `tools/bump.mjs`, `tools/pack/` and the workflows `ci.yml`, `images.yml`,
+`release.yml` and `publish.yml`, is the kit of `create-cli-template` (in the api-cli workspace),
+the same in every repository with an MCP server: a fix lands there first and comes here with
+`npm run sync-kit -- ../dip-bundestag-cli` (run in create-cli-template; `--check` lists the drift).
+
+Tests (`apps/mcp/test`) run in-process over the SDK's InMemoryTransport with raw JSON-RPC (the
+kit's `harness.ts`, which gives every server `helpers.ts`'s `TEST_ENV`, a test key, unless a test
+passes its own environment: no test reads a credentials file or obtains a key over the network).
+The rules every server follows are the shared conformance tests `conformance-m1-…` to
+`conformance-m11-…`, each with an adapter block naming this repo's calls and mock answers; M11
+covers the key: nothing looked up before the first call, the environment's key sent with one
+INFO record, the key never in a record, a result or an error even when the upstream echoes it,
+the published key obtained once (from a document shaped like DIP's help document, a value in DIP's
+key format, verified against a list answer) and tried again after a failure. `tools.test.ts` holds
+this server's own, among them that a published candidate DIP refuses (401) is never used. The mock
+(`dipApi` in `helpers.ts`) answers DIP's paths with the client's `test/recorded.ts`: Vorgang 298723
+(the Gebäudeenergiegesetz) and its 25 positions, the title search "Heizungsgesetz" in WP 20 (8
+procedures, one law), Baerbock (search and record), the 9 people named Schmidt in WP 21 (Jan
+Wenzel Schmidt twice), Baerbock's activities in WP 21, Drucksache 20/6875 (metadata, and its text
+cut to 12000 characters), Plenarprotokoll 20/120 and the 33 papers titled Klimaschutz in WP 21,
+recorded on 2026-11-20; the operation tests (`packages/client/test/operations.test.ts`) add the
+traps' variants (paging with the filter on every cursor and the page limit, only questions
+matching, names in other orders and with titles, a name found only in the term's list, a minister
+without Fraktion, `find` across line-end hyphenation, a document without text, the date filters'
+forms, unknown filters). `tools/interop/` checks the built server against the official client
+2.4.0 (stdio and HTTP; legacy, auto and pinned 2026-07-28) in ci.yml's `interop` job, with its own
+lockfile; `interop.json` gives both servers a test key (`env`) and answers Vorgang 298723 with its
+positions, person 1502 and Drucksache 20/6875.
+
+## Container image
+
+`tools/image/` builds both apps' images (Dockerfile targets `cli` and `mcp`) from their release
+tarballs (`npm pack` output), never from source: `ADD` unpacks it onto distroless Node 24 (Debian
+13, `nonroot`, uid 65532), so the image holds exactly the files npm users get. The base,
+BuildKit, the test registry, skopeo (local runs only), syft and grype are pinned in `pins.json`;
+bump them in the deps round. A Node or Debian security fix reaches the image only through a new
+base digest, so it means a patch release.
+
+| Script | What it does |
+|---|---|
+| `build.mjs` | Multi-arch OCI archive (amd64, arm64), reproducible: no provenance or SBOM attestation, timestamps from `SOURCE_DATE_EPOCH` (default: the HEAD commit's time). Two builds give the same index digest; compare index digests, not files. |
+| `push.mjs` | Copies the archive to a registry with skopeo (`--all --preserve-digests`) and checks the digest the registry serves. Used for the local test registry and for ghcr.io. |
+| `smoke.mjs` | Runs the image read-only, without capabilities, as an arbitrary uid: `--version`, `--help`, a network error (exit 1, one ERROR record), one request to a mock upstream (`smoke.json`: `person get 1502` against the recorded answer; the mock asks for no key, so none is sent), and `docker stop`, which must end a waiting call with 143 in under 5 s. The MCP image's checks make no tool call, so the server looks up no key. |
+| `sbom.mjs` | One CycloneDX SBOM per platform with syft, and with `--gate true` grype over them: a fixable high or critical finding fails. Accepted findings go into `.grype.yaml` with a reason. CI only. |
+
+Locally (colima; the scripts never read your docker config, so no credential helper is asked;
+on macOS port 5000 is often taken by the AirPlay receiver, hence 5055):
+
+```bash
+export DOCKER_HOST=unix://$HOME/.colima/default/docker.sock
+npm pack --workspace apps/cli --pack-destination dist-artifacts
+node tools/image/build.mjs --app cli --tarball dist-artifacts/<tarball>.tgz --out dist-artifacts/cli.oci.tar
+docker run -d -p 127.0.0.1:5055:5000 <registry pin from pins.json>
+node tools/image/push.mjs --archive dist-artifacts/cli.oci.tar --to 127.0.0.1:5055/dip-bundestag-cli:dev
+node tools/image/smoke.mjs --app cli --image 127.0.0.1:5055/dip-bundestag-cli@<index digest>
+```
+
+In CI: `images.yml` does all of it on every push and weekly, with the arm64 image smoke-tested on
+an arm64 runner and the vulnerability gate. In `release.yml` the job `image` builds from the
+checked tarball and records the archive's digest, `image-sbom` makes the SBOMs (no gate: the
+scanner's database changes daily), `attest` signs build provenance for the tarball, the archive
+and the image index, and the release attaches the archive, the image SBOMs and `SHA256SUMS`.
 
 ## Website
 
