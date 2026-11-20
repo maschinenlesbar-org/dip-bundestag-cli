@@ -1,0 +1,18 @@
+{
+  "name": "@maschinenlesbar.org/dip-bundestag-log",
+  "version": "0.0.1",
+  "private": true,
+  "description": "The log records the apps write on stderr (text or jsonl), shared by the CLI and the MCP server.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/src"
+  ],
+  "license": "AGPL-3.0-or-later"
+}

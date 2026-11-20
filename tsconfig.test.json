@@ -6,6 +6,9 @@
     },
     {
       "path": "apps/cli/tsconfig.test.json"
+    },
+    {
+      "path": "apps/mcp/tsconfig.test.json"
     }
   ]
 }

@@ -1,0 +1,9 @@
+{
+  "name": "interop",
+  "private": true,
+  "description": "The official MCP client, to check the built MCP server against it (ci.yml's interop job). Its own lockfile, installed with npm ci --ignore-scripts --prefix tools/interop: never part of the workspace, the release or the publish runs.",
+  "type": "module",
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.4.0"
+  }
+}

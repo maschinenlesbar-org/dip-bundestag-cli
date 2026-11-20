@@ -1,0 +1,61 @@
+{
+  "name": "@maschinenlesbar.org/dip-bundestag-mcp",
+  "version": "0.9.0",
+  "description": "MCP server for the Bundestag's DIP (Dokumentations- und Informationssystem für Parlamentsmaterialien): legislative procedures end to end, member dossiers and the full text of Drucksachen and Plenarprotokolle, for AI agents (stdio and Streamable HTTP)",
+  "type": "module",
+  "bin": {
+    "dip-mcp": "dist/src/mcp/index.js"
+  },
+  "files": [
+    "dist/src",
+    "dist/node_modules",
+    "!dist/src/**/*.map",
+    "LICENSING.md",
+    "DATA_LICENSE.md",
+    "CONTRIBUTING.md"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "prepack": "tsc -b ../../tsconfig.json && node ../../tools/pack/prepack.mjs",
+    "postpack": "node ../../tools/pack/postpack.mjs",
+    "test": "node --test $(node -p \"+process.versions.node.split('.')[0] >= 24 ? '--test-timeout=5000' : ''\") dist/test/*.test.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "dip-bundestag",
+    "bundestag",
+    "parlament",
+    "parliament",
+    "drucksachen",
+    "germany"
+  ],
+  "author": "Sebastian Schürmann <sebs@2xs.org>",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/maschinenlesbar-org/dip-bundestag-cli.git",
+    "directory": "apps/mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/maschinenlesbar-org/dip-bundestag-cli/issues"
+  },
+  "homepage": "https://maschinenlesbar.org/dip-bundestag-cli/",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/sebs"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.4.0"
+  },
+  "bundleDependencies": [
+    "@modelcontextprotocol/server",
+    "@modelcontextprotocol/core",
+    "zod"
+  ]
+}

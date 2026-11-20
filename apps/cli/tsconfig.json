@@ -10,6 +10,9 @@
   "references": [
     {
       "path": "../../packages/client"
+    },
+    {
+      "path": "../../packages/log"
     }
   ]
 }

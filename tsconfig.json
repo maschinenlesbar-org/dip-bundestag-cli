@@ -5,7 +5,13 @@
       "path": "packages/client"
     },
     {
+      "path": "packages/log"
+    },
+    {
       "path": "apps/cli"
+    },
+    {
+      "path": "apps/mcp"
     }
   ]
 }

@@ -1,0 +1,1757 @@
+{
+ "comment": "What tools/interop/interop.mjs needs that is particular to this repo: the environment both servers get (a test key, so neither reads a credentials file nor obtains the key over the network), the mock upstream answer per path (under --base-url http://127.0.0.1:<port>; recorded live on 2026-11-20, the document text cut to its first 4000 characters), how many tools the server lists, and the calls to make with what each must answer.",
+ "env": {
+  "DIP_API_KEY": "interop-test-key"
+ },
+ "answers": {
+  "/api/v1/vorgang/298723": {
+   "id": "298723",
+   "abstract": "Beschleunigung der Wärmewende im Gebäudeenergiebereich zwecks Treibhausgasneutralität im Jahr 2045 und Reduktion der Abhängigkeit von Importen fossiler Energie durch Pflicht zur Nutzung von mindestens 65 Prozent erneuerbaren Energien bei neuen Heizungen ab 1. Januar 2024; Erfüllungsoptionen: Anschluss an ein Wärmenetz, Einbau einer elektrischen Wärmepumpe, Stromdirektheizung, solarthermischen Anlage, Wärmepumpen-Hybridheizung oder Heizungsanlage auf Basis von grünem oder blauem Wasserstoff oder Wasserstoffderivaten, Biomasseheizung nur in Bestandsgebäuden; Übergangsfristen bei Heizungshavarie, geplantem Anschluss an ein Wärmenetz und Umstellung von Etagenheizungen oder Einzelraumfeuerungsanlagen; Zulassung von Härtefällen; begleitende Maßnahmen zur Effizienz im Heizungsbetrieb in Mehrfamilienhäusern: Betriebsprüfung von Wärmepumpen, Heizungsprüfung und Heizungsoptimierung, Pflicht zum Pumpentausch sowie zur Durchführung eines hydraulischen Abgleichs; Ende des fossilen Heizungsbetriebs bis spätestens zum 31. Dezember 2044; Regelungen zum Mieterschutz; Umsetzung einzelner Vorgaben der Gebäudeeffizienz-Richtlinie und der Erneuerbare-Energien-Richtlinie;<br />\r\nEinfügung, Aufhebung und Änderung zahlreicher §§ Gebäudeenergiegesetz (GEG), Änderung § 11 Verordnung über Heizkostenabrechnung sowie Anlagen 2 und 3 Kehr- und Überprüfungsordnung; Verordnungsermächtigung<br />\r\n<br />\r\nBezug: Vereinbarung im Koalitionsvertrag zum Klimaschutz im Gebäudebereich<br />\r\nRichtlinie 2010/31/EU vom 19. Mai 2010 über die Gesamtenergieeffizienz von Gebäuden (Gebäudeeffizienz-Richtlinie) (ABl. L 153, 18.6.2010, S. 13 ; ABl. L 249, 04.10.2018, S. 19) ; Richtlinie (EU) 2018/2001 vom 11. Dezember 2018 zur Förderung der Nutzung von Energie aus erneuerbaren Quellen (Erneuerbare-Energien-Richtlinie) (ABl. L 328, 21.12.2018, S. 82)<br />\r\n<br />\r\n<strong>Beschlussempfehlung des Ausschusses: </strong>Titeländerung (eingebracht als: Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung der Heizkostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung); Verzahnung der Regelungen zur Gebäudeenergie mit kommunaler Wärmeplanung inklusive Übergangsregelungen betr. Geltung der GEG-Regelungen für Neubauten ab dem Jahr 2024 und Bestandsbauten erst ab 30. Juni 2026 (in Gemeinden mit mehr als 100.000 Einwohnern) bzw. ab 30. Juni 2028 (in Gemeinden mit bis zu 100.000 Einwohnern) im Falle ausbleibender kommunaler Wärmeplanung, Wärmeerzeugung aus Biomasse oder Wasserstoff für ab 2024 eingebaute Öl- oder Gasheizungen ab dem Jahr 2029 zu mindestens 15 Prozent, ab 2035 zu mindestens 30 Prozent sowie ab 2040 zu mindestens 60 Prozent, Beratungspflicht vor Neueinbau von Heizungen für feste, flüssige oder gasförmige Brennstoffe, Modernisierungsmieterhöhung um maximal 10 Prozent der Kosten mit Kappungsgrenze von 50 Cent pro Quadratmeter, Aufnahme weiterer Regelungen zur Nutzung von Biomasse im Neubau, Solarthermie-Hybridheizungen, Holz- und Pelletheizungen sowie Quartieren (verbundene Gebäude); Annahme einer Entschließung insbes. zum Förderkonzept und zur Wärmeplanung;<br />\r\nZusätzliche und erneute Änderung zahlr. §§ Gebäudeenergiegesetz, Änderung §§ 555b, 557b, 559 und 559c sowie Einfügung § 559e Bürgerliches Gesetzbuch, zusätzliche Änderung §§ 7, 9 und 12 sowie erneute Änderung § 11 Verordnung über Heizkostenabrechnung, Änderung § 2 Betriebskostenverordnung, erneute Änderung Anlage 3 Kehr- und Überprüfungsordnung",
+   "beratungsstand": "Verkündet",
+   "vorgangstyp": "Gesetzgebung",
+   "gesta": "E033",
+   "archiv": "XX/165",
+   "sachgebiet": [
+    "Energie",
+    "Raumordnung, Bau- und Wohnungswesen"
+   ],
+   "typ": "Vorgang",
+   "wahlperiode": 20,
+   "zustimmungsbeduerftigkeit": [
+    "Nein, laut Gesetzentwurf (Drs 170/23)",
+    "Nein, laut Verkündung (BGBl I)"
+   ],
+   "initiative": [
+    "Bundesregierung"
+   ],
+   "aktualisiert": "2024-06-05T14:39:05+02:00",
+   "vorgang_verlinkung": [
+    {
+     "verweisung": "Entschließungsantrag der Fraktion der AfD",
+     "titel": "Entschließungsantrag zum Gesetzentwurf zur Änderung des Gebäudeenergiegesetzes, zur Änderung der Heizkostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung",
+     "id": "303107",
+     "wahlperiode": 20
+    },
+    {
+     "verweisung": "Entschließungsantrag der Fraktion DIE LINKE",
+     "titel": "Entschließungsantrag zum Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung der Heizkostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung",
+     "id": "301536",
+     "wahlperiode": 20
+    },
+    {
+     "verweisung": "Organstreitverfahren vor dem Bundesverfassungsgericht",
+     "titel": "Beschlussempfehlung und Bericht des Rechtsausschusses (6. Ausschuss) zu dem Streitverfahren vor dem Bundesverfassungsgericht 2 BvE 4/23",
+     "id": "301520",
+     "wahlperiode": 20
+    }
+   ],
+   "verkuendung": [
+    {
+     "jahrgang": "2023",
+     "heftnummer": "280",
+     "ausfertigungsdatum": "2023-10-16",
+     "verkuendungsdatum": "2023-10-19",
+     "einleitungstext": "Gesetz",
+     "pdf_url": "https://www.recht.bund.de/eli/bund/BGBl_1/2023/280",
+     "verkuendungsblatt_bezeichnung": "Bundesgesetzblatt Teil I",
+     "verkuendungsblatt_kuerzel": "BGBl I",
+     "fundstelle": "BGBl I 2023, 280"
+    }
+   ],
+   "inkrafttreten": [
+    {
+     "datum": "2023-10-01",
+     "erlaeuterung": "Artikel 1 Nr. 22 sowie Artikel 3"
+    },
+    {
+     "datum": "2024-01-01",
+     "erlaeuterung": "im Übrigen"
+    }
+   ],
+   "deskriptor": [
+    {
+     "fundstelle": true,
+     "name": "Betriebskostenverordnung",
+     "typ": "Rechtsmaterialien"
+    },
+    {
+     "fundstelle": false,
+     "name": "Bioenergie",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": false,
+     "name": "Biomasse",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": true,
+     "name": "Bürgerliches Gesetzbuch",
+     "typ": "Rechtsmaterialien"
+    },
+    {
+     "fundstelle": false,
+     "name": "Energieberatung",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": false,
+     "name": "Energieeinsparung",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": true,
+     "name": "Erneuerbare Energie",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": false,
+     "name": "Feuerungsanlage",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": false,
+     "name": "Fossiler Energieträger",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": false,
+     "name": "Gebäudeenergieeffizienz",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": true,
+     "name": "Gebäudeenergiegesetz",
+     "typ": "Rechtsmaterialien"
+    },
+    {
+     "fundstelle": false,
+     "name": "Gesetzesfolgenabschätzung",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": false,
+     "name": "Heizkosten",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": true,
+     "name": "Heizung",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": false,
+     "name": "Härtefall",
+     "typ": "Freier Deskriptor"
+    },
+    {
+     "fundstelle": false,
+     "name": "Innerstaatliche Umsetzung von EU-Recht",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": true,
+     "name": "Kehr- und Überprüfungsordnung",
+     "typ": "Rechtsmaterialien"
+    },
+    {
+     "fundstelle": false,
+     "name": "Klimaneutralität",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": false,
+     "name": "Klimaschutz",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": false,
+     "name": "Kommunale Gebietskörperschaft",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": false,
+     "name": "Mieterschutz",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": false,
+     "name": "Mietnebenkosten",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": false,
+     "name": "Mietrecht",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": false,
+     "name": "Planung",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": false,
+     "name": "Richtlinie der EU",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": false,
+     "name": "Solarthermie",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": false,
+     "name": "Treibhausgas",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": true,
+     "name": "Verordnung über Heizkostenabrechnung",
+     "typ": "Rechtsmaterialien"
+    },
+    {
+     "fundstelle": false,
+     "name": "Wasserstoff",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": false,
+     "name": "Wärmepumpe",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": false,
+     "name": "Wärmetechnik",
+     "typ": "Sachbegriffe"
+    },
+    {
+     "fundstelle": true,
+     "name": "Wärmeversorgung",
+     "typ": "Sachbegriffe"
+    }
+   ],
+   "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+   "datum": "2023-09-29"
+  },
+  "/api/v1/vorgangsposition": {
+   "numFound": 25,
+   "documents": [
+    {
+     "id": "631253",
+     "vorgangsposition": "Gesetzentwurf",
+     "zuordnung": "BR",
+     "gang": true,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 0,
+     "dokumentart": "Drucksache",
+     "aktualisiert": "2023-10-19T16:10:04+02:00",
+     "urheber": [
+      {
+       "einbringer": false,
+       "bezeichnung": "BRg",
+       "titel": "Bundesregierung"
+      }
+     ],
+     "ueberweisung": [
+      {
+       "ausschuss": "Ausschuss für Städtebau, Wohnungswesen und Raumordnung",
+       "ausschuss_kuerzel": "Wo",
+       "federfuehrung": true
+      },
+      {
+       "ausschuss": "Ausschuss für Arbeit, Integration und Sozialpolitik",
+       "ausschuss_kuerzel": "AIS",
+       "federfuehrung": false
+      },
+      {
+       "ausschuss": "Ausschuss für Innere Angelegenheiten",
+       "ausschuss_kuerzel": "In",
+       "federfuehrung": false
+      },
+      {
+       "ausschuss": "Ausschuss für Umwelt, Naturschutz und nukleare Sicherheit",
+       "ausschuss_kuerzel": "U",
+       "federfuehrung": false
+      },
+      {
+       "ausschuss": "Finanzausschuss",
+       "ausschuss_kuerzel": "Fz",
+       "federfuehrung": false
+      },
+      {
+       "ausschuss": "Wirtschaftsausschuss",
+       "ausschuss_kuerzel": "Wi",
+       "federfuehrung": false
+      }
+     ],
+     "ressort": [
+      {
+       "federfuehrend": true,
+       "titel": "Bundesministerium für Wirtschaft und Klimaschutz"
+      },
+      {
+       "federfuehrend": true,
+       "titel": "Bundesministerium für Wohnen, Stadtentwicklung und Bauwesen"
+      }
+     ],
+     "fundstelle": {
+      "id": "267146",
+      "dokumentnummer": "170/23",
+      "datum": "2023-04-20",
+      "dokumentart": "Drucksache",
+      "drucksachetyp": "Gesetzentwurf",
+      "herausgeber": "BR",
+      "urheber": [
+       "Bundesregierung"
+      ],
+      "pdf_url": "https://dserver.bundestag.de/brd/2023/0170-23.pdf"
+     },
+     "datum": "2023-04-20",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "631966",
+     "vorgangsposition": "Empfehlungen der Ausschüsse",
+     "zuordnung": "BR",
+     "abstract": "Wo, U, Wi: u.a. Änderungsvorschläge - AIS, In: Stellungnahme - Fz: keine Einwendungen",
+     "gang": false,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 0,
+     "dokumentart": "Drucksache",
+     "aktualisiert": "2023-05-04T08:17:38+02:00",
+     "fundstelle": {
+      "id": "267326",
+      "dokumentnummer": "170/1/23(neu)",
+      "datum": "2023-05-03",
+      "dokumentart": "Drucksache",
+      "drucksachetyp": "Empfehlungen",
+      "herausgeber": "BR",
+      "urheber": [],
+      "pdf_url": "https://dserver.bundestag.de/brd/2023/0170-1-23(neu).pdf"
+     },
+     "datum": "2023-05-03",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "632317",
+     "vorgangsposition": "Plenarantrag",
+     "zuordnung": "BR",
+     "abstract": "Stellungnahme: Ablehnung",
+     "gang": false,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 0,
+     "dokumentart": "Drucksache",
+     "aktualisiert": "2023-05-10T10:52:09+02:00",
+     "urheber": [
+      {
+       "rolle": "U",
+       "bezeichnung": "BY",
+       "titel": "Bayern"
+      }
+     ],
+     "fundstelle": {
+      "id": "267432",
+      "dokumentnummer": "170/2/23",
+      "datum": "2023-05-10",
+      "dokumentart": "Drucksache",
+      "drucksachetyp": "Antrag",
+      "herausgeber": "BR",
+      "urheber": [
+       "Bayern"
+      ],
+      "pdf_url": "https://dserver.bundestag.de/brd/2023/0170-2-23.pdf"
+     },
+     "datum": "2023-05-10",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "632358",
+     "vorgangsposition": "Plenarantrag",
+     "zuordnung": "BR",
+     "abstract": "Änderungsvorschläge anstelle Ziffer 5 und 6 in Drs 170/1/23 (neu)",
+     "gang": false,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 0,
+     "dokumentart": "Drucksache",
+     "aktualisiert": "2023-05-12T09:52:07+02:00",
+     "urheber": [
+      {
+       "rolle": "U",
+       "bezeichnung": "HH",
+       "titel": "Hamburg"
+      }
+     ],
+     "fundstelle": {
+      "id": "267436",
+      "dokumentnummer": "170/3/23",
+      "datum": "2023-05-10",
+      "dokumentart": "Drucksache",
+      "drucksachetyp": "Antrag",
+      "herausgeber": "BR",
+      "urheber": [
+       "Hamburg"
+      ],
+      "pdf_url": "https://dserver.bundestag.de/brd/2023/0170-3-23.pdf"
+     },
+     "datum": "2023-05-10",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "632459",
+     "vorgangsposition": "Unterrichtung",
+     "zuordnung": "BR",
+     "abstract": "Stellungnahme des Nationalen Normenkontrollrates",
+     "gang": false,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 0,
+     "dokumentart": "Drucksache",
+     "aktualisiert": "2023-05-11T12:15:00+02:00",
+     "fundstelle": {
+      "id": "267492",
+      "dokumentnummer": "zu170/23",
+      "datum": "2023-05-10",
+      "dokumentart": "Drucksache",
+      "drucksachetyp": "Unterrichtung",
+      "herausgeber": "BR",
+      "urheber": [],
+      "pdf_url": "https://dserver.bundestag.de/brd/2023/0170-23(zu).pdf"
+     },
+     "datum": "2023-05-10",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "632477",
+     "vorgangsposition": "Plenarantrag",
+     "zuordnung": "BR",
+     "abstract": "Stellungnahme",
+     "gang": false,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 0,
+     "dokumentart": "Drucksache",
+     "aktualisiert": "2023-05-12T11:27:24+02:00",
+     "urheber": [
+      {
+       "einbringer": false,
+       "rolle": "B",
+       "bezeichnung": "SL",
+       "titel": "Saarland"
+      },
+      {
+       "rolle": "U",
+       "bezeichnung": "HB",
+       "titel": "Bremen"
+      },
+      {
+       "rolle": "U",
+       "bezeichnung": "HH",
+       "titel": "Hamburg"
+      },
+      {
+       "rolle": "U",
+       "bezeichnung": "MV",
+       "titel": "Mecklenburg-Vorpommern"
+      },
+      {
+       "rolle": "U",
+       "bezeichnung": "NI",
+       "titel": "Niedersachsen"
+      },
+      {
+       "rolle": "U",
+       "bezeichnung": "SH",
+       "titel": "Schleswig-Holstein"
+      }
+     ],
+     "fundstelle": {
+      "id": "267514",
+      "dokumentnummer": "170/4/23",
+      "datum": "2023-05-11",
+      "dokumentart": "Drucksache",
+      "drucksachetyp": "Antrag",
+      "herausgeber": "BR",
+      "urheber": [
+       "Saarland",
+       "Bremen",
+       "Hamburg",
+       "Mecklenburg-Vorpommern",
+       "Niedersachsen",
+       "Schleswig-Holstein"
+      ],
+      "pdf_url": "https://dserver.bundestag.de/brd/2023/0170-4-23.pdf"
+     },
+     "datum": "2023-05-11",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "632692",
+     "vorgangsposition": "1. Durchgang",
+     "zuordnung": "BR",
+     "gang": true,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 8,
+     "dokumentart": "Plenarprotokoll",
+     "aktualisiert": "2023-07-24T17:30:22+02:00",
+     "fundstelle": {
+      "id": "5572",
+      "dokumentnummer": "1033",
+      "datum": "2023-05-12",
+      "dokumentart": "Plenarprotokoll",
+      "herausgeber": "BR",
+      "urheber": [],
+      "pdf_url": "https://dserver.bundestag.de/brp/1033.pdf#P.118",
+      "anfangsseite": 118,
+      "endseite": 129,
+      "top": 25
+     },
+     "beschlussfassung": [
+      {
+       "beschlusstenor": "Stellungnahme: u.a. Änderungsvorschläge",
+       "grundlage": "Art. 76 Abs. 2 GG",
+       "dokumentnummer": "170/23",
+       "seite": "129"
+      }
+     ],
+     "aktivitaet_anzeige": [
+      {
+       "seite": "118",
+       "aktivitaetsart": "Rede",
+       "titel": "Dr. Reiner Haseloff, MdBR (Ministerpräsident), Sachsen-Anhalt",
+       "pdf_url": "https://dserver.bundestag.de/brp/1033.pdf#P.118"
+      },
+      {
+       "seite": "120",
+       "aktivitaetsart": "Rede",
+       "titel": "Manuela Schwesig, MdBR (Ministerpräsidentin), Mecklenburg-Vorpommern",
+       "pdf_url": "https://dserver.bundestag.de/brp/1033.pdf#P.120"
+      },
+      {
+       "seite": "121",
+       "aktivitaetsart": "Rede",
+       "titel": "Dr. Markus Söder, MdBR (Ministerpräsident), Bayern",
+       "pdf_url": "https://dserver.bundestag.de/brp/1033.pdf#P.121"
+      },
+      {
+       "seite": "123",
+       "aktivitaetsart": "Rede",
+       "titel": "Dr. Benjamin-Immanuel Hoff, MdBR (Minister für Kultur, Bundes- und Europaangelegenheiten und Chef der Staatskanzlei), Thüringen",
+       "pdf_url": "https://dserver.bundestag.de/brp/1033.pdf#P.123"
+      }
+     ],
+     "datum": "2023-05-12",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "632735",
+     "vorgangsposition": "Beschlussdrucksache",
+     "zuordnung": "BR",
+     "gang": false,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 0,
+     "dokumentart": "Drucksache",
+     "aktualisiert": "2023-05-12T14:10:59+02:00",
+     "fundstelle": {
+      "id": "267568",
+      "dokumentnummer": "170/23(B)",
+      "datum": "2023-05-12",
+      "dokumentart": "Drucksache",
+      "drucksachetyp": "Stellungnahme",
+      "herausgeber": "BR",
+      "urheber": [],
+      "pdf_url": "https://dserver.bundestag.de/brd/2023/0170-23B.pdf"
+     },
+     "datum": "2023-05-12",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "633223",
+     "vorgangsposition": "Gesetzentwurf",
+     "zuordnung": "BT",
+     "gang": true,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 0,
+     "dokumentart": "Drucksache",
+     "aktualisiert": "2023-09-06T16:38:08+02:00",
+     "urheber": [
+      {
+       "einbringer": false,
+       "bezeichnung": "BRg",
+       "titel": "Bundesregierung"
+      }
+     ],
+     "ressort": [
+      {
+       "federfuehrend": true,
+       "titel": "Bundesministerium für Wirtschaft und Klimaschutz"
+      },
+      {
+       "federfuehrend": true,
+       "titel": "Bundesministerium für Wohnen, Stadtentwicklung und Bauwesen"
+      }
+     ],
+     "fundstelle": {
+      "id": "267686",
+      "dokumentnummer": "20/6875",
+      "datum": "2023-05-17",
+      "verteildatum": "2023-05-19",
+      "anlagen": "Stellungnahme der BRg zur Stellungnahme des Nationalen Normenkontrollrates; Stellungnahme des BR und Gegenäußerung der BRg",
+      "dokumentart": "Drucksache",
+      "drucksachetyp": "Gesetzentwurf",
+      "herausgeber": "BT",
+      "urheber": [
+       "Bundesregierung"
+      ],
+      "pdf_url": "https://dserver.bundestag.de/btd/20/068/2006875.pdf"
+     },
+     "datum": "2023-05-17",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "635056",
+     "vorgangsposition": "Geschäftsordnungsantrag auf Aufsetzung der 1. Beratung auf die TO",
+     "zuordnung": "BT",
+     "abstract": "Geschäftsordnungsantrag der Fraktionen SPD, B90/GR und FDP auf Aufsetzung der 1. Beratung auf die Tagesordnung",
+     "gang": false,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 6,
+     "dokumentart": "Plenarprotokoll",
+     "aktualisiert": "2023-07-13T14:13:02+02:00",
+     "mitberaten": [
+      {
+       "vorgangsposition": "Geschäftsordnungsantrag auf Aufsetzung auf die TO",
+       "vorgangstyp": "Antrag",
+       "titel": "Abschaffung der Modernisierungsumlage zum Schutz der Mieterinnen und Mieter",
+       "id": "300783"
+      },
+      {
+       "vorgangsposition": "Geschäftsordnungsantrag auf Aufsetzung auf die TO",
+       "vorgangstyp": "Gesetzgebung",
+       "titel": "Gesetz zur Anpassung des Allgemeinen Eisenbahngesetzes an die Verordnung (EU) 2021/782 des Europäischen Parlaments und des Rates vom 29. April 2021 über die Rechte und Pflichten der Fahrgäste im Eisenbahnverkehr sowie zur Änderung des Einführungsgesetzes zum Bürgerlichen Gesetzbuche",
+       "id": "295550"
+      }
+     ],
+     "fundstelle": {
+      "id": "5577",
+      "dokumentnummer": "20/109",
+      "datum": "2023-06-15",
+      "verteildatum": "2023-06-16",
+      "xml_url": "https://dserver.bundestag.de/btp/20/20109.xml",
+      "dokumentart": "Plenarprotokoll",
+      "herausgeber": "BT",
+      "urheber": [],
+      "pdf_url": "https://dserver.bundestag.de/btp/20/20109.pdf#P.13169",
+      "anfangsseite": 13169,
+      "endseite": 13175,
+      "anfangsquadrant": "B",
+      "endquadrant": "A"
+     },
+     "beschlussfassung": [
+      {
+       "beschlusstenor": "Annahme Geschäftsordnungsantrag",
+       "seite": "13174D"
+      }
+     ],
+     "aktivitaet_anzeige": [
+      {
+       "seite": "13169D",
+       "aktivitaetsart": "Zur Geschäftsordnung BT",
+       "titel": "Katja Mast, MdB, SPD",
+       "pdf_url": "https://dserver.bundestag.de/btp/20/20109.pdf#P.13169"
+      },
+      {
+       "seite": "13170B",
+       "aktivitaetsart": "Zur Geschäftsordnung BT",
+       "titel": "Thorsten Frei, MdB, CDU/CSU",
+       "pdf_url": "https://dserver.bundestag.de/btp/20/20109.pdf#P.13170"
+      },
+      {
+       "seite": "13171C",
+       "aktivitaetsart": "Zur Geschäftsordnung BT",
+       "titel": "Dr. Irene Mihalic, MdB, BÜNDNIS 90/DIE GRÜNEN",
+       "pdf_url": "https://dserver.bundestag.de/btp/20/20109.pdf#P.13171"
+      },
+      {
+       "seite": "13172D",
+       "aktivitaetsart": "Zur Geschäftsordnung BT",
+       "titel": "Dr. Bernd Baumann, MdB, AfD",
+       "pdf_url": "https://dserver.bundestag.de/btp/20/20109.pdf#P.13172"
+      }
+     ],
+     "datum": "2023-06-15",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "635014",
+     "vorgangsposition": "1. Beratung",
+     "zuordnung": "BT",
+     "gang": true,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 26,
+     "dokumentart": "Plenarprotokoll",
+     "aktualisiert": "2023-06-21T12:56:34+02:00",
+     "ueberweisung": [
+      {
+       "ausschuss": "Ausschuss für Klimaschutz und Energie",
+       "ausschuss_kuerzel": "AfKlima",
+       "federfuehrung": true
+      },
+      {
+       "ausschuss": "Ausschuss für Bildung, Forschung und Technikfolgenabschätzung",
+       "ausschuss_kuerzel": "AfBFT",
+       "federfuehrung": false
+      },
+      {
+       "ausschuss": "Ausschuss für die Angelegenheiten der Europäischen Union",
+       "ausschuss_kuerzel": "AfEU",
+       "federfuehrung": false
+      },
+      {
+       "ausschuss": "Ausschuss für Umwelt, Naturschutz, nukleare Sicherheit und Verbraucherschutz",
+       "ausschuss_kuerzel": "AfU (WP20)",
+       "federfuehrung": false
+      },
+      {
+       "ausschuss": "Ausschuss für Wohnen, Stadtentwicklung, Bauwesen und Kommunen",
+       "ausschuss_kuerzel": "BauA",
+       "federfuehrung": false
+      },
+      {
+       "ueberweisungsart": "gemäß § 96 Geschäftsordnung BT",
+       "ausschuss": "Haushaltsausschuss",
+       "ausschuss_kuerzel": "HaushA",
+       "federfuehrung": false
+      },
+      {
+       "ausschuss": "Haushaltsausschuss",
+       "ausschuss_kuerzel": "HaushA",
+       "federfuehrung": false
+      },
+      {
+       "ausschuss": "Rechtsausschuss",
+       "ausschuss_kuerzel": "RechtsA",
+       "federfuehrung": false
+      },
+      {
+       "ausschuss": "Wirtschaftsausschuss",
+       "ausschuss_kuerzel": "AfWirtschaft",
+       "federfuehrung": false
+      }
+     ],
+     "mitberaten": [
+      {
+       "vorgangsposition": "Beratung",
+       "vorgangstyp": "Antrag",
+       "titel": "Abschaffung der Modernisierungsumlage zum Schutz der Mieterinnen und Mieter",
+       "id": "300783"
+      }
+     ],
+     "fundstelle": {
+      "id": "5577",
+      "dokumentnummer": "20/109",
+      "datum": "2023-06-15",
+      "verteildatum": "2023-06-16",
+      "xml_url": "https://dserver.bundestag.de/btp/20/20109.xml",
+      "dokumentart": "Plenarprotokoll",
+      "herausgeber": "BT",
+      "urheber": [],
+      "pdf_url": "https://dserver.bundestag.de/btp/20/20109.pdf#P.13175",
+      "anfangsseite": 13175,
+      "endseite": 13198,
+      "anfangsquadrant": "A",
+      "endquadrant": "A"
+     },
+     "beschlussfassung": [
+      {
+       "beschlusstenor": "Überweisung",
+       "dokumentnummer": "20/6875",
+       "seite": "13198A"
+      }
+     ],
+     "aktivitaet_anzeige": [
+      {
+       "seite": "13175B",
+       "aktivitaetsart": "Rede",
+       "titel": "Dr. Robert Habeck, Bundesmin., Bundesministerium für Wirtschaft und Klimaschutz",
+       "pdf_url": "https://dserver.bundestag.de/btp/20/20109.pdf#P.13175"
+      },
+      {
+       "seite": "13176D",
+       "aktivitaetsart": "Rede",
+       "titel": "Jens Spahn, MdB, CDU/CSU",
+       "pdf_url": "https://dserver.bundestag.de/btp/20/20109.pdf#P.13176"
+      },
+      {
+       "seite": "13177D",
+       "aktivitaetsart": "Rede",
+       "titel": "Klara Geywitz, Bundesmin., Bundesministerium für Wohnen, Stadtentwicklung und Bauwesen",
+       "pdf_url": "https://dserver.bundestag.de/btp/20/20109.pdf#P.13177"
+      },
+      {
+       "seite": "13179A",
+       "aktivitaetsart": "Kurzintervention",
+       "titel": "Caren Lay, MdB, DIE LINKE",
+       "pdf_url": "https://dserver.bundestag.de/btp/20/20109.pdf#P.13179"
+      }
+     ],
+     "datum": "2023-06-15",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "635654",
+     "vorgangsposition": "Änderung der Ausschussüberweisung",
+     "zuordnung": "BT",
+     "gang": false,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 0,
+     "dokumentart": "Plenarprotokoll",
+     "aktualisiert": "2025-07-18T11:32:00+02:00",
+     "ueberweisung": [
+      {
+       "ueberweisungsart": "nachträgliche Überweisung",
+       "ausschuss": "Ausschuss für Arbeit und Soziales",
+       "ausschuss_kuerzel": "AfArbSoz",
+       "federfuehrung": false
+      }
+     ],
+     "fundstelle": {
+      "id": "5580",
+      "dokumentnummer": "20/111",
+      "datum": "2023-06-21",
+      "verteildatum": "2023-06-22",
+      "xml_url": "https://dserver.bundestag.de/btp/20/20111.xml",
+      "dokumentart": "Plenarprotokoll",
+      "herausgeber": "BT",
+      "urheber": [],
+      "pdf_url": "https://dserver.bundestag.de/btp/20/20111.pdf#P.13509",
+      "anfangsseite": 13509,
+      "endseite": 13509,
+      "anfangsquadrant": "B",
+      "endquadrant": "B"
+     },
+     "beschlussfassung": [
+      {
+       "beschlusstenor": "Änderung des Überweisungsbeschlusses",
+       "dokumentnummer": "20/6875",
+       "seite": "13509B"
+      }
+     ],
+     "datum": "2023-06-21",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "636486",
+     "vorgangsposition": "Beschlussempfehlung und Bericht",
+     "zuordnung": "BT",
+     "abstract": "Empfehlung: Annahme der Vorlage in Ausschussfassung und Annahme einer Entschließung; Titeländerung",
+     "gang": true,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 1,
+     "dokumentart": "Drucksache",
+     "aktualisiert": "2023-10-11T13:29:32+02:00",
+     "urheber": [
+      {
+       "einbringer": false,
+       "bezeichnung": "AfKlima",
+       "titel": "Ausschuss für Klimaschutz und Energie"
+      }
+     ],
+     "fundstelle": {
+      "id": "268653",
+      "dokumentnummer": "20/7619",
+      "datum": "2023-07-05",
+      "verteildatum": "2023-07-06",
+      "dokumentart": "Drucksache",
+      "drucksachetyp": "Beschlussempfehlung und Bericht",
+      "herausgeber": "BT",
+      "urheber": [
+       "Ausschuss für Klimaschutz und Energie"
+      ],
+      "pdf_url": "https://dserver.bundestag.de/btd/20/076/2007619.pdf"
+     },
+     "aktivitaet_anzeige": [
+      {
+       "aktivitaetsart": "Berichterstattung",
+       "titel": "Andreas Jung, MdB, CDU/CSU",
+       "pdf_url": "https://dserver.bundestag.de/btd/20/076/2007619.pdf"
+      }
+     ],
+     "datum": "2023-07-05",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "636479",
+     "vorgangsposition": "Bericht gemäß § 96 Geschäftsordnung BT",
+     "zuordnung": "BT",
+     "gang": false,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 6,
+     "dokumentart": "Drucksache",
+     "aktualisiert": "2023-07-06T15:09:04+02:00",
+     "urheber": [
+      {
+       "einbringer": false,
+       "bezeichnung": "HaushA",
+       "titel": "Haushaltsausschuss"
+      }
+     ],
+     "fundstelle": {
+      "id": "268651",
+      "dokumentnummer": "20/7620",
+      "datum": "2023-07-05",
+      "verteildatum": "2023-07-06",
+      "dokumentart": "Drucksache",
+      "drucksachetyp": "Bericht",
+      "herausgeber": "BT",
+      "urheber": [
+       "Haushaltsausschuss"
+      ],
+      "pdf_url": "https://dserver.bundestag.de/btd/20/076/2007620.pdf"
+     },
+     "aktivitaet_anzeige": [
+      {
+       "aktivitaetsart": "Berichterstattung",
+       "titel": "Felix Banaszak, MdB, BÜNDNIS 90/DIE GRÜNEN",
+       "pdf_url": "https://dserver.bundestag.de/btd/20/076/2007620.pdf"
+      },
+      {
+       "aktivitaetsart": "Berichterstattung",
+       "titel": "Frank Junge, MdB, SPD",
+       "pdf_url": "https://dserver.bundestag.de/btd/20/076/2007620.pdf"
+      },
+      {
+       "aktivitaetsart": "Berichterstattung",
+       "titel": "Karsten Klein, MdB, FDP",
+       "pdf_url": "https://dserver.bundestag.de/btd/20/076/2007620.pdf"
+      },
+      {
+       "aktivitaetsart": "Berichterstattung",
+       "titel": "Andreas Mattfeldt, MdB, CDU/CSU",
+       "pdf_url": "https://dserver.bundestag.de/btd/20/076/2007620.pdf"
+      }
+     ],
+     "datum": "2023-07-05",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "641968",
+     "vorgangsposition": "Feststellung der Tagesordnung",
+     "zuordnung": "BT",
+     "abstract": "Aufsetzung der 2. und 3. Beratung durch Feststellung der Tagesordnung gegen den Widerspruch der Fraktionen der CDU/CSU, AfD und DIE LINKE",
+     "gang": false,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 6,
+     "dokumentart": "Plenarprotokoll",
+     "aktualisiert": "2023-10-18T15:08:20+02:00",
+     "mitberaten": [
+      {
+       "vorgangsposition": "Feststellung der Tagesordnung",
+       "vorgangstyp": "Anmerkung zur Plenarsitzung",
+       "titel": "Feststellung der Tagesordnung der 117. bis 120. Sitzung des Deutschen Bundestages",
+       "id": "303162"
+      }
+     ],
+     "fundstelle": {
+      "id": "5587",
+      "dokumentnummer": "20/117",
+      "datum": "2023-09-05",
+      "verteildatum": "2023-09-06",
+      "xml_url": "https://dserver.bundestag.de/btp/20/20117.xml",
+      "dokumentart": "Plenarprotokoll",
+      "herausgeber": "BT",
+      "urheber": [],
+      "pdf_url": "https://dserver.bundestag.de/btp/20/20117.pdf#P.14410",
+      "anfangsseite": 14410,
+      "endseite": 14416,
+      "anfangsquadrant": "A",
+      "endquadrant": "A"
+     },
+     "aktivitaet_anzeige": [
+      {
+       "seite": "14410C",
+       "aktivitaetsart": "Zur Geschäftsordnung BT",
+       "titel": "Katja Mast, MdB, SPD",
+       "pdf_url": "https://dserver.bundestag.de/btp/20/20117.pdf#P.14410"
+      },
+      {
+       "seite": "14411C",
+       "aktivitaetsart": "Zur Geschäftsordnung BT",
+       "titel": "Thorsten Frei, MdB, CDU/CSU",
+       "pdf_url": "https://dserver.bundestag.de/btp/20/20117.pdf#P.14411"
+      },
+      {
+       "seite": "14412C",
+       "aktivitaetsart": "Zur Geschäftsordnung BT",
+       "titel": "Dr. Irene Mihalic, MdB, BÜNDNIS 90/DIE GRÜNEN",
+       "pdf_url": "https://dserver.bundestag.de/btp/20/20117.pdf#P.14412"
+      },
+      {
+       "seite": "14413D",
+       "aktivitaetsart": "Zur Geschäftsordnung BT",
+       "titel": "Dr. Bernd Baumann, MdB, AfD",
+       "pdf_url": "https://dserver.bundestag.de/btp/20/20117.pdf#P.14413"
+      }
+     ],
+     "datum": "2023-09-05",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "639040",
+     "vorgangsposition": "Geschäftsordnungsantrag zur Beratung",
+     "zuordnung": "BT",
+     "abstract": "Geschäftsordnungsantrag der Fraktion der CDU/CSU auf Beratung ohne Aussprache unmittelbar nach Sitzungsbeginn im Falle der Aufsetzung auf die Tagesordnung",
+     "gang": false,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 0,
+     "dokumentart": "Plenarprotokoll",
+     "aktualisiert": "2023-10-18T12:58:38+02:00",
+     "fundstelle": {
+      "id": "5587",
+      "dokumentnummer": "20/117",
+      "datum": "2023-09-05",
+      "verteildatum": "2023-09-06",
+      "xml_url": "https://dserver.bundestag.de/btp/20/20117.xml",
+      "dokumentart": "Plenarprotokoll",
+      "herausgeber": "BT",
+      "urheber": [],
+      "pdf_url": "https://dserver.bundestag.de/btp/20/20117.pdf#P.14416",
+      "anfangsseite": 14416,
+      "endseite": 14416,
+      "anfangsquadrant": "A",
+      "endquadrant": "A"
+     },
+     "beschlussfassung": [
+      {
+       "beschlusstenor": "Ablehnung Geschäftsordnungsantrag",
+       "seite": "14416A"
+      }
+     ],
+     "datum": "2023-09-05",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "639200",
+     "vorgangsposition": "2. Beratung",
+     "zuordnung": "BT",
+     "gang": true,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 32,
+     "dokumentart": "Plenarprotokoll",
+     "aktualisiert": "2023-12-05T09:56:53+01:00",
+     "mitberaten": [
+      {
+       "vorgangsposition": "Beratung",
+       "vorgangstyp": "Entschließungsantrag BT",
+       "titel": "Entschließungsantrag zum Gesetzentwurf zur Änderung des Gebäudeenergiegesetzes, zur Änderung der Heizkostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung",
+       "id": "303107"
+      },
+      {
+       "vorgangsposition": "Beratung",
+       "vorgangstyp": "Entschließungsantrag BT",
+       "titel": "Entschließungsantrag zum Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung der Heizkostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung",
+       "id": "301536"
+      },
+      {
+       "vorgangsposition": "Beratung",
+       "vorgangstyp": "Antrag",
+       "titel": "Diversifizierung von Gebäudeheizungsarten erhalten - Durch vielfältige Heizsysteme die Widerstandsfähigkeit der Wärmeerzeugung in Deutschland bewahren",
+       "id": "301060"
+      },
+      {
+       "vorgangsposition": "Beratung",
+       "vorgangstyp": "Antrag",
+       "titel": "Verbot von Öl- und Gasheizungen verhindern - Priorisierung der Wärmepumpen beenden",
+       "id": "298662"
+      },
+      {
+       "vorgangsposition": "Beratung",
+       "vorgangstyp": "Antrag",
+       "titel": "Eigentum vor Willkür in der Energiepolitik schützen",
+       "id": "298665"
+      },
+      {
+       "vorgangsposition": "Beratung",
+       "vorgangstyp": "Antrag",
+       "titel": "Abschaffung der Modernisierungsumlage zum Schutz der Mieterinnen und Mieter",
+       "id": "300783"
+      },
+      {
+       "vorgangsposition": "Beratung",
+       "vorgangstyp": "Verfahren vor dem Bundesverfassungsgericht",
+       "titel": "Beschlussempfehlung und Bericht des Rechtsausschusses (6. Ausschuss) zu dem Streitverfahren vor dem Bundesverfassungsgericht 2 BvE 4/23",
+       "id": "301520"
+      },
+      {
+       "vorgangsposition": "Beratung",
+       "vorgangstyp": "Antrag",
+       "titel": "Für eine sichere, bezahlbare und klimafreundliche Wärmeversorgung ohne soziale Kälte",
+       "id": "299349"
+      }
+     ],
+     "fundstelle": {
+      "id": "5590",
+      "dokumentnummer": "20/120",
+      "datum": "2023-09-08",
+      "verteildatum": "2023-09-11",
+      "xml_url": "https://dserver.bundestag.de/btp/20/20120.xml",
+      "dokumentart": "Plenarprotokoll",
+      "herausgeber": "BT",
+      "urheber": [],
+      "pdf_url": "https://dserver.bundestag.de/btp/20/20120.pdf#P.14855",
+      "anfangsseite": 14855,
+      "endseite": 14892,
+      "anfangsquadrant": "A",
+      "endquadrant": "A"
+     },
+     "beschlussfassung": [
+      {
+       "beschlusstenor": "Annahme in Ausschussfassung",
+       "dokumentnummer": "20/6875, 20/7619",
+       "seite": "14886B"
+      },
+      {
+       "beschlusstenor": "Annahme einer Entschließung",
+       "dokumentnummer": "20/7619",
+       "seite": "14891B"
+      }
+     ],
+     "aktivitaet_anzeige": [
+      {
+       "seite": "14855D",
+       "aktivitaetsart": "Rede",
+       "titel": "Katharina Dröge, MdB, BÜNDNIS 90/DIE GRÜNEN",
+       "pdf_url": "https://dserver.bundestag.de/btp/20/20120.pdf#P.14855"
+      },
+      {
+       "seite": "14857A",
+       "aktivitaetsart": "Rede",
+       "titel": "Alexander Dobrindt, MdB, CDU/CSU",
+       "pdf_url": "https://dserver.bundestag.de/btp/20/20120.pdf#P.14857"
+      },
+      {
+       "seite": "14858B",
+       "aktivitaetsart": "Rede",
+       "titel": "Dr. Matthias Miersch, MdB, SPD",
+       "pdf_url": "https://dserver.bundestag.de/btp/20/20120.pdf#P.14858"
+      },
+      {
+       "seite": "14858D",
+       "aktivitaetsart": "Zwischenfrage",
+       "titel": "Thomas Heilmann, MdB, CDU/CSU",
+       "pdf_url": "https://dserver.bundestag.de/btp/20/20120.pdf#P.14858"
+      }
+     ],
+     "datum": "2023-09-08",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "639212",
+     "vorgangsposition": "3. Beratung",
+     "zuordnung": "BT",
+     "gang": true,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 5,
+     "dokumentart": "Plenarprotokoll",
+     "aktualisiert": "2023-12-05T09:56:53+01:00",
+     "fundstelle": {
+      "id": "5590",
+      "dokumentnummer": "20/120",
+      "datum": "2023-09-08",
+      "verteildatum": "2023-09-11",
+      "xml_url": "https://dserver.bundestag.de/btp/20/20120.xml",
+      "dokumentart": "Plenarprotokoll",
+      "herausgeber": "BT",
+      "urheber": [],
+      "pdf_url": "https://dserver.bundestag.de/btp/20/20120.pdf#P.14886",
+      "anfangsseite": 14886,
+      "endseite": 14886,
+      "anfangsquadrant": "C",
+      "endquadrant": "D"
+     },
+     "beschlussfassung": [
+      {
+       "abstimmungsart": "Namentliche Abstimmung",
+       "beschlusstenor": "Annahme in Ausschussfassung",
+       "abstimm_ergebnis_bemerkung": "397:275:5",
+       "dokumentnummer": "20/6875, 20/7619",
+       "seite": "14888B"
+      }
+     ],
+     "aktivitaet_anzeige": [
+      {
+       "seite": "14897D",
+       "aktivitaetsart": "Schriftliche Erklärung gem. § 31 Geschäftsordnung BT",
+       "titel": "Canan Bayram, MdB, BÜNDNIS 90/DIE GRÜNEN",
+       "pdf_url": "https://dserver.bundestag.de/btp/20/20120.pdf#P.14897"
+      },
+      {
+       "seite": "14898C",
+       "aktivitaetsart": "Schriftliche Erklärung gem. § 31 Geschäftsordnung BT",
+       "titel": "Dr. Christoph Hoffmann, MdB, FDP",
+       "pdf_url": "https://dserver.bundestag.de/btp/20/20120.pdf#P.14898"
+      },
+      {
+       "seite": "14898C",
+       "aktivitaetsart": "Schriftliche Erklärung gem. § 31 Geschäftsordnung BT",
+       "titel": "Wolfgang Kubicki, MdB, FDP",
+       "pdf_url": "https://dserver.bundestag.de/btp/20/20120.pdf#P.14898"
+      },
+      {
+       "seite": "14899A",
+       "aktivitaetsart": "Schriftliche Erklärung gem. § 31 Geschäftsordnung BT",
+       "titel": "Till Mansmann, MdB, FDP",
+       "pdf_url": "https://dserver.bundestag.de/btp/20/20120.pdf#P.14899"
+      }
+     ],
+     "datum": "2023-09-08",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "639236",
+     "vorgangsposition": "Unterrichtung über Gesetzesbeschluss des BT",
+     "zuordnung": "BR",
+     "gang": false,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 0,
+     "dokumentart": "Drucksache",
+     "aktualisiert": "2023-10-18T12:58:34+02:00",
+     "urheber": [
+      {
+       "einbringer": false,
+       "bezeichnung": "BT",
+       "titel": "Bundestag"
+      }
+     ],
+     "ueberweisung": [
+      {
+       "ausschuss": "Ausschuss für Städtebau, Wohnungswesen und Raumordnung",
+       "ausschuss_kuerzel": "Wo",
+       "federfuehrung": true
+      },
+      {
+       "ausschuss": "Ausschuss für Umwelt, Naturschutz und nukleare Sicherheit",
+       "ausschuss_kuerzel": "U",
+       "federfuehrung": false
+      },
+      {
+       "ausschuss": "Wirtschaftsausschuss",
+       "ausschuss_kuerzel": "Wi",
+       "federfuehrung": false
+      }
+     ],
+     "fundstelle": {
+      "id": "269516",
+      "dokumentnummer": "415/23",
+      "datum": "2023-09-08",
+      "dokumentart": "Drucksache",
+      "drucksachetyp": "Gesetzesbeschluss",
+      "herausgeber": "BR",
+      "urheber": [
+       "Bundestag"
+      ],
+      "pdf_url": "https://dserver.bundestag.de/brd/2023/0415-23.pdf"
+     },
+     "datum": "2023-09-08",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "639237",
+     "vorgangsposition": "Unterrichtung über Gesetzesbeschluss des BT",
+     "zuordnung": "BR",
+     "abstract": "Unterrichtung über Annahme der Entschließung unter Buchstabe d der Drs 20/7619",
+     "gang": false,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 0,
+     "dokumentart": "Drucksache",
+     "aktualisiert": "2023-10-18T12:58:32+02:00",
+     "fundstelle": {
+      "id": "269517",
+      "dokumentnummer": "zu415/23",
+      "datum": "2023-09-08",
+      "dokumentart": "Drucksache",
+      "drucksachetyp": "Beschluss",
+      "herausgeber": "BR",
+      "urheber": [],
+      "pdf_url": "https://dserver.bundestag.de/brd/2023/0415-23(zu).pdf"
+     },
+     "datum": "2023-09-08",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "639527",
+     "vorgangsposition": "Empfehlungen der Ausschüsse",
+     "zuordnung": "BR",
+     "abstract": "kein Antrag auf Einberufung des Vermittlungsausschusses - Wo, U: zus. Entschließung",
+     "gang": false,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 0,
+     "dokumentart": "Drucksache",
+     "aktualisiert": "2023-10-18T12:58:30+02:00",
+     "fundstelle": {
+      "id": "269625",
+      "dokumentnummer": "415/1/23",
+      "datum": "2023-09-15",
+      "dokumentart": "Drucksache",
+      "drucksachetyp": "Empfehlungen",
+      "herausgeber": "BR",
+      "urheber": [],
+      "pdf_url": "https://dserver.bundestag.de/brd/2023/0415-1-23.pdf"
+     },
+     "datum": "2023-09-15",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "640436",
+     "vorgangsposition": "Plenarantrag",
+     "zuordnung": "BR",
+     "abstract": "Antrag auf Einberufung des Vermittlungsausschusses; Anrufungsziel: Aufhebung des Gesetzesbeschlusses BT",
+     "gang": false,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 0,
+     "dokumentart": "Drucksache",
+     "aktualisiert": "2023-10-18T12:58:29+02:00",
+     "urheber": [
+      {
+       "rolle": "U",
+       "bezeichnung": "BY",
+       "titel": "Bayern"
+      }
+     ],
+     "fundstelle": {
+      "id": "269875",
+      "dokumentnummer": "415/2/23",
+      "datum": "2023-09-27",
+      "dokumentart": "Drucksache",
+      "drucksachetyp": "Antrag",
+      "herausgeber": "BR",
+      "urheber": [
+       "Bayern"
+      ],
+      "pdf_url": "https://dserver.bundestag.de/brd/2023/0415-2-23.pdf"
+     },
+     "datum": "2023-09-27",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "640438",
+     "vorgangsposition": "Plenarantrag",
+     "zuordnung": "BR",
+     "abstract": "Entschließung",
+     "gang": false,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 0,
+     "dokumentart": "Drucksache",
+     "aktualisiert": "2023-10-18T12:58:27+02:00",
+     "urheber": [
+      {
+       "rolle": "U",
+       "bezeichnung": "BY",
+       "titel": "Bayern"
+      }
+     ],
+     "fundstelle": {
+      "id": "269876",
+      "dokumentnummer": "415/3/23",
+      "datum": "2023-09-27",
+      "dokumentart": "Drucksache",
+      "drucksachetyp": "Antrag",
+      "herausgeber": "BR",
+      "urheber": [
+       "Bayern"
+      ],
+      "pdf_url": "https://dserver.bundestag.de/brd/2023/0415-3-23.pdf"
+     },
+     "datum": "2023-09-27",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "640795",
+     "vorgangsposition": "2. Durchgang",
+     "zuordnung": "BR",
+     "gang": true,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 3,
+     "dokumentart": "Plenarprotokoll",
+     "aktualisiert": "2025-01-13T13:14:05+01:00",
+     "fundstelle": {
+      "id": "5597",
+      "dokumentnummer": "1036",
+      "datum": "2023-09-29",
+      "dokumentart": "Plenarprotokoll",
+      "herausgeber": "BR",
+      "urheber": [],
+      "pdf_url": "https://dserver.bundestag.de/brp/1036.pdf#P.264",
+      "anfangsseite": 264,
+      "endseite": 266,
+      "top": 6
+     },
+     "beschlussfassung": [
+      {
+       "beschlusstenor": "kein Antrag auf Einberufung des Vermittlungsausschusses; Entschließung",
+       "grundlage": "Art. 77 Abs. 2 GG",
+       "dokumentnummer": "415/23",
+       "seite": "266"
+      }
+     ],
+     "aktivitaet_anzeige": [
+      {
+       "seite": "264",
+       "aktivitaetsart": "Rede",
+       "titel": "Dr. Florian Herrmann, MdBR (Leiter der Staatskanzlei und Staatsminister für Bundesangelegenheiten und Medien), Bayern",
+       "pdf_url": "https://dserver.bundestag.de/brp/1036.pdf#P.264"
+      },
+      {
+       "seite": "265",
+       "aktivitaetsart": "Rede",
+       "titel": "Guido Beermann, Stellv. MdBR (Minister für Infrastruktur und Landesplanung), Brandenburg",
+       "pdf_url": "https://dserver.bundestag.de/brp/1036.pdf#P.265"
+      },
+      {
+       "seite": "266",
+       "aktivitaetsart": "Rede (zu Protokoll gegeben)",
+       "titel": "Bettina Martin, MdBR (Ministerin für Wissenschaft, Kultur, Bundes- und Europaangelegenheiten), Mecklenburg-Vorpommern",
+       "pdf_url": "https://dserver.bundestag.de/brp/1036.pdf#P.266"
+      }
+     ],
+     "datum": "2023-09-29",
+     "vorgang_id": "298723"
+    },
+    {
+     "id": "640851",
+     "vorgangsposition": "Beschlussdrucksache",
+     "zuordnung": "BR",
+     "gang": false,
+     "fortsetzung": false,
+     "nachtrag": false,
+     "vorgangstyp": "Gesetzgebung",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "typ": "Vorgangsposition",
+     "aktivitaet_anzahl": 0,
+     "dokumentart": "Drucksache",
+     "aktualisiert": "2023-10-19T12:57:50+02:00",
+     "fundstelle": {
+      "id": "269976",
+      "dokumentnummer": "415/23(B)",
+      "datum": "2023-09-29",
+      "dokumentart": "Drucksache",
+      "drucksachetyp": "Beschluss",
+      "herausgeber": "BR",
+      "urheber": [],
+      "pdf_url": "https://dserver.bundestag.de/brd/2023/0415-23B.pdf"
+     },
+     "datum": "2023-09-29",
+     "vorgang_id": "298723"
+    }
+   ],
+   "cursor": "AoJZATdWb3JnYW5nc3Bvc2l0aW9uLTY0MDg1MQ=="
+  },
+  "/api/v1/person/1502": {
+   "id": "1502",
+   "funktion": [
+    "MdB"
+   ],
+   "fraktion": [
+    "BÜNDNIS 90/DIE GRÜNEN"
+   ],
+   "nachname": "Baerbock",
+   "vorname": "Annalena",
+   "typ": "Person",
+   "wahlperiode": [
+    18,
+    19,
+    20,
+    21
+   ],
+   "aktualisiert": "2025-07-28T09:37:54+02:00",
+   "person_roles": [
+    {
+     "ressort_titel": "Auswärtiges Amt",
+     "nachname": "Baerbock",
+     "vorname": "Annalena",
+     "wahlperiode_nummer": [
+      20
+     ]
+    }
+   ],
+   "titel": "Annalena Baerbock, MdB, BÜNDNIS 90/DIE GRÜNEN",
+   "datum": "2025-06-27",
+   "basisdatum": "2013-11-01"
+  },
+  "/api/v1/drucksache": {
+   "numFound": 1,
+   "documents": [
+    {
+     "id": "267686",
+     "drucksachetyp": "Gesetzentwurf",
+     "anlagen": "Stellungnahme der BRg zur Stellungnahme des Nationalen Normenkontrollrates; Stellungnahme des BR und Gegenäußerung der BRg",
+     "dokumentart": "Drucksache",
+     "autoren_anzahl": 0,
+     "typ": "Dokument",
+     "vorgangsbezug_anzahl": 1,
+     "dokumentnummer": "20/6875",
+     "wahlperiode": 20,
+     "herausgeber": "BT",
+     "pdf_hash": "675b8c296feecd9cdc2f8a6353eb7c16",
+     "aktualisiert": "2023-09-06T16:38:08+02:00",
+     "vorgangsbezug": [
+      {
+       "id": "298723",
+       "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+       "vorgangstyp": "Gesetzgebung"
+      }
+     ],
+     "urheber": [
+      {
+       "einbringer": false,
+       "bezeichnung": "BRg",
+       "titel": "Bundesregierung"
+      }
+     ],
+     "ressort": [
+      {
+       "federfuehrend": true,
+       "titel": "Bundesministerium für Wirtschaft und Klimaschutz"
+      },
+      {
+       "federfuehrend": true,
+       "titel": "Bundesministerium für Wohnen, Stadtentwicklung und Bauwesen"
+      }
+     ],
+     "fundstelle": {
+      "pdf_url": "https://dserver.bundestag.de/btd/20/068/2006875.pdf",
+      "id": "267686",
+      "dokumentnummer": "20/6875",
+      "datum": "2023-05-17",
+      "verteildatum": "2023-05-19",
+      "anlagen": "Stellungnahme der BRg zur Stellungnahme des Nationalen Normenkontrollrates; Stellungnahme des BR und Gegenäußerung der BRg",
+      "dokumentart": "Drucksache",
+      "drucksachetyp": "Gesetzentwurf",
+      "herausgeber": "BT",
+      "urheber": [
+       "Bundesregierung"
+      ]
+     },
+     "titel": "Entwurf eines Gesetzes zur Änderung des Gebäudeenergiegesetzes, zur Änderung der Heizkostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung",
+     "datum": "2023-05-17"
+    }
+   ],
+   "cursor": "AoJwkN_JlIgDMURydWNrc2FjaGUtMjY3Njg2"
+  },
+  "/api/v1/drucksache-text/267686": {
+   "id": "267686",
+   "drucksachetyp": "Gesetzentwurf",
+   "anlagen": "Stellungnahme der BRg zur Stellungnahme des Nationalen Normenkontrollrates; Stellungnahme des BR und Gegenäußerung der BRg",
+   "dokumentart": "Drucksache",
+   "autoren_anzahl": 0,
+   "typ": "Dokument",
+   "vorgangsbezug_anzahl": 1,
+   "dokumentnummer": "20/6875",
+   "wahlperiode": 20,
+   "herausgeber": "BT",
+   "pdf_hash": "675b8c296feecd9cdc2f8a6353eb7c16",
+   "aktualisiert": "2023-09-06T16:38:08+02:00",
+   "vorgangsbezug": [
+    {
+     "id": "298723",
+     "titel": "Gesetz zur Änderung des Gebäudeenergiegesetzes, zur Änderung des Bürgerlichen Gesetzbuches, zur Änderung der Verordnung über Heizkostenabrechnung, zur Änderung der Betriebskostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung\r\n[Heizungsgesetz]",
+     "vorgangstyp": "Gesetzgebung"
+    }
+   ],
+   "urheber": [
+    {
+     "einbringer": false,
+     "bezeichnung": "BRg",
+     "titel": "Bundesregierung"
+    }
+   ],
+   "ressort": [
+    {
+     "federfuehrend": true,
+     "titel": "Bundesministerium für Wirtschaft und Klimaschutz"
+    },
+    {
+     "federfuehrend": true,
+     "titel": "Bundesministerium für Wohnen, Stadtentwicklung und Bauwesen"
+    }
+   ],
+   "fundstelle": {
+    "pdf_url": "https://dserver.bundestag.de/btd/20/068/2006875.pdf",
+    "id": "267686",
+    "dokumentnummer": "20/6875",
+    "datum": "2023-05-17",
+    "verteildatum": "2023-05-19",
+    "anlagen": "Stellungnahme der BRg zur Stellungnahme des Nationalen Normenkontrollrates; Stellungnahme des BR und Gegenäußerung der BRg",
+    "dokumentart": "Drucksache",
+    "drucksachetyp": "Gesetzentwurf",
+    "herausgeber": "BT",
+    "urheber": [
+     "Bundesregierung"
+    ]
+   },
+   "text": "[Deutscher Bundestag Drucksache 20/6875 \n20. Wahlperiode 17.05.2023 \nGesetzentwurf \nder Bundesregierung \nEntwurf eines Gesetzes zur Änderung des Gebäudeenergiegesetzes, zur  \nÄnderung der Heizkostenverordnung und zur Änderung der Kehr-  \nund Überprüfungsordnung \nA. Problem und Ziel \nDie Energiewende im Wärmebereich ist ein zentraler Schlüsselbereich für die\nErreichung der klimapolitischen Ziele und für die Reduktion der Abhängigkeit von \nImporten fossiler Energie. Mehr als ein Drittel des gesamten Energiebedarfs in \nDeutschland wird zum Heizen unserer Gebäude und zur Versorgung mit\nWarmwasser verbraucht. \nÜber 80 Prozent der Wärmenachfrage wird noch durch die Verbrennung von\nfossilen Energieträgern gedeckt. Dabei dominiert das Erdgas im\nGebäudewärmebereich. Über 40 Prozent des in Deutschland verbrauchten Erdgases verbrennen wir \njährlich, um unsere Gebäude zu beheizen und mit Warmwasser zu versorgen. Von \nden rund 41 Millionen Haushalten in Deutschland heizt nahezu jeder zweite mit \nErdgas, gefolgt von Heizöl mit knapp 25 Prozent und Fernwärme mit gut 14\nProzent. Stromdirektheizungen und Wärmepumpen machen jeweils nicht einmal \n3 Prozent aus. Die übrigen 6 Prozent entfallen auf Feuerungsanlagen für feste \nBrennstoffe wie Holz, Holzpellets, sonstige Biomasse und Kohle. Bei den neu \ninstallierten Heizungen betrug der Anteil von Gasheizungen im Jahr 2021 sogar \n70 Prozent. \nOhne ein schnelles Umsteuern im Bereich der Gebäudewärme kann Deutschland \nweder die Klimaziele erreichen noch die Abhängigkeit von fossilen Rohstoffen \nrasch reduzieren. Der Koalitionsvertrag zwischen SPD, BÜNDNIS 90/DIE GRÜ-\nNEN und FDP sah daher vor, dass ab dem Jahr 2025 jede neu eingebaute Heizung \nauf Basis von 65 Prozent erneuerbaren Energien betrieben werden soll. Die\nRegierungskoalition hat vor dem Hintergrund des russischen Angriffs auf die\nUkraine entschieden, dass schon ab 2024 möglichst jede neu eingebaute Heizung diese \nVorgabe erfüllen soll. \nDas vorliegende Gesetz verankert diese zentrale Vorgabe im\nGebäudeenergiegesetz (GEG) und gewährleistet damit, dass künftig nur noch moderne,\nzukunftsfähige Heizungen auf einer Basis von mindestens 65 Prozent erneuerbaren Energien \n(EE) in Deutschland eingebaut werden dürfen. Das Gesetz sieht vor, dass diese \nPflicht technologieneutral auf unterschiedlichen Wegen erreicht werden kann, \nund ermöglicht auch beim Einbau von neuen Heizungen in bestehenden\nGebäuden noch die partielle Nutzung von fossilen Energien. Die verantwortlichen\nEigentümer müssen aber bei jedem Heizungswechsel berücksichtigen, dass\nspätestens bis zum Jahr 2045 die Nutzung von fossilen Energieträgern beendet sein \nmuss und danach alle Heizungen vollständig mit erneuerbaren Energien betrieben \nwerden müssen. \nDieses Gesetz sieht zudem vor dem Hintergrund der angespannten Lage auf den \nEnergiemärkten einige Vorgaben für die Erhöhung der Energieeffizienz im\nGebäudeenergiebereich vor, die schnell wirken und gewährleisten sollen, dass\nHeizenergie, egal ob mit fossilen Energien oder mit erneuerbaren Energien erzeugt, \neffizient genutzt wird. \nErgänzend hierzu setzt sich die Bundesregierung derzeit auf der EU-Ebene im \nRahmen des Green Deals und der Beratungen zur Gebäuderichtlinie (EPBD) für \nambitionierte Mindesteffizienzstandards für Gebäude ein, um den Wärmebedarf \nzu senken und gemeinsam mit der in diesem Gesetz verankerten Vorgabe zur \nschrittweisen Dekarbonisierung der Wärmeerzeugung die Wärmewende\nentscheidend voranzubringen. \nDer Umbau der Wärmeversorgung ist aufgrund der großen Vielfalt an\nunterschiedlichen Gebäuden, der unterschiedlichen Situation der Eigentümer und der \nAuswirkungen auf die Mieter mit großen und zahlreichen Herausforderungen\nverbunden. Die derzeitige Krise auf den Energiemärkten und die sprunghaft\nangestiegenen Preise für Erdgas und andere fossile Brennstoffe zeigen jedoch, dass \ndieser Umbau nicht nur aus klimapolitischen Gründen, sondern auch aus\nsozialpolitischen Gründen dringend notwendig ist. Ein Beibehalten der d",
+   "titel": "Entwurf eines Gesetzes zur Änderung des Gebäudeenergiegesetzes, zur Änderung der Heizkostenverordnung und zur Änderung der Kehr- und Überprüfungsordnung",
+   "datum": "2023-05-17"
+  }
+ },
+ "tools": 5,
+ "calls": [
+  {
+   "name": "trackProcedure",
+   "arguments": {
+    "id": 298723
+   },
+   "expect": {
+    "status": "ok",
+    "procedure.status": "Verkündet",
+    "enacted": true,
+    "votes.1.result": "397:275:5"
+   }
+  },
+  {
+   "name": "profileMember",
+   "arguments": {
+    "id": 1502
+   },
+   "expect": {
+    "status": "ok",
+    "person.name": "Annalena Baerbock",
+    "earlierRoles.0.ministry": "Auswärtiges Amt"
+   }
+  },
+  {
+   "name": "readDocument",
+   "arguments": {
+    "number": "20/6875",
+    "limit": 2
+   },
+   "expect": {
+    "status": "ok",
+    "document.cite": "BT-Drs. 20/6875",
+    "passages.0.index": 0,
+    "nextOffset": 2
+   }
+  },
+  {
+   "name": "getRecord",
+   "arguments": {
+    "resource": "person",
+    "id": 1502
+   },
+   "expect": {
+    "status": "ok",
+    "record.id": "1502"
+   }
+  },
+  {
+   "name": "searchRecords",
+   "arguments": {
+    "resource": "vorgang",
+    "filters": {
+     "f.person": "Baerbock"
+    }
+   },
+   "error": true
+  },
+  {
+   "name": "trackProcedure",
+   "arguments": {
+    "id": 0
+   },
+   "error": true
+  }
+ ]
+}

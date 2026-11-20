@@ -32,7 +32,7 @@
 // left in a `dist/`.
 
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -154,7 +154,11 @@ writeFileSync(record, `${JSON.stringify({ paths }, null, 2)}\n`);
 for (const name of documents) cpSync(join(root, name), join(target, name));
 const readme = existsSync(join(target, "README.md")) ? "parked" : "added";
 if (readme === "parked") renameSync(join(target, "README.md"), parked);
-cpSync(join(root, "README.md"), join(target, "README.md"));
+// An app other than the repository's main one has its own README at the root, named after its
+// folder in capitals (apps/mcp -> MCP.md): npm shows it on that package's page. Without one, the
+// repository README.
+const ownReadme = join(root, `${basename(target).toUpperCase()}.md`);
+cpSync(existsSync(ownReadme) ? ownReadme : join(root, "README.md"), join(target, "README.md"));
 writeFileSync(record, `${JSON.stringify({ paths, readme }, null, 2)}\n`);
 
 rmSync(join(target, "node_modules"), { recursive: true, force: true });
