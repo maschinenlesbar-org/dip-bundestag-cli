@@ -9,8 +9,10 @@ import { OutputError, isDirectoryMessage, logOf, outputParentProblem, outputPath
 import type { RawResponse, RetryEvent } from "@maschinenlesbar.org/dip-bundestag-client/internal/engine";
 import { apiKeyProblem, normaliseApiKey, type DipClientOptions } from "@maschinenlesbar.org/dip-bundestag-client/internal/client";
 
+import { API_KEY_CREDENTIAL } from "@maschinenlesbar.org/dip-bundestag-client/internal/credentials";
+
 /** The name the API key is stored under in the credentials file (`dip config set api-key`). */
-export const API_KEY_CREDENTIAL = "api-key";
+export { API_KEY_CREDENTIAL };
 import { DipError, DipValidationError, quoteValue } from "@maschinenlesbar.org/dip-bundestag-client/internal/errors";
 import { API_KEY_PHRASE, DEFAULT_BASE_URL, baseUrlProblem, cleartextProblem, isBidiControl } from "@maschinenlesbar.org/dip-bundestag-client/internal/engine";
 import { headerValueProblem, intInRangeProblem, nonEmptyProblem } from "@maschinenlesbar.org/dip-bundestag-client/internal/validate";
