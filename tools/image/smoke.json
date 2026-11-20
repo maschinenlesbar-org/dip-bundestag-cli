@@ -1,0 +1,46 @@
+{
+  "comment": "What tools/image/smoke.mjs needs that is particular to this repo: the bin (its log topic), a command that makes one request (no key: the mock asks for none, and the client then sends no Authorization header), the exit code of a network error, the mock answer to that request (by path, under --base-url http://mock:8080; recorded live 2026-11-20), and a string the printed answer contains.",
+  "bin": "dip",
+  "command": [
+    "--compact",
+    "person",
+    "get",
+    "1502"
+  ],
+  "networkErrorExit": 1,
+  "answers": {
+    "/api/v1/person/1502": {
+      "id": "1502",
+      "funktion": [
+        "MdB"
+      ],
+      "fraktion": [
+        "BÜNDNIS 90/DIE GRÜNEN"
+      ],
+      "nachname": "Baerbock",
+      "vorname": "Annalena",
+      "typ": "Person",
+      "wahlperiode": [
+        18,
+        19,
+        20,
+        21
+      ],
+      "aktualisiert": "2025-07-28T09:37:54+02:00",
+      "person_roles": [
+        {
+          "ressort_titel": "Auswärtiges Amt",
+          "nachname": "Baerbock",
+          "vorname": "Annalena",
+          "wahlperiode_nummer": [
+            20
+          ]
+        }
+      ],
+      "titel": "Annalena Baerbock, MdB, BÜNDNIS 90/DIE GRÜNEN",
+      "datum": "2025-06-27",
+      "basisdatum": "2013-11-01"
+    }
+  },
+  "expectStdout": "\"nachname\":\"Baerbock\""
+}

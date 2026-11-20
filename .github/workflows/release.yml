@@ -30,6 +30,8 @@ jobs:
       version: ${{ steps.ver.outputs.version }}
       tarball: ${{ steps.pack.outputs.tarball }}
       tarball-sha256: ${{ steps.pack.outputs.tarball-sha256 }}
+      mcp-tarball: ${{ steps.pack.outputs.mcp-tarball }}
+      mcp-tarball-sha256: ${{ steps.pack.outputs.mcp-tarball-sha256 }}
       notes: ${{ steps.changelog.outputs.notes }}
       notes-sha256: ${{ steps.changelog.outputs.notes-sha256 }}
 
@@ -64,6 +66,12 @@ jobs:
           tag="${GITHUB_REF_NAME#v}"
           if [ "$tag" != "$PKG_VERSION" ]; then
             echo "::error::Tag '$GITHUB_REF_NAME' does not match apps/cli/package.json version '$PKG_VERSION'."
+            exit 1
+          fi
+          # The apps are released together (tools/bump.mjs): the MCP server's version is the same.
+          mcp="$(node -p "require('./apps/mcp/package.json').version")"
+          if [ "$tag" != "$mcp" ]; then
+            echo "::error::Tag '$GITHUB_REF_NAME' does not match apps/mcp/package.json version '$mcp'."
             exit 1
           fi
 
@@ -101,6 +109,11 @@ jobs:
           test -f "dist-artifacts/$tarball"
           echo "tarball=$tarball" >> "$GITHUB_OUTPUT"
           echo "tarball-sha256=$(sha256sum "dist-artifacts/$tarball" | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+          npm pack --workspace apps/mcp --pack-destination dist-artifacts
+          mcp="maschinenlesbar.org-dip-bundestag-mcp-${VERSION}.tgz"
+          test -f "dist-artifacts/$mcp"
+          echo "mcp-tarball=$mcp" >> "$GITHUB_OUTPUT"
+          echo "mcp-tarball-sha256=$(sha256sum "dist-artifacts/$mcp" | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
           ls -la dist-artifacts
 
       - name: Upload the tarball and the notes
@@ -109,6 +122,7 @@ jobs:
           name: package
           path: |
             dist-artifacts/${{ steps.pack.outputs.tarball }}
+            dist-artifacts/${{ steps.pack.outputs.mcp-tarball }}
             dist-artifacts/${{ steps.changelog.outputs.notes }}
           if-no-files-found: error
           retention-days: 1
@@ -169,6 +183,19 @@ jobs:
             --spec-version 1.6 \
             --output-format JSON \
             --output-file "${base}.dev.cdx.json"
+          mcp="sbom/dip-bundestag-mcp-${VERSION}"
+          tools/sbom/node_modules/.bin/cyclonedx-npm \
+            --workspace apps/mcp \
+            --omit dev \
+            --spec-version 1.6 \
+            --output-format JSON \
+            --output-file "${mcp}.cdx.json"
+          tools/sbom/node_modules/.bin/cyclonedx-npm \
+            --workspace apps/mcp \
+            --include-workspace-root \
+            --spec-version 1.6 \
+            --output-format JSON \
+            --output-file "${mcp}.dev.cdx.json"
           ls -la sbom
 
       - name: Upload the SBOMs
@@ -178,14 +205,212 @@ jobs:
           path: |
             sbom/dip-bundestag-cli-${{ needs.pack.outputs.version }}.cdx.json
             sbom/dip-bundestag-cli-${{ needs.pack.outputs.version }}.dev.cdx.json
+            sbom/dip-bundestag-mcp-${{ needs.pack.outputs.version }}.cdx.json
+            sbom/dip-bundestag-mcp-${{ needs.pack.outputs.version }}.dev.cdx.json
           if-no-files-found: error
           retention-days: 1
+
+  # The container image, built from the pack job's tarball after checking it against the
+  # digest that job recorded, with tools/image (pins.json: base, BuildKit, registry). No npm runs
+  # here and no scanner or SBOM tool: this job records the archive's digest, which the release
+  # job trusts. The archive is pushed to a local registry with push.mjs (the script publish.yml
+  # pushes to ghcr.io with) and smoke-tested from there. Reproducible: SOURCE_DATE_EPOCH is the
+  # tagged commit's time, so a rebuild from the tarball gives the same index digest.
+  image:
+    name: Container image
+    needs: pack
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      archive: ${{ steps.build.outputs.archive }}
+      archive-sha256: ${{ steps.build.outputs.archive-sha256 }}
+      index: ${{ steps.build.outputs.index }}
+      mcp-archive: ${{ steps.build.outputs.mcp-archive }}
+      mcp-archive-sha256: ${{ steps.build.outputs.mcp-archive-sha256 }}
+      mcp-index: ${{ steps.build.outputs.mcp-index }}
+    services:
+      registry:
+        # tools/image/pins.json's registry pin, repeated: a service can't read a file.
+        image: registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373
+        ports:
+          - 127.0.0.1:5000:5000
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.x
+          # No cache restoration on tag-triggered runs (cache-poisoning hardening).
+          package-manager-cache: false
+
+      - name: Download the tarball
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: package
+          path: package
+
+      - name: Verify the tarballs against the pack job's digests
+        env:
+          TARBALL: ${{ needs.pack.outputs.tarball }}
+          TARBALL_SHA256: ${{ needs.pack.outputs.tarball-sha256 }}
+          MCP_TARBALL: ${{ needs.pack.outputs.mcp-tarball }}
+          MCP_TARBALL_SHA256: ${{ needs.pack.outputs.mcp-tarball-sha256 }}
+        run: printf '%s  %s\n' "$TARBALL_SHA256" "package/$TARBALL" "$MCP_TARBALL_SHA256" "package/$MCP_TARBALL" | sha256sum --check --strict -
+
+      - name: Build the OCI archives
+        id: build
+        env:
+          TARBALL: ${{ needs.pack.outputs.tarball }}
+          MCP_TARBALL: ${{ needs.pack.outputs.mcp-tarball }}
+          VERSION: ${{ needs.pack.outputs.version }}
+        run: |
+          mkdir -p image
+          archive="dip-bundestag-cli-${VERSION}.oci.tar"
+          node tools/image/build.mjs --app cli --tarball "package/$TARBALL" --out "image/$archive" > build.json
+          cat build.json
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+          echo "archive-sha256=$(sha256sum "image/$archive" | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+          echo "index=$(jq -r .index build.json)" >> "$GITHUB_OUTPUT"
+          mcp="dip-bundestag-mcp-${VERSION}.oci.tar"
+          node tools/image/build.mjs --app mcp --tarball "package/$MCP_TARBALL" --out "image/$mcp" > mcp-build.json
+          cat mcp-build.json
+          echo "mcp-archive=$mcp" >> "$GITHUB_OUTPUT"
+          echo "mcp-archive-sha256=$(sha256sum "image/$mcp" | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+          echo "mcp-index=$(jq -r .index mcp-build.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Push to a local registry and smoke-test
+        env:
+          ARCHIVE: ${{ steps.build.outputs.archive }}
+          INDEX: ${{ steps.build.outputs.index }}
+          MCP_ARCHIVE: ${{ steps.build.outputs.mcp-archive }}
+          MCP_INDEX: ${{ steps.build.outputs.mcp-index }}
+        run: |
+          node tools/image/push.mjs --archive "image/$ARCHIVE" --to 127.0.0.1:5000/dip-bundestag-cli:release
+          node tools/image/smoke.mjs --app cli --image "127.0.0.1:5000/dip-bundestag-cli@$INDEX"
+          node tools/image/push.mjs --archive "image/$MCP_ARCHIVE" --to 127.0.0.1:5000/dip-bundestag-mcp:release
+          node tools/image/smoke.mjs --app mcp --image "127.0.0.1:5000/dip-bundestag-mcp@$MCP_INDEX"
+
+      - name: Upload the archives
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: image
+          path: |
+            image/${{ steps.build.outputs.archive }}
+            image/${{ steps.build.outputs.mcp-archive }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+  # One CycloneDX SBOM per platform of the image (base image included: Debian's packages and
+  # the Node binary, which the npm SBOMs don't see), made with syft, a release binary pinned by
+  # sha256 in tools/image/pins.json. A job of its own after the digest is recorded; its outputs
+  # are trusted for nothing. No vulnerability gate here: its database changes daily, so a gate
+  # in a release run could leave a tag without a release. images.yml gates on push and weekly.
+  image-sbom:
+    name: Image SBOMs
+    needs: [pack, image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.x
+          # No cache restoration on tag-triggered runs (cache-poisoning hardening).
+          package-manager-cache: false
+
+      - name: Download the archive
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: image
+          path: image
+
+      - name: Verify the archives against the image job's digests
+        env:
+          ARCHIVE: ${{ needs.image.outputs.archive }}
+          ARCHIVE_SHA256: ${{ needs.image.outputs.archive-sha256 }}
+          MCP_ARCHIVE: ${{ needs.image.outputs.mcp-archive }}
+          MCP_ARCHIVE_SHA256: ${{ needs.image.outputs.mcp-archive-sha256 }}
+        run: printf '%s  %s\n' "$ARCHIVE_SHA256" "image/$ARCHIVE" "$MCP_ARCHIVE_SHA256" "image/$MCP_ARCHIVE" | sha256sum --check --strict -
+
+      - name: Generate the image SBOMs (CycloneDX, per platform)
+        env:
+          ARCHIVE: ${{ needs.image.outputs.archive }}
+          MCP_ARCHIVE: ${{ needs.image.outputs.mcp-archive }}
+          VERSION: ${{ needs.pack.outputs.version }}
+        run: |
+          node tools/image/sbom.mjs --archive "image/$ARCHIVE" --name "dip-bundestag-cli-${VERSION}" --out image-sbom
+          node tools/image/sbom.mjs --archive "image/$MCP_ARCHIVE" --name "dip-bundestag-mcp-${VERSION}" --out image-sbom
+
+      - name: Upload the image SBOMs
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: image-sbom
+          path: |
+            image-sbom/dip-bundestag-cli-${{ needs.pack.outputs.version }}.amd64.image.cdx.json
+            image-sbom/dip-bundestag-cli-${{ needs.pack.outputs.version }}.arm64.image.cdx.json
+            image-sbom/dip-bundestag-mcp-${{ needs.pack.outputs.version }}.amd64.image.cdx.json
+            image-sbom/dip-bundestag-mcp-${{ needs.pack.outputs.version }}.arm64.image.cdx.json
+          if-no-files-found: error
+          retention-days: 1
+
+  # Signed build provenance (Sigstore, through GitHub's attestations API) for the tarball, the
+  # image archive and the image index, from the digests the pack and image jobs recorded. No
+  # checkout, no file: the subjects are the job outputs. Users check a file with
+  # `gh attestation verify <file> --repo <repo>` and the image with `gh attestation verify
+  # oci://<image>:<tag> --repo <repo>`; publish.yml checks the files before it publishes them.
+  attest:
+    name: Attest the release files and the image
+    needs: [pack, image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # the Sigstore signing certificate
+      attestations: write # store the attestation
+      artifact-metadata: write # link it to the artifact
+
+    steps:
+      - name: Write the subjects
+        env:
+          TARBALL: ${{ needs.pack.outputs.tarball }}
+          TARBALL_SHA256: ${{ needs.pack.outputs.tarball-sha256 }}
+          ARCHIVE: ${{ needs.image.outputs.archive }}
+          ARCHIVE_SHA256: ${{ needs.image.outputs.archive-sha256 }}
+          INDEX: ${{ needs.image.outputs.index }}
+          MCP_TARBALL: ${{ needs.pack.outputs.mcp-tarball }}
+          MCP_TARBALL_SHA256: ${{ needs.pack.outputs.mcp-tarball-sha256 }}
+          MCP_ARCHIVE: ${{ needs.image.outputs.mcp-archive }}
+          MCP_ARCHIVE_SHA256: ${{ needs.image.outputs.mcp-archive-sha256 }}
+          MCP_INDEX: ${{ needs.image.outputs.mcp-index }}
+        run: |
+          printf '%s  %s\n' \
+            "$TARBALL_SHA256" "$TARBALL" \
+            "$ARCHIVE_SHA256" "$ARCHIVE" \
+            "${INDEX#sha256:}" "dip-bundestag-cli" \
+            "$MCP_TARBALL_SHA256" "$MCP_TARBALL" \
+            "$MCP_ARCHIVE_SHA256" "$MCP_ARCHIVE" \
+            "${MCP_INDEX#sha256:}" "dip-bundestag-mcp" > "$RUNNER_TEMP/subjects.txt"
+          cat "$RUNNER_TEMP/subjects.txt"
+
+      - name: Attest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-checksums: ${{ runner.temp }}/subjects.txt
 
   # The only job with a write token: no checkout, no npm, no Node, only the runner's
   # preinstalled gh CLI on files it has checked.
   release:
     name: Create GitHub Release
-    needs: [pack, sbom]
+    needs: [pack, sbom, image, image-sbom, attest]
     runs-on: ubuntu-latest
     permissions:
       contents: write # create the GitHub Release and upload its assets
@@ -203,16 +428,59 @@ jobs:
           name: sbom
           path: sbom
 
+      - name: Download the image archive
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: image
+          path: image
+
+      - name: Download the image SBOMs
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: image-sbom
+          path: image-sbom
+
       # The pack job's digests are job outputs, recorded by the runner: an artifact changed
       # after its upload (by the SBOM job, say) fails here, before anything is published.
-      - name: Verify the tarball and the notes against the pack job's digests
+      - name: Verify the tarballs, the notes and the image archives against the recorded digests
         env:
           TARBALL: ${{ needs.pack.outputs.tarball }}
           TARBALL_SHA256: ${{ needs.pack.outputs.tarball-sha256 }}
           NOTES: ${{ needs.pack.outputs.notes }}
           NOTES_SHA256: ${{ needs.pack.outputs.notes-sha256 }}
+          ARCHIVE: ${{ needs.image.outputs.archive }}
+          ARCHIVE_SHA256: ${{ needs.image.outputs.archive-sha256 }}
+          MCP_TARBALL: ${{ needs.pack.outputs.mcp-tarball }}
+          MCP_TARBALL_SHA256: ${{ needs.pack.outputs.mcp-tarball-sha256 }}
+          MCP_ARCHIVE: ${{ needs.image.outputs.mcp-archive }}
+          MCP_ARCHIVE_SHA256: ${{ needs.image.outputs.mcp-archive-sha256 }}
         run: |
-          printf '%s  %s\n' "$TARBALL_SHA256" "package/$TARBALL" "$NOTES_SHA256" "package/$NOTES" | sha256sum --check --strict -
+          printf '%s  %s\n' "$TARBALL_SHA256" "package/$TARBALL" "$NOTES_SHA256" "package/$NOTES" "$ARCHIVE_SHA256" "image/$ARCHIVE" | sha256sum --check --strict -
+          printf '%s  %s\n' "$MCP_TARBALL_SHA256" "package/$MCP_TARBALL" "$MCP_ARCHIVE_SHA256" "image/$MCP_ARCHIVE" | sha256sum --check --strict -
+
+      # After the check: the notes get the image's index digest (what `docker pull` resolves a
+      # tag to) and SHA256SUMS lists the checked files, for readers. The attestations are what
+      # proves them.
+      - name: Add the image digest to the notes, write SHA256SUMS
+        env:
+          TARBALL: ${{ needs.pack.outputs.tarball }}
+          TARBALL_SHA256: ${{ needs.pack.outputs.tarball-sha256 }}
+          NOTES: ${{ needs.pack.outputs.notes }}
+          ARCHIVE: ${{ needs.image.outputs.archive }}
+          ARCHIVE_SHA256: ${{ needs.image.outputs.archive-sha256 }}
+          INDEX: ${{ needs.image.outputs.index }}
+          MCP_TARBALL: ${{ needs.pack.outputs.mcp-tarball }}
+          MCP_TARBALL_SHA256: ${{ needs.pack.outputs.mcp-tarball-sha256 }}
+          MCP_ARCHIVE: ${{ needs.image.outputs.mcp-archive }}
+          MCP_ARCHIVE_SHA256: ${{ needs.image.outputs.mcp-archive-sha256 }}
+          MCP_INDEX: ${{ needs.image.outputs.mcp-index }}
+        run: |
+          {
+            printf '\n## Container images\n\nIndex digests (linux/amd64, linux/arm64); check one with `gh attestation verify oci://<image>@<digest> --repo %s`.\n\n' "$GITHUB_REPOSITORY"
+            printf -- '- `ghcr.io/%s/dip-bundestag-cli`: `%s`\n' "$GITHUB_REPOSITORY_OWNER" "$INDEX"
+            printf -- '- `ghcr.io/%s/dip-bundestag-mcp`: `%s`\n' "$GITHUB_REPOSITORY_OWNER" "$MCP_INDEX"
+          } >> "package/$NOTES"
+          printf '%s  %s\n' "$TARBALL_SHA256" "$TARBALL" "$ARCHIVE_SHA256" "$ARCHIVE" "$MCP_TARBALL_SHA256" "$MCP_TARBALL" "$MCP_ARCHIVE_SHA256" "$MCP_ARCHIVE" > SHA256SUMS
 
       # With assets, gh creates the release as a draft, uploads them, then publishes it.
       # The assets are named one by one, so nothing else an artifact may hold is attached.
@@ -223,6 +491,9 @@ jobs:
           VERSION: ${{ needs.pack.outputs.version }}
           TARBALL: ${{ needs.pack.outputs.tarball }}
           NOTES: ${{ needs.pack.outputs.notes }}
+          ARCHIVE: ${{ needs.image.outputs.archive }}
+          MCP_TARBALL: ${{ needs.pack.outputs.mcp-tarball }}
+          MCP_ARCHIVE: ${{ needs.image.outputs.mcp-archive }}
         # No PRs land in this repo (see CONTRIBUTING.md), so GitHub's own
         # generated notes have nothing to list — --generate-notes only adds the
         # "Full Changelog: vX...vY" compare link after our own notes above.
@@ -235,4 +506,14 @@ jobs:
             "package/$TARBALL" \
             "sbom/dip-bundestag-cli-${VERSION}.cdx.json" \
             "sbom/dip-bundestag-cli-${VERSION}.dev.cdx.json" \
+            "image/$ARCHIVE" \
+            "image-sbom/dip-bundestag-cli-${VERSION}.amd64.image.cdx.json" \
+            "image-sbom/dip-bundestag-cli-${VERSION}.arm64.image.cdx.json" \
+            "package/$MCP_TARBALL" \
+            "sbom/dip-bundestag-mcp-${VERSION}.cdx.json" \
+            "sbom/dip-bundestag-mcp-${VERSION}.dev.cdx.json" \
+            "image/$MCP_ARCHIVE" \
+            "image-sbom/dip-bundestag-mcp-${VERSION}.amd64.image.cdx.json" \
+            "image-sbom/dip-bundestag-mcp-${VERSION}.arm64.image.cdx.json" \
+            SHA256SUMS \
             "package/$NOTES"

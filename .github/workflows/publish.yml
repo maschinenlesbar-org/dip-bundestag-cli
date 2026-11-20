@@ -1,24 +1,33 @@
 name: Publish
 
-# Manually publish a released version to the npm registry, run from its tag:
+# Manually publish a released version, run from its tag:
 #
 #   gh workflow run publish.yml -R <owner>/<repo> --ref vX.Y.Z
 #
-# The version is the tag's (vX.Y.Z -> X.Y.Z); a run from a branch fails. Running
-# from the tag also means this file is the one the release was cut with. The repository is
-# an npm workspace: the published package is apps/cli, which bundles packages/client.
+# The version is the tag's (vX.Y.Z -> X.Y.Z); a run from a branch fails. Running from the tag
+# also means this file is the one the release was cut with.
 #
-# Authentication uses npm Trusted Publishing (OIDC): GitHub mints a short-lived
-# token for this run and npm verifies it against the trusted publisher
-# configured for the package — no long-lived NPM_TOKEN is stored.
+# What is published are the GitHub Release's own files, not a rebuild: each job downloads its
+# file from the release and checks it twice before anything leaves this run: against the
+# release's own attestation (`gh release verify-asset`; the repository has immutable releases
+# on, so a published release's files can't be swapped) and against the build provenance
+# release.yml's attest job signed for this tag (`gh attestation verify`). So
+# the npm package, the image in the registry and the release asset are the same bytes, and no
+# third-party code runs in these jobs: no `npm ci`, no tests (release.yml ran them on this tag).
 #
-# One-time setup on npmjs.com: package `@maschinenlesbar.org/dip-bundestag-cli` ->
-# Settings -> Trusted Publisher -> GitHub Actions, this repo, workflow `publish.yml`.
+# Two independent jobs, each safe to re-run alone (`gh run rerun <id> --failed`): a version
+# already published with the same bytes is skipped, with other bytes it fails.
+#  - npm:    npm Trusted Publishing (OIDC), no NPM_TOKEN stored anywhere. One-time setup on
+#            npmjs.com: the package -> Settings -> Trusted Publisher -> GitHub Actions, this
+#            repo, workflow `publish.yml`.
+#  - images: the image archive to the GitHub Container Registry (ghcr.io), with this run's
+#            GITHUB_TOKEN (packages: write); no stored credential. GitHub creates a new package
+#            as private: make it public once (package settings -> Change visibility); until then
+#            the anonymous read-back is a warning.
 on:
   workflow_dispatch:
 
-# Least privilege at the workflow level: only read. The OIDC id-token scope is
-# granted per-job, to the publish job that actually needs it.
+# Least privilege at the workflow level: only read. The OIDC id-token scope is granted per job.
 permissions:
   contents: read
 
@@ -26,12 +35,37 @@ concurrency:
   group: publish-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  # The images, pushed to ghcr.io/maschinenlesbar-org/<image>.
+  IMAGES: dip-bundestag-cli dip-bundestag-mcp
+  REGISTRY: ghcr.io/maschinenlesbar-org
+
 jobs:
-  publish:
-    name: Publish to npm
+  # One leg per package, each re-runnable alone. A new package needs its first version on npm
+  # (and its Trusted Publisher) before this job can publish it; see the plan's setup notes.
+  npm:
+    name: Publish ${{ matrix.package }} to npm
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # The base key makes one job per app. An include-only matrix whose entries share their
+        # keys collapses into ONE job (the last entry wins): v0.11.0's run published no CLI.
+        app: [cli, mcp]
+        include:
+          - app: cli
+            package: '@maschinenlesbar.org/dip-bundestag-cli'
+            tarball-prefix: maschinenlesbar.org-dip-bundestag-cli
+          - app: mcp
+            package: '@maschinenlesbar.org/dip-bundestag-mcp'
+            tarball-prefix: maschinenlesbar.org-dip-bundestag-mcp
+    env:
+      PACKAGE: ${{ matrix.package }}
+      TARBALL_PREFIX: ${{ matrix.tarball-prefix }}
     permissions:
       contents: read
+      attestations: read # gh attestation verify
       id-token: write # npm Trusted Publishing (OIDC); provenance is attached automatically
 
     steps:
@@ -52,19 +86,12 @@ jobs:
           fi
           echo "VERSION=$version" >> "$GITHUB_ENV"
 
-      # Publish exactly the tagged source.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.ref }}
-          persist-credentials: false
-
       - name: Use Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           # Trusted publishing requires npm >= 11.5.1. Node 24 bundles it (Node 22
           # still ships npm 10), so npm itself is never installed ad hoc from the
-          # registry inside this id-token: write job, where a compromised package
-          # would run with the token that mints the provenance attestation.
+          # registry inside this id-token: write job.
           node-version: 24.x
           registry-url: 'https://registry.npmjs.org'
           # No cache restoration in the publishing job (cache-poisoning hardening).
@@ -78,22 +105,181 @@ jobs:
             exit 1
           fi
 
-      - name: Verify apps/cli/package.json matches the tag
+      - name: Download and verify the release tarball
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          pkg="$(node -p "require('./apps/cli/package.json').version")"
-          if [ "$pkg" != "$VERSION" ]; then
-            echo "::error::apps/cli/package.json version ('$pkg') does not match the tag (v$VERSION)."
+          tarball="${TARBALL_PREFIX}-${VERSION}.tgz"
+          gh release download "$GITHUB_REF_NAME" --pattern "$tarball" --dir release
+          gh release verify-asset "$GITHUB_REF_NAME" "release/$tarball"
+          gh attestation verify "release/$tarball" --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
+            --source-ref "$GITHUB_REF"
+          packed="$(tar -xOzf "release/$tarball" package/package.json | jq -r '.name + "@" + .version')"
+          if [ "$packed" != "$PACKAGE@$VERSION" ]; then
+            echo "::error::The tarball is $packed, the tag wants $PACKAGE@$VERSION."
             exit 1
           fi
+          # A leading ./ makes npm read a file: `release/x.tgz` alone is a GitHub shorthand (owner/repo),
+          # which npm tried to clone over SSH in 0.10.0's publish run.
+          echo "TARBALL=./release/$tarball" >> "$GITHUB_ENV"
 
-      - name: Install
-        run: npm ci
+      # The registry's integrity of an existing version is the sha512 of its tarball: the same
+      # bytes are a skip (a re-run), other bytes a failure.
+      - name: Publish to npm (Trusted Publishing, provenance)
+        run: |
+          ours="sha512-$(openssl dgst -sha512 -binary "$TARBALL" | base64 -w 0)"
+          # The version's own document, fetched past the registry's cache: `npm view` reads the
+          # package document, which a CDN serves stale for minutes after a publish.
+          version_doc() {
+            curl -sf -H 'Cache-Control: no-cache' \
+              "https://registry.npmjs.org/$PACKAGE/$VERSION?nocache=$(date +%s%N)" || true
+          }
+          # 0: the version is on npm with these files; 1: with other files; 2: not (yet) visible.
+          on_npm() {
+            doc="$(version_doc)"
+            theirs="$(printf '%s' "$doc" | jq -r '.dist.integrity // empty' 2>/dev/null || true)"
+            [ -z "$theirs" ] && return 2
+            [ "$theirs" = "$ours" ] && return 0
+            # A version published outside this workflow (a package's first one) may hold the same
+            # files in an archive npm made anew: compare the files before calling it a conflict.
+            published="$RUNNER_TEMP/published"
+            rm -rf "$published" && mkdir -p "$published/npm" "$published/release"
+            curl -sSfL -o "$published/npm.tgz" "$(printf '%s' "$doc" | jq -r '.dist.tarball')"
+            tar -xzf "$published/npm.tgz" -C "$published/npm"
+            tar -xzf "$TARBALL" -C "$published/release"
+            diff -r "$published/npm" "$published/release" > /dev/null && return 0
+            echo "::error::$PACKAGE@$VERSION is on npm with other files ($theirs)."
+            return 1
+          }
+          state=0; on_npm || state=$?
+          [ "$state" -eq 0 ] && { echo "::notice::$PACKAGE@$VERSION is already on npm with these files; nothing to do."; exit 0; }
+          [ "$state" -eq 1 ] && exit 1
+          log="$RUNNER_TEMP/npm-publish.log"
+          rc=0; npm publish "$TARBALL" --provenance --access public > "$log" 2>&1 || rc=$?
+          cat "$log"
+          [ "$rc" -eq 0 ] && exit 0
+          # npm refuses a version that already exists, also while the registry doesn't show it yet
+          # (a package's first version, published by hand minutes before this run). Then wait
+          # until it shows, up to 15 minutes, and compare the files; otherwise look for 2 minutes.
+          tries=6
+          grep -qiE 'EPUBLISHCONFLICT|previously published|cannot publish over' "$log" && tries=45
+          for _ in $(seq "$tries"); do
+            sleep 20
+            state=0; on_npm || state=$?
+            [ "$state" -eq 0 ] && { echo "::notice::$PACKAGE@$VERSION is on npm with these files (published before this run); nothing to do."; exit 0; }
+            [ "$state" -eq 1 ] && exit 1
+          done
+          echo "::error::npm publish of $PACKAGE@$VERSION failed, and the version isn't on npm."
+          exit 1
 
-      - name: Test
-        run: npm test
+  images:
+    name: Push the images to the GitHub Container Registry
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      attestations: read # gh attestation verify
+      packages: write # push to ghcr.io/<owner>/<image>
 
-      # The app's `prepack` hook builds and bundles packages/client and commander.
-      # No NPM_TOKEN: OIDC provides the short-lived credential, and provenance
-      # is generated from this workflow run.
-      - name: Publish to npm
-        run: npm publish --workspace apps/cli --provenance --access public
+    steps:
+      - name: Take the version from the release tag
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          case "$REF" in
+            refs/tags/v*) version="${REF#refs/tags/v}" ;;
+            *)
+              echo "::error::Run this workflow from a release tag, not from $REF."
+              exit 1
+              ;;
+          esac
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Tag v$version is not a release version (vX.Y.Z)."
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      # The tag's tools/image (push.mjs), never its dependencies.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.x
+          package-manager-cache: false
+
+      - name: Download and verify the image archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mkdir -p release
+          for image in $IMAGES; do
+            archive="${image}-${VERSION}.oci.tar"
+            gh release download "$GITHUB_REF_NAME" --pattern "$archive" --dir release
+            gh release verify-asset "$GITHUB_REF_NAME" "release/$archive"
+            gh attestation verify "release/$archive" --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
+              --source-ref "$GITHUB_REF"
+          done
+
+      # skopeo keeps the login in a file under RUNNER_TEMP, removed at the end.
+      - name: Log in to ghcr.io with this run's token
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          umask 077
+          echo "REGISTRY_AUTH_FILE=$RUNNER_TEMP/registry-auth.json" >> "$GITHUB_ENV"
+          printf '%s' "$GH_TOKEN" | REGISTRY_AUTH_FILE="$RUNNER_TEMP/registry-auth.json" \
+            skopeo login --username "$GITHUB_ACTOR" --password-stdin ghcr.io
+
+      # Per image: the version tag (skipped when it already is this image, an error when it is
+      # another), `latest` only when this is the highest version, then the digest read back.
+      - name: Push the images
+        run: |
+          for image in $IMAGES; do
+            ref="$REGISTRY/$image"
+            archive="release/${image}-${VERSION}.oci.tar"
+            index="$(tar -xOf "$archive" index.json | jq -r '.manifests[0].digest')"
+            set +e
+            raw="$(skopeo inspect --raw "docker://$ref:$VERSION" 2>"$RUNNER_TEMP/inspect.err")"
+            status=$?
+            set -e
+            if [ "$status" -eq 0 ]; then
+              existing="sha256:$(printf '%s' "$raw" | sha256sum | cut -d ' ' -f 1)"
+              if [ "$existing" != "$index" ]; then
+                echo "::error::$ref:$VERSION is $existing, the release's image is $index."
+                exit 1
+              fi
+              echo "::notice::$ref:$VERSION is already this image ($index); nothing to push."
+            elif grep -qiE 'manifest unknown|name unknown|not found' "$RUNNER_TEMP/inspect.err"; then
+              node tools/image/push.mjs --archive "$archive" --to "$ref:$VERSION"
+            else
+              cat "$RUNNER_TEMP/inspect.err"
+              echo "::error::Could not ask ghcr.io whether $image:$VERSION exists."
+              exit 1
+            fi
+            highest="$(skopeo list-tags "docker://$ref" | jq -r '.Tags[]' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)"
+            if [ "$highest" = "$VERSION" ]; then
+              skopeo copy --all --preserve-digests "docker://$ref:$VERSION" "docker://$ref:latest"
+            else
+              echo "::notice::$highest is newer than $VERSION; $image:latest stays."
+            fi
+            served="sha256:$(skopeo inspect --raw "docker://$ref:$VERSION" | sha256sum | cut -d ' ' -f 1)"
+            if [ "$served" != "$index" ]; then
+              echo "::error::$ref:$VERSION serves $served, the release's image is $index."
+              exit 1
+            fi
+            if ! skopeo inspect --raw --no-creds "docker://$ref:$VERSION" > /dev/null 2>&1; then
+              echo "::warning::$ref is not public yet: https://github.com/orgs/${GITHUB_REPOSITORY_OWNER}/packages/container/package/${image} -> Package settings -> Change visibility -> Public."
+            fi
+            echo "::notice::$ref:$VERSION@$index"
+          done
+
+      - name: Remove the login
+        if: always()
+        run: rm -f "$RUNNER_TEMP/registry-auth.json" "$RUNNER_TEMP/inspect.err"
