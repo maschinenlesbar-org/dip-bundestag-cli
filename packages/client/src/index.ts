@@ -73,4 +73,48 @@ export {
 } from "./validate.js";
 export type { Problem, QuoteKey } from "./validate.js";
 
+export {
+  DEFAULT_MAX_PAGES,
+  DIP_PAGE_SIZE,
+  DOCUMENT_KINDS,
+  PASSAGE_CHARS,
+  RECORD_RESOURCES,
+  decisionKind,
+  getRecord,
+  listRecords,
+  plainText,
+  profileMember,
+  readDocument,
+  splitPassages,
+  trackProcedure,
+} from "./operations.js";
+export type {
+  Decision,
+  DecisionKind,
+  DocumentCandidate,
+  DocumentInfo,
+  DocumentKind,
+  DocumentReading,
+  FilterValue,
+  ListRecordsInput,
+  MemberActivity,
+  MemberCandidate,
+  MemberDossier,
+  MemberProfile,
+  MemberRole,
+  OperationOptions,
+  Passage,
+  ProcedureCandidate,
+  ProcedureStep,
+  ProcedureSummary,
+  ProcedureTrack,
+  ProfileMemberInput,
+  ReadDocumentInput,
+  RecordList,
+  RecordLookup,
+  RecordResource,
+  Referral,
+  TrackProcedureInput,
+} from "./operations.js";
+
 export * from "./types.js";
