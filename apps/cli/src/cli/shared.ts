@@ -4,13 +4,14 @@
 import { constants } from "node:buffer";
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
+import { pidsProblem, responseCapFor } from "./limits.js";
 import { OutputError, isDirectoryMessage, logOf, outputParentProblem, outputPathState, refuseOverwrite, type CliDeps, type OutputPathState } from "./io.js";
 import type { RawResponse, RetryEvent } from "@maschinenlesbar.org/dip-bundestag-client/internal/engine";
 import { apiKeyProblem, normaliseApiKey, type DipClientOptions } from "@maschinenlesbar.org/dip-bundestag-client/internal/client";
 
 /** The name the API key is stored under in the credentials file (`dip config set api-key`). */
 export const API_KEY_CREDENTIAL = "api-key";
-import { DipValidationError, quoteValue } from "@maschinenlesbar.org/dip-bundestag-client/internal/errors";
+import { DipError, DipValidationError, quoteValue } from "@maschinenlesbar.org/dip-bundestag-client/internal/errors";
 import { API_KEY_PHRASE, DEFAULT_BASE_URL, baseUrlProblem, cleartextProblem, isBidiControl } from "@maschinenlesbar.org/dip-bundestag-client/internal/engine";
 import { headerValueProblem, intInRangeProblem, nonEmptyProblem } from "@maschinenlesbar.org/dip-bundestag-client/internal/validate";
 
@@ -406,6 +407,9 @@ export interface ActionContext {
   opts: Record<string, unknown>;
 }
 
+/** The container can't run the CLI as it is limited (limits.ts): an ERROR record of the cli area and exit 1. */
+export class EnvironmentError extends DipError {}
+
 /**
  * Wrap an async command action with consistent global-option resolution and
  * client construction. The callback receives a context (client + resolved global
@@ -422,11 +426,20 @@ export function action(
     const command = args[args.length - 1] as Command;
     const positionals = args.slice(0, Math.max(0, args.length - 2)) as string[];
     const global = command.optsWithGlobals() as GlobalOptions;
+    // In a container: under a pids limit Node can't work with, refuse before any request; under a
+    // memory limit the 100 MiB default can't be held, so cap by the memory instead (an oversized
+    // answer is then the cap's error, not an OOM kill). An explicit --max-response-bytes wins.
+    const limits = deps.limits?.() ?? {};
+    const problem = pidsProblem(limits);
+    if (problem !== undefined) throw new EnvironmentError(problem);
     // A refused -o target is a usage error before anything else happens.
     checkOutputTarget(deps, global);
     // `-o -` means stdout: from here on it is the same as no -o.
     if (global.output === "-") delete global.output;
     const options = toEngineOptions(global);
+    const given = command.getOptionValueSourceWithGlobals("maxResponseBytes");
+    const memory = given === undefined || given === "default" ? limits.memoryBytes : undefined;
+    if (memory !== undefined) options.maxResponseBytes = responseCapFor(memory);
     // flag > DIP_API_KEY > the credentials file (`dip config set api-key`) > none. The
     // file is read only here, when no key came from the first two, so a problem with
     // it never stands in the way of a key given another way.

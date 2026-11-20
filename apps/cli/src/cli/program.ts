@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Command, InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
+import { readContainerLimits } from "./limits.js";
 import { defaultIO } from "./io.js";
 import { DipClient } from "@maschinenlesbar.org/dip-bundestag-client/internal/client";
 import { MAX_TIMEOUT_MS } from "@maschinenlesbar.org/dip-bundestag-client/internal/http";
@@ -51,6 +52,8 @@ export const defaultDeps: CliDeps = {
   env: process.env,
   transport: nodeHttpTransport,
   credentials: () => CredentialStore.fromEnv(process.env),
+  // In a container: the memory and pids limits (cgroup), for action()'s checks.
+  limits: () => readContainerLimits(),
 };
 
 /**

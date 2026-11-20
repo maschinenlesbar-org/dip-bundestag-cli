@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EventEmitter } from "node:events";
-import { defaultIO, handleOutputErrors, outputParentProblem, outputPathState, stderrAfterStdout, stdoutWriter } from "../src/cli/io.js";
+import { defaultIO, exitOnSignalsAsPid1, handleOutputErrors, outputParentProblem, outputPathState, stderrAfterStdout, stdoutWriter } from "../src/cli/io.js";
 import { DipError } from "@maschinenlesbar.org/dip-bundestag-client/internal/errors";
 import { createLogger } from "../src/cli/log.js";
 
@@ -260,4 +260,26 @@ test("a stream target is written in place without --force; a 255-byte name gets 
     assert.equal(readFileSync(long, "utf8"), "data");
     assert.deepEqual(readdirSync(dir), [`${"x".repeat(250)}.json`]);
   });
+});
+
+/** A process stand-in with a pid: records its signal listeners and exits. */
+function fakeProcess(pid: number) {
+  const emitter = new EventEmitter();
+  const exits: number[] = [];
+  return { emitter, exits, proc: { pid, once: (event: string, listener: () => void) => emitter.once(event, listener), exit: (code: number) => void exits.push(code) } };
+}
+
+test("as PID 1 (a container's first process), SIGINT, SIGTERM and SIGHUP exit 130, 143 and 129: the kernel drops a default-action signal sent to PID 1", () => {
+  for (const [signal, code] of [["SIGINT", 130], ["SIGTERM", 143], ["SIGHUP", 129]] as const) {
+    const { emitter, exits, proc } = fakeProcess(1);
+    exitOnSignalsAsPid1(proc);
+    emitter.emit(signal);
+    assert.deepEqual(exits, [code], signal);
+  }
+});
+
+test("not PID 1, no signal listener is installed: Node's default action stays", () => {
+  const { emitter, proc } = fakeProcess(4242);
+  exitOnSignalsAsPid1(proc);
+  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) assert.equal(emitter.listenerCount(signal), 0, signal);
 });
