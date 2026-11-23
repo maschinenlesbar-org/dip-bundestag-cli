@@ -165,8 +165,9 @@ where the reason is).
   asks, at most 30 s; those to another host go on), and stops a tool call after its deadline (a tool
   that has read part of its answer by then may answer with that part, and says so). DIP's terms warn
   that overloading the API can get a key blocked. `trackProcedure` makes two requests for an id (a
-  title search one more, a long history one more per 100 steps), `profileMember` one or two (a name
-  DIP misses, with a term: one per 100 people of the term, at most `--max-pages`), `readDocument`
+  title search one more, a long history one more per 100 steps), `profileMember` one or two (a surname of more than
+  100 people one per 100 of them, a name DIP misses, with a term: one per 100 people of the term,
+  each at most `--max-pages`; an answer after a partial read says how many were compared), `readDocument`
   one or two, `searchRecords` one per 100 records up to the page asked for (`offset` + `limit` at most
   `--max-pages` × 100: at that limit there is no `nextOffset`, and the note says to narrow the filters), `getRecord` one; the
   first call also reads the key's source and verifies the key once when no key is set. A request

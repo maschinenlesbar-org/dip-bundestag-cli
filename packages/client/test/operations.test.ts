@@ -292,6 +292,33 @@ test("profileMember: a name f.person misses is looked for in the term's whole li
   assert.deepEqual(query(mock, 2), { "f.wahlperiode": ["21"], cursor: ["c1"] });
 });
 
+test("profileMember: a surname with more than a page of people is read on; nobody found after a partial read says only part was compared", async () => {
+  const muellers = (from: number, n: number) => Array.from({ length: n }, (_, i) => ({ id: String(from + i), vorname: `Vorname${from + i}`, nachname: "Müller" }));
+  const surname = dip({
+    person: (q: URLSearchParams) =>
+      q.get("cursor") === null ? list(muellers(0, 100), 250, "c1") : q.get("cursor") === "c1" ? list([...muellers(100, 99), { id: "1731", vorname: "Gerd", nachname: "Müller" }], 250, "c2") : list(muellers(200, 50), 250, "c3"),
+  });
+  const gerd = await profileMember(client(surname), { name: "Gerd Müller" });
+  assert.equal(gerd.status, "ok");
+  assert.equal(gerd.status === "ok" && gerd.person.id, "1731");
+  assert.deepEqual(query(surname, 1), { "f.person": ["Müller"], cursor: ["c1"] });
+  const missed = await profileMember(client(surname), { name: "Gerd Müller" }, { maxPages: 1 });
+  assert.equal(missed.status, "empty");
+  assert.match(missed.status === "empty" ? missed.reason : "", /only the first 100 of the 250 people named Müller were compared \(page limit\)/);
+  const people = (from: number, n: number) => Array.from({ length: n }, (_, i) => ({ id: String(from + i), vorname: "X", nachname: `Person${from + i}` }));
+  const term = dip({
+    person: (q: URLSearchParams) => {
+      if (q.get("f.person") !== null) return list([]);
+      const page = Number(q.get("cursor") ?? 0);
+      return list(page === 11 ? [{ id: "224", vorname: "Julia", nachname: "Klöckner" }] : people(page * 100, 100), 1200, String(page + 1));
+    },
+  });
+  const julia = await profileMember(client(term), { name: "Julia Klöckner", electoralTerm: 21 });
+  assert.equal(julia.status, "empty");
+  assert.match(julia.status === "empty" ? julia.reason : "", /only 1000 of the 1200 people of electoral term 21 were compared \(page limit\)/);
+  assert.doesNotMatch(julia.status === "empty" ? julia.reason : "", /^Nobody named/);
+});
+
 test("profileMember: nobody found without a term is empty, one request, and says f.person needs complete names and how to scan a term", async () => {
   const mock = dip({ person: list([]) });
   const answer = await profileMember(client(mock), { name: "Klöck" });

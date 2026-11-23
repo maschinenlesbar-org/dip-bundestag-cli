@@ -705,6 +705,8 @@ export async function profileMember(client: DipClient, input: ProfileMemberInput
   let raw: JsonObject | undefined;
   let searched: Record<string, unknown>;
   let resolvedBy: string | undefined;
+  /** What a name search compared when it read only part of the people. */
+  let partial: string | undefined;
   if (input.id !== undefined) {
     const id = idOf("id", input.id);
     searched = { id };
@@ -716,35 +718,43 @@ export async function profileMember(client: DipClient, input: ProfileMemberInput
     if (words.length === 0) throw new DipValidationError("Invalid name: Expected a first or last name, e.g. Baerbock.");
     searched = defined({ name, electoralTerm: term });
     const surname = words[words.length - 1] as string;
-    const found = await client.personen.list({ "f.person": surname, "f.wahlperiode": term });
+    // Every page of the surname's people (a common one has more than a page), up to the page limit.
+    const found = await collect(client, "person", { "f.person": surname, "f.wahlperiode": term }, maxPages);
     let matches = found.documents.filter((person) => nameMatches(person, words));
     resolvedBy = `f.person=${surname}${term === undefined ? "" : ` within electoral term ${term}`}`;
+    partial = found.complete ? undefined : `only the first ${found.documents.length} of the ${found.total} people named ${surname} were compared (${partly(found)})`;
     if (found.documents.length === 0 && term !== undefined) {
       // f.person misses a name spelled differently in DIP: the term's whole list, matched by name.
       const all = await collect(client, "person", { "f.wahlperiode": term }, maxPages);
       matches = all.documents.filter((person) => nameMatches(person, words));
       resolvedBy = `matched by name across ${all.pages} page(s) of electoral term ${term}${all.complete ? "" : ` (only ${all.documents.length} of ${all.total} people read: ${partly(all)})`}`;
+      partial = all.complete ? undefined : `only ${all.documents.length} of the ${all.total} people of electoral term ${term} were compared (${partly(all)})`;
     }
     if (matches.length === 0) {
       const others = found.documents.map(memberCandidate).slice(0, limit);
+      // A partial read is no proof of absence: say what was compared, and how to reach the rest.
+      const unread = partial === undefined ? "" : `, but ${partial}: the person may be among the others. Ask with the id, or with a complete first or last name that f.person knows`;
       return {
         status: "empty",
         searched,
         reason:
-          found.documents.length > 0
-            ? `${found.numFound} people are named ${surname}${term === undefined ? "" : ` in term ${term}`}, none with every word of "${name}" (candidates). Check the first name, or ask with the id.`
-            : `Nobody named "${name}"${term === undefined ? "" : ` in electoral term ${term}`}. f.person matches a complete first or last name ("Klöck" finds nothing)${term === undefined ? "; give electoralTerm (21 is the current one) to look through that term's whole list" : ""}. Check the spelling, another term, or ask for the id.`,
+          partial !== undefined
+            ? `No match for "${name}" yet${unread}.`
+            : found.documents.length > 0
+              ? `${found.total} people are named ${surname}${term === undefined ? "" : ` in term ${term}`}, none with every word of "${name}" (candidates). Check the first name, or ask with the id.`
+              : `Nobody named "${name}"${term === undefined ? "" : ` in electoral term ${term}`}. f.person matches a complete first or last name ("Klöck" finds nothing)${term === undefined ? "; give electoralTerm (21 is the current one) to look through that term's whole list" : ""}. Check the spelling, another term, or ask for the id.`,
         ...(others.length > 0 ? { candidates: others } : {}),
       };
     }
     if (matches.length > 1) {
-      return { status: "ambiguous", searched, total: matches.length, candidates: matches.slice(0, limit).map(memberCandidate), complete: matches.length <= limit, resolvedBy };
+      return { status: "ambiguous", searched, total: matches.length, candidates: matches.slice(0, limit).map(memberCandidate), complete: matches.length <= limit && partial === undefined, resolvedBy };
     }
     raw = matches[0] as JsonObject;
   }
   const person = profileOf(raw);
   const earlierRoles = objects(raw, "person_roles").map((role) => roleOf(role, person.name));
   const notes = [DOSSIER_NOTE];
+  if (partial !== undefined) notes.push(`Matched by name, but ${partial}: another person of that name may be among the others; check the id if in doubt.`);
   const functions = person.functions ?? [];
   if ((person.parliamentaryGroups ?? []).length === 0 && functions.length > 0 && !functions.includes("MdB")) {
     notes.push(`No Fraktion: DIP gives one only for the function MdB, and the current function is ${functions.join(", ")}.`);
