@@ -3,6 +3,8 @@
 // - One endpoint, POST /mcp, serving a 2025-06-18 handshake statelessly; GET is 405, /healthz is
 //   200, anything else 404; every stderr line is a record of `<program>.<area>`.
 // - A body over 1 MiB is 413, answered from the declared length.
+// - A request takes one of the 8 slots only once its body has arrived: slow bodies don't lock
+//   everyone else out.
 // - A non-loopback address is a WARN record (no authentication); loopback inside a container is a
 //   WARN too (a published port can't reach it).
 // - A usage error is one ERROR record and exit 2; a port in use is exit 1.
@@ -11,6 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import net from "node:net";
+import { MAX_ACTIVE_REQUESTS } from "../src/mcp/http.js";
 import { run } from "../src/mcp/run.js";
 import { PROGRAM } from "../src/mcp/version.js";
 import { AUTH_TOKEN_REQUIRED } from "../src/mcp/auth.js";
@@ -49,6 +52,37 @@ test("a body over 1 MiB is 413", async () => {
       socket.on("error", reject);
     });
     assert.match(answer, /^HTTP\/1\.1 413 /);
+  });
+});
+
+test("requests whose bodies are still arriving hold no slot: a slow body doesn't lock out the others", async () => {
+  await withServer([], async (port) => {
+    // As many connections as there are slots, each sending its headers and then only the first
+    // byte of a 100-byte body.
+    const slow = await Promise.all(
+      Array.from(
+        { length: MAX_ACTIVE_REQUESTS },
+        () =>
+          new Promise<net.Socket>((resolve, reject) => {
+            const socket = net.connect(port, "127.0.0.1", () => {
+              socket.write(
+                `POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nContent-Type: application/json\r\nAccept: application/json, text/event-stream\r\n` +
+                  (AUTH_TOKEN_REQUIRED ? `Authorization: Bearer ${TEST_AUTH_TOKEN}\r\n` : "") +
+                  `Content-Length: 100\r\n\r\n{`,
+                () => resolve(socket),
+              );
+            });
+            socket.on("error", reject);
+          }),
+      ),
+    );
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const answer = await send(port, { headers: headers(port), body: INITIALIZE });
+      assert.equal(answer.status, 200, answer.body);
+    } finally {
+      for (const socket of slow) socket.destroy();
+    }
   });
 });
 

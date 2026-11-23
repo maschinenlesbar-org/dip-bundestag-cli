@@ -10,7 +10,8 @@
 //    so a page on any localhost port passed.
 //  - CORS for an allowed Origin only: its preflight (OPTIONS /mcp, which carries no token) is 204
 //    with the methods and headers an MCP client sends, and every answer to it names the origin.
-//  - limits: a body of at most 1 MiB (413), at most 8 requests at once (503), explicit timeouts;
+//  - limits: a body of at most 1 MiB (413), at most 8 requests at once (503; a request counts once
+//    its body has arrived, so slow bodies lock no one out), explicit timeouts;
 //  - a client that disconnects closes the McpServer serving its request, which aborts the tool
 //    call (the SDK's own path, the web Request's signal, was lost once the garbage collector ran).
 //  - with --auth-token-file (auth.ts), a bearer token on every POST /mcp: a request without it,
@@ -85,11 +86,13 @@ export function createHttpServer(factory: () => McpServer, config: McpConfig, lo
     if (authToken !== undefined && !bearerMatches(req.headers.authorization, authToken)) {
       return rpcError(res, 401, "Unauthorized.", { "WWW-Authenticate": "Bearer" });
     }
+    // A request takes a slot once its body is here: a body that trickles in (Node cuts it off only
+    // at requestTimeout) holds its own connection, not a slot everyone else needs.
+    const body = await readBody(req);
+    if (body === undefined) return rpcError(res, 413, `The request body is larger than ${MAX_BODY_BYTES} bytes.`);
     if (active >= MAX_ACTIVE_REQUESTS) return rpcError(res, 503, "The server is busy; try again shortly.", { "Retry-After": "1" });
     active += 1;
     try {
-      const body = await readBody(req);
-      if (body === undefined) return rpcError(res, 413, `The request body is larger than ${MAX_BODY_BYTES} bytes.`);
       // A client that goes away before its answer cancels the call: closing its McpServer aborts
       // the call's signal. (The web Request's signal reaches the SDK through an undici clone that
       // holds its link weakly: after a garbage collection the abort no longer arrived.)
