@@ -95,8 +95,11 @@ export function cutMiddle(text: string, max: number): string {
 /** The shortest a text is cut to so that a result fits under the cap, its cut mark counted in. */
 const MIN_FIT_LENGTH = 100;
 
-/** A result's own fields, never cut to fit: what the answer is, where it came from, under what licence. */
-const OWN_FIELDS = new Set(["status", "source", "licence", "reason"]);
+/**
+ * A result's own fields, never cut to fit: what the answer is, where it came from, under what
+ * licence, and its notes (what the tool warns about the data, which must stay with it).
+ */
+const OWN_FIELDS = new Set(["status", "source", "licence", "reason", "notes"]);
 
 const CUT_MARK = /…\[cut, (\d+) characters in all\]$/;
 
@@ -134,42 +137,50 @@ function largest(low: number, high: number, fits: (n: number) => boolean): numbe
 
 /**
  * `result` cut to at most `maxChars` characters of JSON, never by cutting the JSON, with
- * `truncated: true`: first by dropping entries from the end of its lists (the longest list
- * first, each down to its first entry; for a paged list with the `nextOffset` to continue from),
- * then by cutting its longest texts, each to no less than MIN_FIT_LENGTH and ending in a cut mark.
- * A result that fits is returned as it is; one that can't be cut so far is undefined (the caller
- * answers with an error).
+ * `truncated: true`. First a paged list loses entries from its end (`nextOffset` says where to
+ * continue, so they can be had); then, if that is enough, the longest texts are cut further, each
+ * to no less than MIN_FIT_LENGTH and ending in a cut mark; else the other lists lose entries (the
+ * longest first), then the texts are cut. A list keeps its first entry, and the server's own
+ * fields (OWN_FIELDS) stay whole. A result that fits is returned as it is; one that can't be cut
+ * so far is undefined (the caller answers with an error).
  */
 export function fitResult<T extends Record<string, unknown>>(result: T, maxChars: number, paged?: { list: string; offset: number }): T | undefined {
   if (JSON.stringify(result).length <= maxChars) return result;
   let fitted: Record<string, unknown> = { ...result, truncated: true };
   const fits = (): boolean => JSON.stringify(fitted).length <= maxChars;
-  const lists = Object.keys(fitted).filter((key) => Array.isArray(fitted[key]));
-  for (const key of lists) fitted[key] = [...(fitted[key] as unknown[])];
-  // nextOffset counts toward the size, so it is kept current while entries are dropped.
-  const mark = (): void => {
-    if (paged !== undefined) fitted["nextOffset"] = paged.offset + ((fitted[paged.list] as unknown[] | undefined)?.length ?? 0);
+  if (paged !== undefined && Array.isArray(fitted[paged.list])) fitted["nextOffset"] = paged.offset + (fitted[paged.list] as unknown[]).length;
+  // A list keeps its first entry: a page so that nextOffset always moves on, any list so that it
+  // never stands empty beside a total that counts what was there.
+  const shortenList = (key: string): void => {
+    const list = fitted[key];
+    if (!Array.isArray(list) || list.length <= 1) return;
+    const keep = (n: number): boolean => {
+      fitted[key] = list.slice(0, n);
+      if (key === paged?.list) fitted["nextOffset"] = paged.offset + n;
+      return fits();
+    };
+    keep(largest(1, list.length - 1, keep));
   };
-  mark();
-  // Every list keeps its first entry: a paged list so that nextOffset always moves on, any list
-  // so that it never stands empty beside a total that counts what was there.
-  while (!fits()) {
-    const longest = lists
-      .filter((key) => (fitted[key] as unknown[]).length > 1)
-      .reduce<string | undefined>((best, key) => ((fitted[key] as unknown[]).length > ((best === undefined ? [] : fitted[best]) as unknown[]).length ? key : best), undefined);
-    if (longest === undefined) break;
-    (fitted[longest] as unknown[]).pop();
-    mark();
-  }
-  if (fits()) return fitted as T;
-  // The texts, the longest first: every one over the length found is cut to it (the server's own
-  // fields stay whole).
-  const whole = fitted;
-  const cutTo = (max: number): Record<string, unknown> => Object.fromEntries(Object.entries(whole).map(([key, item]) => [key, OWN_FIELDS.has(key) ? item : shorten(item, max)]));
-  const longest = Math.max(0, ...Object.entries(whole).map(([key, item]) => (OWN_FIELDS.has(key) ? 0 : longestString(item))));
-  if (longest > MIN_FIT_LENGTH) {
+  // The texts, the longest first: every one over the length found is cut to it, when a length of
+  // at least MIN_FIT_LENGTH makes the result fit; else nothing is cut.
+  const cutTexts = (): boolean => {
+    const whole = fitted;
+    const cutTo = (max: number): Record<string, unknown> => Object.fromEntries(Object.entries(whole).map(([key, item]) => [key, OWN_FIELDS.has(key) ? item : shorten(item, max)]));
+    const longest = Math.max(0, ...Object.entries(whole).map(([key, item]) => (OWN_FIELDS.has(key) ? 0 : longestString(item))));
+    if (longest <= MIN_FIT_LENGTH || ((fitted = cutTo(MIN_FIT_LENGTH)), !fits())) {
+      fitted = whole;
+      return false;
+    }
     fitted = cutTo(largest(MIN_FIT_LENGTH, longest - 1, (max) => ((fitted = cutTo(max)), fits())));
+    return true;
+  };
+  if (paged !== undefined) shortenList(paged.list);
+  if (fits() || cutTexts()) return fitted as T;
+  const length = (key: string): number => (fitted[key] as unknown[]).length;
+  const others = Object.keys(fitted).filter((key) => key !== paged?.list && !OWN_FIELDS.has(key) && Array.isArray(fitted[key]));
+  for (const key of others.sort((a, b) => length(b) - length(a))) {
+    shortenList(key);
     if (fits()) return fitted as T;
   }
-  return undefined;
+  return cutTexts() ? (fitted as T) : undefined;
 }

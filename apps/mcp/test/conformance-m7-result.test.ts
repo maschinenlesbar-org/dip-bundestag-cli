@@ -2,9 +2,10 @@
 // - Every string from upstream is cleaned in the value: control, bidi, zero-width, separator, tag
 //   and every other default-ignorable character dropped (an emoji keeps its joiners), lone
 //   surrogates replaced, long text cut; keys too, none lost; through a real tool call too.
-// - A result over --max-result-chars drops whole list entries, then cuts its longest texts (never
-//   the JSON), says truncated, and for a paged list where to go on (nextOffset); one that can't be
-//   cut so far is a tool error that says to ask for less.
+// - A result over --max-result-chars drops entries from its page first, then cuts its longest
+//   texts, then drops entries from its other lists (never cuts the JSON; a list keeps its first
+//   entry, notes stay whole), says truncated, and for a page where to go on (nextOffset); one that
+//   can't be cut so far is a tool error that says to ask for less.
 // - An answer a redirect brought from another origin (a client that follows redirects) names that
 //   origin in `source`, with a WARN record: it is not cited as the API's own.
 // Shared across the repos with an MCP server; only the adapter differs.
@@ -87,7 +88,7 @@ test("cleanStrings keeps every key: one that cleaning makes equal to another get
   assert.equal(Object.keys(cleanStrings({ [`${long}a`]: 1, [`${long}b`]: 2 })).length, 2);
 });
 
-test("fitResult leaves a result that fits alone, and otherwise drops entries from the longest list", () => {
+test("fitResult leaves a result that fits alone, and otherwise drops entries from the end of the page", () => {
   const small = { status: "ok", data: [1, 2] };
   assert.equal(fitResult(small, 1000), small);
   const big = { status: "ok", data: Array.from({ length: 50 }, (_, i) => `item ${i} ${"x".repeat(20)}`), other: ["a"] };
@@ -136,6 +137,41 @@ test("a list whose one entry is over the cap keeps it, its texts cut: never an e
   assert.equal(kept.length, 1);
   assert.equal(Object.keys(kept[0] ?? {}).length, 40);
   assert.ok(kept[0]?.["field39"]?.endsWith(cutMark(1500)));
+});
+
+test("the cap takes entries from the page before any other list, and never from the notes", () => {
+  // A table: a header every row is read against, the rows (the page), and notes on the data.
+  const columns = Array.from({ length: 13 }, (_, i) => `column_${i}`);
+  const rows = Array.from({ length: 5 }, (_, r) => columns.map((_, c) => `${r}:${c} ${"v".repeat(20)}`));
+  const notes = Array.from({ length: 6 }, (_, i) => `Note ${i}: some of these figures are estimates.`);
+  const table: Record<string, unknown> | undefined = fitResult({ status: "ok", total: 40, columns, rows, notes }, 2000, { list: "rows", offset: 0 });
+  assert.ok(table !== undefined);
+  assert.ok(JSON.stringify(table).length <= 2000, `${JSON.stringify(table).length}`);
+  assert.deepEqual(table["columns"], columns, "the header stays whole");
+  assert.deepEqual(table["notes"], notes, "the notes stay whole");
+  const kept = (table["rows"] as unknown[]).length;
+  assert.ok(kept >= 1 && kept < 5, `${kept}`);
+  assert.equal(table["nextOffset"], kept);
+  // Without a page: the data loses entries, the notes (more of them) none.
+  const records = Array.from({ length: 20 }, (_, i) => ({ d: `${i} ${"a".repeat(60)}` }));
+  const many = Array.from({ length: 30 }, (_, i) => `Note ${i}: estimated.`);
+  const found: Record<string, unknown> | undefined = fitResult({ status: "ok", records, notes: many }, 1800);
+  assert.ok(found !== undefined);
+  assert.ok(JSON.stringify(found).length <= 1800, `${JSON.stringify(found).length}`);
+  assert.deepEqual(found["notes"], many);
+  const left = (found["records"] as unknown[]).length;
+  assert.ok(left >= 1 && left < 20, `${left}`);
+  assert.deepEqual(found["records"], records.slice(0, left));
+  // Cutting texts comes before dropping entries of a list that isn't the page, when it is enough;
+  // when it isn't, the entries kept keep their texts whole.
+  const three = Array.from({ length: 3 }, (_, i) => ({ d: `${i} ${"t".repeat(1500)}` }));
+  const cut = fitResult({ status: "ok", three }, 2500)?.["three"] as { d: string }[] | undefined;
+  assert.equal(cut?.length, 3);
+  assert.ok(cut?.every(({ d }) => d.endsWith(cutMark(1502))));
+  const twenty = Array.from({ length: 20 }, (_, i) => ({ d: `${i} ${"t".repeat(150)}` }));
+  const dropped = fitResult({ status: "ok", twenty }, 1800)?.["twenty"] as { d: string }[] | undefined;
+  assert.ok(dropped !== undefined && dropped.length < 20);
+  assert.deepEqual(dropped, twenty.slice(0, dropped.length));
 });
 
 test("a result that can't be cut under the cap is a tool error that says what to ask instead", async () => {
