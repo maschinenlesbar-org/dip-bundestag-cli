@@ -167,7 +167,8 @@ where the reason is).
   that overloading the API can get a key blocked. `trackProcedure` makes two requests for an id (a
   title search one more, a long history one more per 100 steps), `profileMember` one or two (a name
   DIP misses, with a term: one per 100 people of the term, at most `--max-pages`), `readDocument`
-  one or two, `searchRecords` one per 100 records up to the page asked for, `getRecord` one; the
+  one or two, `searchRecords` one per 100 records up to the page asked for (`offset` + `limit` at most
+  `--max-pages` × 100: at that limit there is no `nextOffset`, and the note says to narrow the filters), `getRecord` one; the
   first call also reads the key's source and verifies the key once when no key is set. A request
   those limits would hold longer than it or its call may wait is not sent: the call fails at once,
   naming the limit and when to ask again (and the log says so).

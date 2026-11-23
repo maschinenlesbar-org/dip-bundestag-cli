@@ -1102,7 +1102,8 @@ function dipFilters(filters: Record<string, FilterValue>, notes: string[]): Quer
  * list: DIP ignores an unknown one and answers everything), `limit` from `offset`, read in DIP's
  * pages of 100 with the filters sent again with every cursor. At most `maxPages` pages are read,
  * so `offset + limit` is at most `maxPages * 100`; narrow the filters (a date range) to reach
- * further.
+ * further. `nextOffset` is offered only where the next call can start: at that limit the answer
+ * has none, and its note says to narrow the filters.
  */
 export async function listRecords(client: DipClient, input: ListRecordsInput, options: OperationOptions = {}): Promise<RecordList> {
   const resource = input.resource;
@@ -1128,6 +1129,11 @@ export async function listRecords(client: DipClient, input: ListRecordsInput, op
   const searched = { resource, filters };
   const next = offset + records.length;
   if (read.repeated) notes.push(`${partly(read)}: ${read.documents.length} of ${read.total} records could be read; narrow the filters (f.datum.start/end) to reach the others.`);
+  // The next call could start at most here: past it, offset + limit would be refused.
+  const reachable = Math.min(read.repeated ? read.documents.length : read.total, maxPages * DIP_PAGE_SIZE);
+  if (next >= maxPages * DIP_PAGE_SIZE && next < read.total && !read.repeated) {
+    notes.push(`These are the last records this reads: only the first ${maxPages * DIP_PAGE_SIZE} of the ${read.total} records can be reached by offset (at most ${maxPages} pages of ${DIP_PAGE_SIZE} a call); narrow the filters (f.datum.start/end, f.wahlperiode) to reach the others.`);
+  }
   if (read.total === 0) {
     return { status: "empty", searched, total: 0, records, reason: "No record matches these filters. Text filters match whole words (f.titel), f.person complete names; drop a filter or widen the dates.", ...(notes.length > 0 ? { note: notes.join(" ") } : {}) };
   }
@@ -1136,7 +1142,7 @@ export async function listRecords(client: DipClient, input: ListRecordsInput, op
     searched,
     total: read.total,
     records,
-    ...(next < (read.repeated ? read.documents.length : read.total) && records.length > 0 ? { nextOffset: next } : {}),
+    ...(next < reachable && records.length > 0 ? { nextOffset: next } : {}),
     ...(records.length === 0 ? { reason: `offset ${offset} is past the last record (${read.total}).` } : {}),
     ...(notes.length > 0 ? { note: notes.join(" ") } : {}),
   };

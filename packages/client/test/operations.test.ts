@@ -447,6 +447,20 @@ test("listRecords: an offset past the first page reads on with the same filters 
   assert.equal(answer.total, 250);
 });
 
+test("listRecords: at the page limit no nextOffset is offered that the next call would refuse; the note says to narrow the filters", async () => {
+  const docs = (from: number) => Array.from({ length: 100 }, (_, i) => ({ id: String(from + i) }));
+  const mock = dip({ drucksache: (q: URLSearchParams) => { const page = Number(q.get("cursor") ?? 0); return list(docs(page * 100), 5000, String(page + 1)); } });
+  const last = await listRecords(client(mock), { resource: "drucksache", filters: { "f.wahlperiode": 21 }, offset: 980, limit: 20 });
+  assert.equal(last.records.length, 20);
+  assert.equal(last.records[0]?.["id"], "980");
+  assert.equal(last.nextOffset, undefined);
+  assert.match(last.note ?? "", /first 1000 of the 5000 records.*at most 10 pages.*narrow the filters/s);
+  await assert.rejects(listRecords(client(mock), { resource: "drucksache", filters: { "f.wahlperiode": 21 }, offset: 1000, limit: 20 }), /at most 1000/);
+  const before = await listRecords(client(mock), { resource: "drucksache", filters: { "f.wahlperiode": 21 }, offset: 960, limit: 20 }, { maxPages: 10 });
+  assert.equal(before.nextOffset, 980, "below the limit nextOffset stays");
+  assert.equal(before.note, undefined);
+});
+
 test("listRecords: an unknown filter, a cursor, a -text resource and an offset past the page limit are refused before any request", async () => {
   const mock = dip({});
   await assert.rejects(listRecords(client(mock), { resource: "vorgang", filters: { "f.person": "Baerbock" } }), /DIP ignores unknown filters/);
