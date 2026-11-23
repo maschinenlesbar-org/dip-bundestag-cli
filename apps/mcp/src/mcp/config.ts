@@ -2,7 +2,8 @@
 // runtime dependency besides the MCP SDK). Every value is checked here, before anything starts:
 // the client's own rules for the base URL, whole numbers within bounds, a known log format. What
 // goes to the client is also given to its constructor once, so a value it refuses (a path a
-// client knows is wrong) is a usage error here, never a crash when the server builds the client.
+// client knows is wrong, a User-Agent outside Latin-1) is a usage error here, never a crash when
+// the server builds the client.
 
 import { parseArgs } from "node:util";
 import { DEFAULT_LOG_FORMAT, logFormatProblem, type LogFormat } from "@maschinenlesbar.org/dip-bundestag-log";
@@ -82,7 +83,7 @@ Options:
   --call-timeout <ms>        per tool call, retries included (default ${DEFAULTS.callTimeoutMs})
   --max-result-chars <n>     cap on one tool result's JSON (default ${DEFAULTS.maxResultChars})
   --max-pages <n>            pages a tool reads per list and call (default ${DEFAULTS.maxPages})
-  --user-agent <ua>          User-Agent header value
+  --user-agent <ua>          User-Agent header value (Latin-1, one line)
   --log-format <text|jsonl>  the records on stderr (default text)
   -h, --help                 show this help
   -V, --version              show the version
@@ -153,6 +154,8 @@ export function parseConfig(argv: readonly string[]): ParsedArgs {
     if (userAgent !== undefined && (userAgent.trim() === "" || /[\u0000-\u001f\u007f]/.test(userAgent))) {
       throw new Error("--user-agent must be visible text on one line.");
     }
+    const agentObjection = userAgent === undefined ? undefined : clientObjection({ userAgent });
+    if (agentObjection !== undefined) throw new Error(`--user-agent: ${agentObjection}`);
     const authTokenFile = str("auth-token-file");
     if (authTokenFile !== undefined && authTokenFile.trim() === "") throw new Error("--auth-token-file needs a path.");
     if (authTokenFile !== undefined && transport !== "http") throw new Error("--auth-token-file is for --transport http; on stdio only the process that started the server talks to it.");

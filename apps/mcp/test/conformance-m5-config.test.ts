@@ -6,7 +6,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseConfig } from "../src/mcp/config.js";
-import { newClient } from "./harness.js";
+import { run, USAGE_EXIT } from "../src/mcp/run.js";
+import { PROGRAM } from "../src/mcp/version.js";
+import { authArgs, newClient } from "./harness.js";
 
 /** The client's own verdict on `options` (its constructor), with the test login where it needs one. */
 function clientTakes(options: Record<string, unknown>): boolean {
@@ -78,6 +80,19 @@ test("--base-url: refused at start wherever the client would refuse it, not when
     assert.equal(parsed.kind === "run", clientTakes({ baseUrl }), `${baseUrl}: ${parsed.kind === "error" ? parsed.message : "taken"}`);
     if (parsed.kind === "error") assert.match(parsed.message, /^--base-url: /);
   }
+});
+
+test("--user-agent: a value the client refuses (outside Latin-1) is refused at start: one ERROR record, exit 2", async () => {
+  for (const userAgent of ["test/1", "Bot é", "Bot €", "Bot 🤖", "Bot\u2028x"]) {
+    const parsed = parseConfig(["--user-agent", userAgent]);
+    if (!clientTakes({ userAgent })) assert.equal(parsed.kind, "error", `${JSON.stringify(userAgent)}: the client refuses it`);
+    if (parsed.kind === "error") assert.match(parsed.message, /^--user-agent/);
+  }
+  const lines: string[] = [];
+  const code = await run(["--transport", "http", "--port", "0", ...authArgs(), "--user-agent", "Bot €"], { stdout: () => {}, stderr: (line) => lines.push(line), stopped: Promise.resolve() });
+  assert.equal(code, USAGE_EXIT);
+  assert.equal(lines.length, 1, lines.join("\n"));
+  assert.match(lines[0] ?? "", new RegExp(`ERROR \\[${PROGRAM}\\.mcp\\] --user-agent: .+ See --help\\.$`));
 });
 
 test("help and version", () => {
