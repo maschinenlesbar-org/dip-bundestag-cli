@@ -2,15 +2,18 @@
 // transport: requests in flight, the per-minute window, a 429's pause (seconds or an HTTP date),
 // the bounded queue (refused with the client's network error), and an abort that leaves the
 // queue. A pause lasts at most 30 s, whatever the Retry-After; a clock set back stretches no hold
-// and no timer overflows. Shared whole across the repos with an MCP server.
+// and no timer overflows. A request the budget or a pause would hold longer than it may wait (its
+// own timeout, its call's deadline) is refused at once, naming the limit and when it frees, with a
+// record; one that may wait that long waits. Shared whole across the repos with an MCP server.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NetworkError, type HttpRequest, type HttpResponse } from "../src/mcp/api.js";
-import { callSignal, limitTransport } from "../src/mcp/limiter.js";
+import { callScope, limitTransport } from "../src/mcp/limiter.js";
 
 const ok = (status = 200, headers: Record<string, string> = {}): HttpResponse => ({ status, headers, body: Buffer.from("{}") });
-const request = (signal?: AbortSignal): HttpRequest => ({ method: "GET", url: "https://x/", headers: {}, ...(signal === undefined ? {} : { signal }) }) as HttpRequest;
+const request = (signal?: AbortSignal, timeoutMs?: number): HttpRequest =>
+  ({ method: "GET", url: "https://x/", headers: {}, ...(signal === undefined ? {} : { signal }), ...(timeoutMs === undefined ? {} : { timeoutMs }) }) as HttpRequest;
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
 /** A transport whose answers the test releases one by one. */
@@ -140,6 +143,39 @@ test("a clock set back (a wall-clock correction) stretches no hold past its long
   }
 });
 
+test("a request the per-minute budget would hold past its timeout is refused at once, naming the budget and when it frees, with one record", async () => {
+  let t = 1_000_000;
+  let sent = 0;
+  const records: string[] = [];
+  const limited = limitTransport(async () => ((sent += 1), ok()), { perMinute: 2, now: () => t, log: (message) => records.push(message) });
+  await limited(request());
+  t += 20_000;
+  await limited(request());
+  await assert.rejects(limited(request(undefined, 3000)), (err: unknown) => err instanceof NetworkError && /not sent: .*at most 2 requests a minute.* 40 s/.test(err.message));
+  await assert.rejects(limited(request(undefined, 3000)), NetworkError);
+  assert.equal(sent, 2, "nothing more reached the upstream");
+  assert.equal(records.length, 1, records.join("\n"));
+  assert.match(records[0] ?? "", /2 requests a minute .*used up.* 40 s/);
+  // A call's deadline counts too: inside a call ending in 1 s, a request without a timeout is refused.
+  await assert.rejects(callScope.run({ signal: new AbortController().signal, endsAt: t + 1000 }, () => limited(request())), /not sent/);
+  // One that may wait long enough waits.
+  const controller = new AbortController();
+  let started = false;
+  const pending = limited(request(controller.signal, 60_000)).then(() => (started = true), () => "left");
+  await tick();
+  assert.equal(started, false, "waits for the budget");
+  controller.abort();
+  assert.equal(await pending, "left");
+});
+
+test("a request a 429's pause would hold past its timeout is refused at once, naming the pause", async () => {
+  let t = 0;
+  let first = true;
+  const limited = limitTransport(async () => (first ? ((first = false), ok(429, { "retry-after": "20" })) : ok()), { now: () => t });
+  await limited(request());
+  await assert.rejects(limited(request(undefined, 3000)), (err: unknown) => err instanceof NetworkError && /not sent: .*HTTP 429.* 20 s/.test(err.message));
+});
+
 test("a full queue refuses at once; an aborted waiter leaves the queue", async () => {
   const { started, transport } = gated();
   const limited = limitTransport(transport, { inFlight: 1, queue: 1 });
@@ -165,10 +201,10 @@ test("inside a call, a request carries the call's signal; after its abort none i
     return ok();
   });
   const controller = new AbortController();
-  await callSignal.run(controller.signal, () => limited(request()));
+  await callScope.run({ signal: controller.signal }, () => limited(request()));
   assert.equal(seen.length, 1);
   controller.abort();
   assert.equal(seen[0]?.aborted, true);
-  await assert.rejects(callSignal.run(controller.signal, () => limited(request())), (err: unknown) => err instanceof NetworkError && /aborted/.test(err.message));
+  await assert.rejects(callScope.run({ signal: controller.signal }, () => limited(request())), (err: unknown) => err instanceof NetworkError && /aborted/.test(err.message));
   assert.equal(seen.length, 1);
 });

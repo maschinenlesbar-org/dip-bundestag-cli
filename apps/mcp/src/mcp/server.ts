@@ -13,7 +13,7 @@ import { McpServer, fromJsonSchema } from "@modelcontextprotocol/server";
 import { apiBase, Client, ClientError, cutText, NetworkError, sizeLimitMessage, type Transport } from "./api.js";
 import type { McpConfig } from "./config.js";
 import { findCredentials, redactingLog, Secrets } from "./credentials.js";
-import { callSignal, type LimitedTransport } from "./limiter.js";
+import { callScope, type LimitedTransport } from "./limiter.js";
 import { cleanStrings, fitResult } from "./result.js";
 import { DEADLINE_HINT, INSTRUCTIONS, LICENCE, SIZE_HINT, TITLE, TOOLS } from "./tools.js";
 import { PROGRAM, USER_AGENT, VERSION } from "./version.js";
@@ -171,9 +171,10 @@ export async function callTool(
   const stopAt = setTimeout(() => timer.abort(), env.config.callTimeoutMs);
   const signal = AbortSignal.any([cancelled, deadline]);
   try {
-    // Inside callSignal, every request of the call carries its signal (limiter.ts); the race ends
-    // the call at the deadline even when the client's code still waits (a retry's backoff).
-    const answer = await callSignal.run(signal, () =>
+    // Inside callScope, every request of the call carries its signal, and none waits in the limiter
+    // past the deadline (limiter.ts); the race ends the call at the deadline even when the client's
+    // code still waits (a retry's backoff).
+    const answer = await callScope.run({ signal, endsAt: Date.now() + env.config.callTimeoutMs }, () =>
       untilAborted(
         (async () => {
           const client = typeof env.client === "function" ? await env.client() : env.client;

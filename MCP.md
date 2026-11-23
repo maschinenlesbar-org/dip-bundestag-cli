@@ -156,7 +156,9 @@ Every tool only reads. An answer is JSON (`structuredContent` and the same as te
   per 100 steps), `profileMember` one or two (a name DIP misses, with a term: one per 100 people of
   the term, at most `--max-pages`), `readDocument` one or two, `searchRecords` one per 100 records
   up to the page asked for, `getRecord` one; the first call also reads the key's source and verifies
-  the key once when no key is set.
+  the key once when no key is set. A request those limits would hold longer than it or its call may
+  wait is not sent: the call fails at once, naming the limit and when to ask again (and the log says
+  so).
 - **Results are data.** Text from the API is cleaned (control, bidi and zero-width characters
   removed), but it is still text from outside: a model can be told things in it. The server can't
   act on that (it has no tool that writes), but other tools in the same session could.

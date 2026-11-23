@@ -82,7 +82,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<numbe
   }
   const factory = createServerFactory({
     config,
-    transport: limitTransport(deps.transport ?? nodeHttpTransport),
+    transport: limitTransport(deps.transport ?? nodeHttpTransport, { log: (message) => log.warn("http", message) }),
     log,
     ...(deps.env === undefined ? {} : { env: deps.env }),
     ...(deps.credentialsFile === undefined ? {} : { credentialsFile: deps.credentialsFile }),

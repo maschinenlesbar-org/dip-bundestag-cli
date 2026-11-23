@@ -12,7 +12,11 @@
 //  - at most `queue` requests wait (default 32); one more is refused at once (the client's
 //    network error, so the call's answer says so);
 //  - a waiting request whose signal aborts leaves the queue;
-//  - a request made inside a tool call (callSignal.run) carries the call's signal too, so the
+//  - a request the budget or a pause would hold longer than it may wait (its own timeoutMs, its
+//    call's deadline) is refused at once with the client's network error, naming the limit and
+//    when it frees: the wait counts against the request's deadline, which would otherwise fail
+//    it with "exceeded deadline" for a request never sent. A hold is logged once (`log`);
+//  - a request made inside a tool call (callScope.run) carries the call's signal too, so the
 //    call's deadline and cancellation reach the transport even through a client whose calls
 //    take no signal of their own; once that signal has aborted, nothing more is sent.
 
@@ -25,10 +29,18 @@ export interface LimiterOptions {
   queue?: number;
   /** The clock (ms); tests inject one. */
   now?: () => number;
+  /** A WARN record when requests start being held by the budget or a pause (run.ts: `http`). */
+  log?: (message: string) => void;
 }
 
-/** The signal of the tool call a request belongs to (server.ts runs every call inside it). */
-export const callSignal = new AsyncLocalStorage<AbortSignal>();
+/** The tool call a request belongs to: its signal, and when its deadline passes (`now`'s clock). */
+export interface CallScope {
+  signal: AbortSignal;
+  endsAt?: number;
+}
+
+/** The tool call of the requests made inside it (server.ts runs every call inside it). */
+export const callScope = new AsyncLocalStorage<CallScope>();
 
 const WINDOW_MS = 60_000;
 const DEFAULT_PAUSE_MS = 5_000;
@@ -55,17 +67,29 @@ export function limitTransport(transport: Transport, options: LimiterOptions = {
   let active = 0;
   let pausedUntil = 0;
   let timer: NodeJS.Timeout | undefined;
+  let loggedUntil = 0;
+
+  /** Forget the starts that left the window; after the clock was set back, count holds from now. */
+  const prune = (t: number): void => {
+    pausedUntil = Math.min(pausedUntil, t + MAX_PAUSE_MS);
+    for (let i = starts.length - 1; i >= 0 && (starts[i] as number) > t; i--) starts[i] = t;
+    while (starts.length > 0 && (starts[0] as number) <= t - WINDOW_MS) starts.shift();
+  };
+
+  /** How long the budget holds a start with `ahead` requests waiting before it (at least, when unknown). */
+  const budgetWait = (t: number, ahead: number): number => {
+    const index = starts.length + ahead - perMinute;
+    if (index < 0) return 0;
+    return index < starts.length ? (starts[index] as number) + WINDOW_MS - t : WINDOW_MS;
+  };
 
   /** Start as many waiters as the limits allow; else wake up when the next one may start. */
   const pump = (): void => {
     while (waiting.length > 0) {
       const t = now();
-      // After the clock was set back, a hold counts from now, never longer than its longest.
-      pausedUntil = Math.min(pausedUntil, t + MAX_PAUSE_MS);
-      for (let i = starts.length - 1; i >= 0 && (starts[i] as number) > t; i--) starts[i] = t;
-      while (starts.length > 0 && (starts[0] as number) <= t - WINDOW_MS) starts.shift();
+      prune(t);
       if (active >= inFlight) return;
-      const wait = Math.max(pausedUntil - t, starts.length >= perMinute ? (starts[0] as number) + WINDOW_MS - t : 0);
+      const wait = Math.max(pausedUntil - t, budgetWait(t, 0));
       if (wait > 0) {
         if (timer === undefined) {
           timer = setTimeout(() => {
@@ -84,12 +108,32 @@ export function limitTransport(transport: Transport, options: LimiterOptions = {
   };
 
   const limited = async (sent: HttpRequest): Promise<HttpResponse> => {
-    const call = callSignal.getStore();
+    const scope = callScope.getStore();
+    const call = scope?.signal;
     if (call?.aborted === true) throw new NetworkError(`${sent.method} ${sent.url} failed: aborted`);
     const request: HttpRequest =
       call === undefined ? sent : { ...sent, signal: sent.signal === undefined ? call : AbortSignal.any([sent.signal, call]) };
     if (waiting.length >= queueSize) {
       throw new NetworkError(`The server is busy: ${queueSize} requests to the API are already waiting. Try again shortly.`);
+    }
+    const t = now();
+    prune(t);
+    const paused = Math.max(0, pausedUntil - t);
+    const budget = budgetWait(t, waiting.length);
+    const held = Math.max(paused, budget);
+    if (held > 0) {
+      const seconds = Math.ceil(held / 1000);
+      const why =
+        paused >= budget
+          ? `the API answered HTTP 429 (too many requests), and this server holds every request to it for ${seconds} s more`
+          : `this server sends at most ${perMinute} requests a minute to the API and has used them up; the next can start in ${seconds} s`;
+      if (t >= loggedUntil) {
+        loggedUntil = t + held;
+        options.log?.(`${paused >= budget ? `the API answered HTTP 429: every request to it waits ${seconds} s` : `the budget of ${perMinute} requests a minute to the API is used up: requests wait up to ${seconds} s`}`);
+      }
+      const timeout = request.timeoutMs !== undefined && request.timeoutMs > 0 ? request.timeoutMs : Infinity;
+      const mayWait = Math.min(timeout, scope?.endsAt === undefined ? Infinity : scope.endsAt - t);
+      if (held > mayWait) throw new NetworkError(`not sent: ${why}, longer than this ${mayWait === timeout ? "request" : "call"} may wait. Ask again in ${seconds} s.`);
     }
     await new Promise<void>((resolve, reject) => {
       const waiter: Waiter = { start: resolve, fail: reject };
