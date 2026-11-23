@@ -1,7 +1,8 @@
 // Conformance test M6 (MCP kit, rollout plan 2026-11-19): the limiter around the upstream
 // transport: requests in flight, the per-minute window, a 429's pause (seconds or an HTTP date),
 // the bounded queue (refused with the client's network error), and an abort that leaves the
-// queue. A pause lasts at most 30 s, whatever the Retry-After. Shared whole across the repos with an MCP server.
+// queue. A pause lasts at most 30 s, whatever the Retry-After; a clock set back stretches no hold
+// and no timer overflows. Shared whole across the repos with an MCP server.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -104,6 +105,38 @@ test("a 429's pause lasts at most 30 s, however long its Retry-After", async () 
     assert.equal(again, true, `starts again at 30 s (${header})`);
     after.abort();
     await next;
+  }
+});
+
+test("a clock set back (a wall-clock correction) stretches no hold past its longest, and no timer overflows", async () => {
+  const warnings: string[] = [];
+  const onWarning = (warning: Error): void => {
+    warnings.push(warning.name);
+  };
+  process.on("warning", onWarning);
+  try {
+    const year = 365 * 86_400_000;
+    let t = 2 * year;
+    let first = true;
+    const limited = limitTransport(async () => (first ? ((first = false), ok(429, { "retry-after": "30" })) : ok()), { perMinute: 1, now: () => t });
+    await limited(request());
+    t -= year;
+    const controller = new AbortController();
+    let started = false;
+    const pending = limited(request(controller.signal)).then(() => (started = true), () => "left");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(started, false, "held by the pause and the window");
+    assert.deepEqual(warnings.filter((name) => name === "TimeoutOverflowWarning"), [], "no timer overflowed");
+    t += 60_000;
+    const later = new AbortController();
+    const next = limited(request(later.signal)).catch(() => "left");
+    await tick();
+    assert.equal(started, true, "starts once the longest hold (60 s, the window) has passed");
+    later.abort();
+    controller.abort();
+    await Promise.all([pending, next]);
+  } finally {
+    process.off("warning", onWarning);
   }
 });
 

@@ -5,6 +5,8 @@
 //  - at most `perMinute` request starts in any 60 s (default 120);
 //  - a 429 pauses every start for its Retry-After (or 5 s), on top of the engine's own retry,
 //    for at most 30 s (the engine's own Retry-After ceiling): one answer can't stall the process;
+//  - a clock set back (a wall-clock correction) stretches no hold past its longest (the pause's
+//    30 s, the window's 60 s), and no timer gets more than setTimeout can take;
 //  - at most `queue` requests wait (default 32); one more is refused at once (the client's
 //    network error, so the call's answer says so);
 //  - a waiting request whose signal aborts leaves the queue;
@@ -30,6 +32,8 @@ const WINDOW_MS = 60_000;
 const DEFAULT_PAUSE_MS = 5_000;
 /** The longest pause a 429 starts: the engine retries no Retry-After over 30 s either. */
 export const MAX_PAUSE_MS = 30_000;
+/** The longest timer Node keeps: a longer one fires after 1 ms, with a warning. */
+const MAX_TIMER_MS = 2 ** 31 - 1;
 
 interface Waiter {
   start: () => void;
@@ -51,6 +55,9 @@ export function limitTransport(transport: Transport, options: LimiterOptions = {
   const pump = (): void => {
     while (waiting.length > 0) {
       const t = now();
+      // After the clock was set back, a hold counts from now, never longer than its longest.
+      pausedUntil = Math.min(pausedUntil, t + MAX_PAUSE_MS);
+      for (let i = starts.length - 1; i >= 0 && (starts[i] as number) > t; i--) starts[i] = t;
       while (starts.length > 0 && (starts[0] as number) <= t - WINDOW_MS) starts.shift();
       if (active >= inFlight) return;
       const wait = Math.max(pausedUntil - t, starts.length >= perMinute ? (starts[0] as number) + WINDOW_MS - t : 0);
@@ -59,7 +66,7 @@ export function limitTransport(transport: Transport, options: LimiterOptions = {
           timer = setTimeout(() => {
             timer = undefined;
             pump();
-          }, wait);
+          }, Math.min(wait, MAX_TIMER_MS));
           timer.unref();
         }
         return;
