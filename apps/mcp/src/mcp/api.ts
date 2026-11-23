@@ -15,10 +15,27 @@ import { API_PATH, DEFAULT_BASE_URL } from "@maschinenlesbar.org/dip-bundestag-c
 import { API_KEY_ENV_VAR, HELP_PAGE_URL, KEY_CONTACT, obtainKey } from "@maschinenlesbar.org/dip-bundestag-client/internal/obtain-key";
 import { DipError, DipValidationError } from "@maschinenlesbar.org/dip-bundestag-client/internal/errors";
 import { apiKeyProblem } from "@maschinenlesbar.org/dip-bundestag-client/internal/client";
+import { DipClient, type DipClientOptions } from "@maschinenlesbar.org/dip-bundestag-client";
 import type { CredentialContext, FoundCredentials } from "./credentials.js";
 
+/** Where the server's API key came from: DIP_API_KEY, the credentials file, or obtained from DIP's published source. */
+export type KeySource = "env" | "file" | "obtained";
+
+/**
+ * The client the server builds, knowing where its key came from (`keySource`, set by
+ * findCredentials through the client options), so that a refused key's hint (tools.ts) names the
+ * fix that works for that source.
+ */
+export class Client extends DipClient {
+  readonly keySource: KeySource | undefined;
+  constructor(options: DipClientOptions & { keySource?: KeySource } = {}) {
+    const { keySource, ...rest } = options ?? {};
+    super(rest);
+    this.keySource = keySource;
+  }
+}
+
 export {
-  DipClient as Client,
   DipError as ClientError,
   DipNetworkError as NetworkError,
   baseUrlProblem,
@@ -51,7 +68,7 @@ export async function findCredentials(context: CredentialContext): Promise<Found
     const key = fromEnv.trim();
     const problem = apiKeyProblem(key);
     if (problem !== undefined) throw new DipValidationError(`Invalid ${API_KEY_ENV_VAR} in the server's environment: ${problem}`);
-    return { clientOptions: { apiKey: key }, secrets: [fromEnv, key], source: `the API key from the ${API_KEY_ENV_VAR} environment variable` };
+    return { clientOptions: { apiKey: key, keySource: "env" }, secrets: [fromEnv, key], source: `the API key from the ${API_KEY_ENV_VAR} environment variable` };
   }
   if (context.credentialsFile) {
     const store = CredentialStore.fromEnv(context.env);
@@ -59,7 +76,7 @@ export async function findCredentials(context: CredentialContext): Promise<Found
     // A stored value the CLI would refuse is an error naming the file and the fix (usable()).
     const stored = store.usable(API_KEY_CREDENTIAL);
     if (stored !== undefined) {
-      return { clientOptions: { apiKey: stored }, secrets: [raw ?? stored, stored], source: `the API key stored in ${store.path} (dip config)` };
+      return { clientOptions: { apiKey: stored, keySource: "file" }, secrets: [raw ?? stored, stored], source: `the API key stored in ${store.path} (dip config)` };
     }
   }
   try {
@@ -71,7 +88,7 @@ export async function findCredentials(context: CredentialContext): Promise<Found
       maxResponseBytes: context.maxResponseBytes,
     });
     return {
-      clientOptions: { apiKey: obtained.key },
+      clientOptions: { apiKey: obtained.key, keySource: "obtained" },
       secrets: [obtained.key],
       source: `the public API key obtained from ${obtained.sourceUrl} and verified against the API (${API_KEY_ENV_VAR} is not set${context.credentialsFile ? " and no key is stored" : ""})`,
     };

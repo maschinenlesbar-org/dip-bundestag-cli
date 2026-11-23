@@ -741,8 +741,10 @@ in every record the server logs (`redactingLog`), every result (`Secrets.redactA
 message (`Secrets` in the kit's `credentials.ts`: a value under 16 characters only as a whole
 occurrence, not inside a run of letters and digits of any script, as the client's `redactSecrets`
 does; a longer one wherever it stands). The server has no option for the key (argv shows in `ps`),
-and HTTP needs no authentication for the public key. A 401 is a tool error that says the Bundestag
-renews its public key and how to get the current one (`withKeyHint` in `tools.ts`); the server does
+and HTTP needs no authentication for the public key. A 401 is a tool error that says what to do for the key's source
+(`keyHint` in `tools.ts`; the client api.ts builds carries `keySource`, which `findCredentials`
+sets): an obtained key was renewed by the Bundestag (a restart obtains the current one), a key from
+DIP_API_KEY or the file must be replaced or removed; the server does
 not obtain a new key by itself while it runs (a restart does). The verification always asks DIP's
 own host, also under `--base-url` (the credential context carries no base URL).
 

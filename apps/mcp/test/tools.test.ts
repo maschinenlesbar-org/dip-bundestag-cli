@@ -9,6 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { listTools } from "../src/mcp/server.js";
+import { keyHint } from "../src/mcp/tools.js";
 import { KEY_SOURCE_URL } from "@maschinenlesbar.org/dip-bundestag-client/internal/obtain-key";
 import { connect, recorder } from "./harness.js";
 import { dipApi, jsonResponse, makeMockTransport, PERSON_1502, TEST_KEY } from "./helpers.js";
@@ -119,13 +120,35 @@ test("getRecord: one record; an unknown id is empty with what to do, not a bare 
   await connection.close();
 });
 
-test("a refused key (401) is a tool error that says the public key is renewed and what to do", async () => {
+test("a refused key (401) from DIP_API_KEY says to replace or unset that key, not that a restart obtains a new one", async () => {
   const connection = await connect({ transport: makeMockTransport(() => jsonResponse({ code: 401, message: "Unauthorized" }, 401)) });
   const result = await connection.call("trackProcedure", { id: 298723 });
   assert.equal(result.isError, true);
-  assert.match(result.content[0]?.text ?? "", /401.*renews its public key.*restart the server.*dip obtain-key/s);
-  assert.ok(!(result.content[0]?.text ?? "").includes(TEST_KEY));
+  const text = result.content[0]?.text ?? "";
+  assert.match(text, /401.*DIP refused the API key in DIP_API_KEY.*replace it.*dip obtain-key.*or remove DIP_API_KEY.*restart/s);
+  assert.doesNotMatch(text, /restart the server to obtain/);
+  assert.ok(!text.includes(TEST_KEY));
   await connection.close();
+});
+
+test("a refused key (401) the server obtained says the public key is renewed and a restart obtains the current one", async () => {
+  const key = "PubKey1.publishedCandidateTheApiAcceptsXXXXXXX";
+  const upstream = makeMockTransport((request) => {
+    if (request.url === KEY_SOURCE_URL) return jsonResponse({ content: `Der aktuell gültige API-Key lautet:<br />${key}` });
+    // The verification at the lookup passes; the key is refused later (rotated while running).
+    return new URL(request.url).pathname === "/api/v1/vorgang" ? jsonResponse({ numFound: 0, documents: [], cursor: "c" }) : jsonResponse({ code: 401, message: "Unauthorized" }, 401);
+  });
+  const connection = await connect({ transport: upstream, env: {} });
+  const text = (await connection.call("getRecord", { resource: "person", id: 1502 })).content[0]?.text ?? "";
+  assert.match(text, /401.*renews its public key.*restart the server to obtain the current one.*DIP_API_KEY/s);
+  assert.ok(!text.includes(key));
+  await connection.close();
+});
+
+test("a refused key (401) from the credentials file says to store the current one or remove it", () => {
+  assert.match(keyHint("file"), /stored with `dip config`.*dip config set api-key.*dip obtain-key.*dip config unset api-key.*restart/s);
+  assert.doesNotMatch(keyHint("file"), /restart the server to obtain/);
+  assert.match(keyHint(undefined), /DIP refused the server's API key/);
 });
 
 test("without a key the published one is obtained and verified first: a candidate DIP refuses is never used", async () => {

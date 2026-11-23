@@ -22,6 +22,7 @@ import {
   type RecordResource,
 } from "@maschinenlesbar.org/dip-bundestag-client";
 import { DipApiError } from "@maschinenlesbar.org/dip-bundestag-client/internal/errors";
+import type { KeySource } from "./api.js";
 import type { JsonSchema, ToolContext, ToolDefinition } from "./server.js";
 
 /** The service, as results and messages name it. */
@@ -97,17 +98,30 @@ const options = (context: ToolContext) => ({ maxPages: context.maxPages });
 const byId = (base: string, value: unknown): string => (typeof value === "number" && Number.isSafeInteger(value) ? `${base}/${value}` : base);
 
 /**
- * A 401 says what to check: DIP answers it for a missing, wrong or rotated key, and the Bundestag
- * renews its public key now and then; a server running across the change has the old one.
+ * What to do about a key DIP refused, by where it came from: a key the server was given is read
+ * again at a restart, so it must be replaced or removed; the public key the server obtained is
+ * renewed by the Bundestag now and then, and a restart obtains the current one.
  */
-async function withKeyHint<T>(work: () => Promise<T>): Promise<T> {
+export function keyHint(source: KeySource | undefined): string {
+  switch (source) {
+    case "env":
+      return "DIP refused the API key in DIP_API_KEY: replace it with the current one (`dip obtain-key` prints it), or remove DIP_API_KEY from the server's environment so that the server obtains the public key, and restart the server.";
+    case "file":
+      return "DIP refused the API key stored with `dip config`: store the current one with `dip config set api-key` (`dip obtain-key` prints it), or remove it with `dip config unset api-key` so that the server obtains the public key, and restart the server.";
+    case "obtained":
+      return "DIP refused the public API key the server obtained. The Bundestag renews its public key now and then: restart the server to obtain the current one, or set DIP_API_KEY (`dip obtain-key` prints the current key) or store it with `dip config set api-key`.";
+    default:
+      return "DIP refused the server's API key. The Bundestag renews its public key now and then: restart the server to obtain the current one, or set DIP_API_KEY (`dip obtain-key` prints the current key) or store it with `dip config set api-key`.";
+  }
+}
+
+/** A 401 says what to check: DIP answers it for a missing, wrong or rotated key (keyHint). */
+async function withKeyHint<T>(context: ToolContext, work: () => Promise<T>): Promise<T> {
   try {
     return await work();
   } catch (err) {
     if (err instanceof DipApiError && err.status === 401 && err.credentialsDropped === undefined) {
-      err.message =
-        `${err.message}. DIP refused the server's API key. The Bundestag renews its public key now and then: restart the server to obtain the current one, ` +
-        "or set DIP_API_KEY (`dip obtain-key` prints the current key) or store it with `dip config set api-key`.";
+      err.message = `${err.message}. ${keyHint(context.client.keySource)}`;
     }
     throw err;
   }
@@ -143,7 +157,7 @@ export const TOOLS: readonly ToolDefinition[] = [
     source: (args) => byId("vorgang", args["id"]),
     async run(args, context) {
       return {
-        ...(await withKeyHint(() =>
+        ...(await withKeyHint(context, () =>
           trackProcedure(context.client, { id: numArg(args, "id"), title: strArg(args, "title"), electoralTerm: numArg(args, "electoralTerm"), type: strArg(args, "type"), limit: numArg(args, "limit") }, options(context)),
         )),
       };
@@ -170,7 +184,7 @@ export const TOOLS: readonly ToolDefinition[] = [
     source: (args) => byId("person", args["id"]),
     async run(args, context) {
       return {
-        ...(await withKeyHint(() =>
+        ...(await withKeyHint(context, () =>
           profileMember(
             context.client,
             {
@@ -214,7 +228,7 @@ export const TOOLS: readonly ToolDefinition[] = [
     paged: (args) => ({ list: "passages", offset: numArg(args, "offset") ?? 0 }),
     async run(args, context) {
       return {
-        ...(await withKeyHint(() =>
+        ...(await withKeyHint(context, () =>
           readDocument(context.client, {
             kind: strArg(args, "kind") as DocumentKind | undefined,
             id: numArg(args, "id"),
@@ -263,7 +277,7 @@ export const TOOLS: readonly ToolDefinition[] = [
     paged: (args) => ({ list: "records", offset: numArg(args, "offset") ?? 0 }),
     async run(args, context) {
       return {
-        ...(await withKeyHint(() =>
+        ...(await withKeyHint(context, () =>
           listRecords(
             context.client,
             {
@@ -289,7 +303,7 @@ export const TOOLS: readonly ToolDefinition[] = [
     outputSchema: output({ record: obj }),
     source: (args) => byId(String(args["resource"]), args["id"]),
     async run(args, context) {
-      return { ...(await withKeyHint(() => getRecord(context.client, args["resource"] as RecordResource, numArg(args, "id") ?? 0))) };
+      return { ...(await withKeyHint(context, () => getRecord(context.client, args["resource"] as RecordResource, numArg(args, "id") ?? 0))) };
     },
   },
 ];
