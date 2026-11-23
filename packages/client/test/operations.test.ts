@@ -483,6 +483,19 @@ test("splitPassages and plainText", () => {
   assert.equal(plainText("<strong>Gesetz</strong> &quot;GEG&quot;<br />2023 &ndash; &auml;&#252;&#x00DF; &bogus;"), 'Gesetz "GEG"\n2023 – äüß &bogus;');
 });
 
+test("plainText: the rules of the tags, line breaks and spaces, in linear time on text without '>' or newlines", () => {
+  assert.equal(plainText("a<br>b<BR/>c<br  />d< br>e</p>f</P >g<p>h"), "a\nb\nc\nde\nf\ngh");
+  assert.equal(plainText("x < y and 3<4"), "x < y and 3<4", "a '<' with no '>' after it is text");
+  assert.equal(plainText("eins  \t\nzwei\n\n\n\ndrei"), "eins\nzwei\n\ndrei");
+  // Each took seconds as a regular expression tried at every '<' or space (quadratic): 120 000
+  // characters now take milliseconds.
+  for (const hostile of ["<a ".repeat(40_000), "<br ".repeat(30_000), `<br${" ".repeat(120_000)}`, `</p${" ".repeat(120_000)}`, `${" ".repeat(120_000)}x`]) {
+    const started = performance.now();
+    plainText(hostile);
+    assert.ok(performance.now() - started < 500, `${JSON.stringify(hostile.slice(0, 8))}… took ${Math.round(performance.now() - started)} ms`);
+  }
+});
+
 // ---- listRecords, getRecord
 
 test("listRecords: f.aktualisiert wants a date and time, f.datum a date: both sent in DIP's form, and said", async () => {

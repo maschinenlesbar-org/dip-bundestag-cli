@@ -156,24 +156,63 @@ const ENTITIES: Record<string, string> = {
   bdquo: "„", ldquo: "“", rdquo: "”", sbquo: "‚", lsquo: "‘", rsquo: "’", laquo: "«", raquo: "»", middot: "·", deg: "°",
 };
 
+/** What a tag (the text between "<" and ">") becomes: a line break for `br` and `/p`, else nothing. */
+function tagText(tag: string): string {
+  // Read by index, not by a regular expression with a run of spaces, which backtracks over a long one.
+  let end = tag.length;
+  while (end > 0 && /\s/.test(tag[end - 1] as string)) end--;
+  const name = tag.slice(0, end).toLowerCase();
+  if (name === "br" || name === "/p") return "\n";
+  if (name.startsWith("br") && name.endsWith("/") && name.slice(2, -1).trim() === "") return "\n";
+  return "";
+}
+
+/**
+ * `html` with its tags replaced (tagText): a tag runs from "<" to the next ">"; a "<" with no ">"
+ * after it is text. One pass with indexOf, so linear: a regular expression tried at every "<"
+ * rescans the rest of a text without a ">" (quadratic).
+ */
+function withoutTags(html: string): string {
+  const out: string[] = [];
+  let at = 0;
+  for (let open = html.indexOf("<"); open !== -1; open = html.indexOf("<", at)) {
+    const close = html.indexOf(">", open + 1);
+    if (close === -1) break;
+    out.push(html.slice(at, open), tagText(html.slice(open + 1, close)));
+    at = close + 1;
+  }
+  out.push(html.slice(at));
+  return out.join("");
+}
+
+/** `text` without the spaces and tabs at the end of each line, in one pass (a regular expression rescans a long run). */
+function withoutTrailingSpaces(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => {
+      let end = line.length;
+      while (end > 0 && (line[end - 1] === " " || line[end - 1] === "\t")) end--;
+      return line.slice(0, end);
+    })
+    .join("\n");
+}
+
 /**
  * DIP's `abstract` as plain text: it holds HTML (`<br />`, `<strong>`, `&quot;`, `&ndash;`). Line
  * breaks become line breaks, every other tag goes, the entities are decoded (an unknown one is
- * kept as written).
+ * kept as written). Linear in the text's length (an abstract is upstream text, as long as DIP
+ * makes it).
  */
 export function plainText(html: string): string {
-  return html
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p\s*>/gi, "\n")
-    .replace(/<[^>]*>/g, "")
-    .replace(/&(#x[0-9a-f]{1,6}|#\d{1,7}|[a-z]{2,8});/gi, (whole, name: string) => {
+  return withoutTrailingSpaces(
+    withoutTags(html).replace(/&(#x[0-9a-f]{1,6}|#\d{1,7}|[a-z]{2,8});/gi, (whole, name: string) => {
       if (name.startsWith("#")) {
         const code = name[1] === "x" || name[1] === "X" ? Number.parseInt(name.slice(2), 16) : Number(name.slice(1));
         return code > 0 && code <= 0x10ffff && !(code >= 0xd800 && code <= 0xdfff) ? String.fromCodePoint(code) : whole;
       }
       return ENTITIES[name] ?? whole;
-    })
-    .replace(/[ \t]+\n/g, "\n")
+    }),
+  )
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
