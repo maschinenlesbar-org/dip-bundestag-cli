@@ -754,7 +754,7 @@ asks DIP's own host, also under `--base-url` (the credential context carries no 
 | `src/mcp/server.ts` | The McpServer factory (the client built at the first call once the credentials are found), the tool types, `callTool`: deadline (`--call-timeout`, after which a tool has a moment to answer with the part it has read) plus the client's cancellation, cleaned, redacted and fitted answers, failures as `isError` results. |
 | `src/mcp/result.ts` | `cleanStrings` (control, bidi, zero-width characters dropped in the value; strings cut at 2000 characters, hence the passages), `fitResult` (whole list entries dropped under `--max-result-chars`, `nextOffset`). |
 | `src/mcp/limiter.ts` | One per process around the upstream transport: 2 in flight, 120 a minute, a pause of at most 30 s on 429, a bounded queue; a request they would hold past its deadline refused at once. DIP documents no request limit; its terms say overloading can get a key blocked. |
-| `src/mcp/http.ts` | node:http adapter for the SDK's `createMcpHandler`: POST /mcp, /healthz, Host and Origin checks (the SDK does neither), 1 MiB body, 8 requests at once, timeouts. |
+| `src/mcp/http.ts` | node:http adapter for the SDK's `createMcpHandler`: POST /mcp, /healthz, Host and Origin checks (the SDK does neither) and CORS for an allowed origin, 1 MiB body, 8 requests at once, timeouts. |
 | `src/mcp/config.ts`, `run.ts`, `index.ts` | Options (`node:util` parseArgs), argv -> exit code, the bin (console into log records, SIGINT/SIGTERM, stdin's end; the environment and the credentials file for the key, from here only). |
 
 The protocol is the SDK's: `@modelcontextprotocol/server` 2.4.0, bundled with its core and zod

@@ -3,6 +3,9 @@
 // - A browser Origin must be one of --allowed-origins exactly (scheme, host and port); none is
 //   allowed by default, not even the server's own; `null` is refused; no Origin (not a browser)
 //   passes.
+// - An allowed Origin gets CORS: its preflight (OPTIONS, no token needed) is 204 with the methods
+//   and headers an MCP client sends, and every answer to it carries Access-Control-Allow-Origin;
+//   any other Origin gets no CORS header, and a request without one none either.
 // Shared whole across the repos with an MCP server: nothing here is particular to one.
 
 import { test } from "node:test";
@@ -32,5 +35,32 @@ test("a browser Origin must be one of --allowed-origins exactly (scheme, host an
   await withServer([], async (port) => {
     assert.equal((await send(port, { headers: headers(port, { origin: "http://localhost:9999" }), body: INITIALIZE })).status, 403);
     assert.equal((await send(port, { headers: headers(port), body: INITIALIZE })).status, 200, "no Origin (not a browser) passes");
+  });
+});
+
+test("an allowed Origin gets CORS: the preflight is answered and the answer is readable; no other origin gets it", async () => {
+  const origin = "http://localhost:6274";
+  await withServer(["--allowed-origins", origin], async (port) => {
+    // A browser's preflight carries no credentials: no bearer token, even where one is required.
+    const preflight = (from: string) =>
+      send(port, { method: "OPTIONS", headers: { host: `127.0.0.1:${port}`, origin: from, "access-control-request-method": "POST", "access-control-request-headers": "content-type, mcp-protocol-version, authorization" } });
+    const allowed = await preflight(origin);
+    assert.equal(allowed.status, 204, allowed.body);
+    assert.equal(allowed.headers["access-control-allow-origin"], origin);
+    assert.match(String(allowed.headers["access-control-allow-methods"]), /\bPOST\b/);
+    const allowedHeaders = String(allowed.headers["access-control-allow-headers"]).toLowerCase();
+    for (const name of ["content-type", "accept", "authorization", "mcp-protocol-version", "mcp-session-id"]) assert.ok(allowedHeaders.split(/\s*,\s*/).includes(name), `${name} in ${allowedHeaders}`);
+    assert.match(String(allowed.headers["vary"]), /\borigin\b/i);
+    const post = await send(port, { headers: headers(port, { origin }), body: INITIALIZE });
+    assert.equal(post.status, 200, post.body);
+    assert.equal(post.headers["access-control-allow-origin"], origin);
+    assert.match(String(post.headers["vary"]), /\borigin\b/i);
+    assert.match(String(post.headers["access-control-expose-headers"]).toLowerCase(), /\bmcp-session-id\b/);
+    const foreign = await preflight("http://evil.example");
+    assert.equal(foreign.status, 403);
+    assert.equal(foreign.headers["access-control-allow-origin"], undefined);
+    const noOrigin = await send(port, { headers: headers(port), body: INITIALIZE });
+    assert.equal(noOrigin.status, 200);
+    assert.equal(noOrigin.headers["access-control-allow-origin"], undefined, "no Origin, no CORS");
   });
 });

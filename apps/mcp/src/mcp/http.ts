@@ -8,6 +8,8 @@
 //    (scheme, host and port; none by default: the server serves no pages); else 403. The SDK's
 //    handler accepted a foreign Host and Origin, and its Origin helper compares host names only,
 //    so a page on any localhost port passed.
+//  - CORS for an allowed Origin only: its preflight (OPTIONS /mcp, which carries no token) is 204
+//    with the methods and headers an MCP client sends, and every answer to it names the origin.
 //  - limits: a body of at most 1 MiB (413), at most 8 requests at once (503), explicit timeouts;
 //  - a client that disconnects aborts its request, and with it the tool call.
 //  - with --auth-token-file (auth.ts), a bearer token on every POST /mcp: a request without it,
@@ -24,6 +26,10 @@ import type { McpConfig } from "./config.js";
 
 export const MAX_BODY_BYTES = 1024 * 1024;
 export const MAX_ACTIVE_REQUESTS = 8;
+
+/** What a browser on an allowed origin may send (a preflight asks), and read of the answer. */
+const CORS_ALLOWED_HEADERS = "Content-Type, Accept, Authorization, Mcp-Protocol-Version, Mcp-Session-Id, Last-Event-ID";
+const CORS_EXPOSED_HEADERS = "Mcp-Session-Id, Mcp-Protocol-Version, WWW-Authenticate";
 
 /** The HTTP server, and how many MCP requests it is answering right now. */
 export type McpHttpServer = http.Server & { inFlight(): number };
@@ -54,6 +60,18 @@ export function createHttpServer(factory: () => McpServer, config: McpConfig, lo
     const origin = req.headers.origin;
     if (origin !== undefined && !allowedOrigins.has(originOf(origin))) {
       return rpcError(res, 403, "Forbidden: this Origin is not allowed (--allowed-origins).");
+    }
+    if (origin !== undefined) {
+      // CORS, for an allowed origin only: without it a browser can't read the answer, and without
+      // an answered preflight it doesn't even send its POST (Content-Type: application/json).
+      res.setHeader("Access-Control-Allow-Origin", originOf(origin));
+      res.setHeader("Access-Control-Expose-Headers", CORS_EXPOSED_HEADERS);
+      res.setHeader("Vary", "Origin");
+      if (req.method === "OPTIONS") {
+        res.writeHead(204, { "Access-Control-Allow-Methods": "POST", "Access-Control-Allow-Headers": CORS_ALLOWED_HEADERS, "Access-Control-Max-Age": "600" });
+        res.end();
+        return;
+      }
     }
     if (authToken !== undefined && !bearerMatches(req.headers.authorization, authToken)) {
       return rpcError(res, 401, "Unauthorized.", { "WWW-Authenticate": "Bearer" });
