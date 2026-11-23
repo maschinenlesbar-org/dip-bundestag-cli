@@ -4,8 +4,9 @@
 //   surrogates replaced, long text cut; keys too, none lost; through a real tool call too.
 // - A result over --max-result-chars drops entries from its page first, then cuts its longest
 //   texts, then drops entries from its other lists (never cuts the JSON; a list keeps its first
-//   entry, notes stay whole), says truncated, and for a page where to go on (nextOffset); one that
-//   can't be cut so far is a tool error that says to ask for less.
+//   entry, notes stay whole), says truncated, for a page that lost entries where to go on
+//   (nextOffset) and which other lists it cut (reason); one that can't be cut so far is a tool
+//   error that says to ask for less.
 // - An answer a redirect brought from another origin (a client that follows redirects) names that
 //   origin in `source`, with a WARN record: it is not cited as the API's own.
 // Shared across the repos with an MCP server; only the adapter differs.
@@ -172,6 +173,23 @@ test("the cap takes entries from the page before any other list, and never from 
   const dropped = fitResult({ status: "ok", twenty }, 1800)?.["twenty"] as { d: string }[] | undefined;
   assert.ok(dropped !== undefined && dropped.length < 20);
   assert.deepEqual(dropped, twenty.slice(0, dropped.length));
+});
+
+test("a complete page gets no nextOffset when the cap cuts another list, and the answer says which list it cut", () => {
+  // The last page: one feature at offset 19 of 20, next to a long list of what was left off.
+  const leftOff = Array.from({ length: 400 }, (_, i) => `gauge ${i}`);
+  const result = { status: "ok", total: 20, features: [{ id: "f19" }], leftOff };
+  const fitted: Record<string, unknown> | undefined = fitResult(result, 2000, { list: "features", offset: 19 }, "Ask for less.");
+  assert.ok(fitted !== undefined);
+  assert.ok(JSON.stringify(fitted).length <= 2000, `${JSON.stringify(fitted).length}`);
+  assert.deepEqual(fitted["features"], result.features);
+  assert.equal(fitted["nextOffset"], undefined, "nothing of the page is missing");
+  const left = (fitted["leftOff"] as unknown[]).length;
+  assert.ok(left >= 1 && left < 400, `${left}`);
+  assert.match(String(fitted["reason"]), /leftOff lost entries .*Ask for less\./);
+  // A page the tool says goes on keeps the tool's nextOffset.
+  const more: Record<string, unknown> | undefined = fitResult({ ...result, nextOffset: 20 }, 2000, { list: "features", offset: 19 });
+  assert.equal(more?.["nextOffset"], 20);
 });
 
 test("a result that can't be cut under the cap is a tool error that says what to ask instead", async () => {

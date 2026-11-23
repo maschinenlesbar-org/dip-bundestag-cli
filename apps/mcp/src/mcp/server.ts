@@ -232,7 +232,7 @@ export async function callTool(
     const cleaned = env.secrets === undefined ? clean(answer) : env.secrets.redactAll(clean(env.secrets.redactAll(answer)));
     // `source` and `licence` are the server's own (the licence a constant, the source the request,
     // bounded by the input schema's limits): `source` is cleaned but never cut like upstream text.
-    const shaped = fitResult({ ...cleaned, source: cleanText(source), licence: LICENCE, ...(cut ? { truncated: true } : {}) }, env.config.maxResultChars, tool.paged?.(args));
+    const shaped = fitResult({ ...cleaned, source: cleanText(source), licence: LICENCE, ...(cut ? { truncated: true } : {}) }, env.config.maxResultChars, tool.paged?.(args), SIZE_HINT);
     if (shaped === undefined) {
       env.log.warn("server", `${tool.name}: the result is over --max-result-chars (${env.config.maxResultChars}) even with its lists and texts cut down`);
       return errorResult(`The answer is larger than this server's size cap (${env.config.maxResultChars} characters, --max-result-chars), even with its lists and texts cut down. ${SIZE_HINT}`);

@@ -140,17 +140,17 @@ function largest(low: number, high: number, fits: (n: number) => boolean): numbe
  * `truncated: true`. First a paged list loses entries from its end (`nextOffset` says where to
  * continue, so they can be had); then, if that is enough, the longest texts are cut further, each
  * to no less than MIN_FIT_LENGTH and ending in a cut mark; else the other lists lose entries (the
- * longest first), then the texts are cut. A list keeps its first entry, and the server's own
- * fields (OWN_FIELDS) stay whole. A result that fits is returned as it is; one that can't be cut
- * so far is undefined (the caller answers with an error).
+ * longest first; `reason` names them and ends in `hint`), then the texts are cut. A list keeps
+ * its first entry, and the server's own fields (OWN_FIELDS) stay whole. A result that fits is
+ * returned as it is; one that can't be cut so far is undefined (the caller answers with an error).
  */
-export function fitResult<T extends Record<string, unknown>>(result: T, maxChars: number, paged?: { list: string; offset: number }): T | undefined {
+export function fitResult<T extends Record<string, unknown>>(result: T, maxChars: number, paged?: { list: string; offset: number }, hint = ""): T | undefined {
   if (JSON.stringify(result).length <= maxChars) return result;
   let fitted: Record<string, unknown> = { ...result, truncated: true };
   const fits = (): boolean => JSON.stringify(fitted).length <= maxChars;
-  if (paged !== undefined && Array.isArray(fitted[paged.list])) fitted["nextOffset"] = paged.offset + (fitted[paged.list] as unknown[]).length;
   // A list keeps its first entry: a page so that nextOffset always moves on, any list so that it
-  // never stands empty beside a total that counts what was there.
+  // never stands empty beside a total that counts what was there. Only a page that lost entries
+  // gets a nextOffset (one the tool set for its next page stays).
   const shortenList = (key: string): void => {
     const list = fitted[key];
     if (!Array.isArray(list) || list.length <= 1) return;
@@ -177,8 +177,13 @@ export function fitResult<T extends Record<string, unknown>>(result: T, maxChars
   if (paged !== undefined) shortenList(paged.list);
   if (fits() || cutTexts()) return fitted as T;
   const length = (key: string): number => (fitted[key] as unknown[]).length;
-  const others = Object.keys(fitted).filter((key) => key !== paged?.list && !OWN_FIELDS.has(key) && Array.isArray(fitted[key]));
+  const others = Object.keys(fitted).filter((key) => key !== paged?.list && !OWN_FIELDS.has(key) && Array.isArray(fitted[key]) && length(key) > 1);
+  // What these lists lose can't be had with nextOffset: `reason` says which were cut.
+  const said = typeof fitted["reason"] === "string" ? `${fitted["reason"]} ` : "";
+  const cut: string[] = [];
   for (const key of others.sort((a, b) => length(b) - length(a))) {
+    cut.push(key);
+    fitted["reason"] = `${said}To fit the size cap, ${cut.join(", ")} lost entries from the end.${hint === "" ? "" : ` ${hint}`}`;
     shortenList(key);
     if (fits()) return fitted as T;
   }
