@@ -104,9 +104,8 @@ export function createServerFactory(deps: ServerDeps): () => McpServer {
    * needs it, shared by the calls after it; a lookup that fails is tried again at the next call.
    */
   function lazyClient(find: NonNullable<typeof findCredentials>): () => Promise<Client> {
-    let pending: Promise<Client> | undefined;
-    return () => {
-      pending ??= find({
+    return shareLookup(() =>
+      find({
         env: deps.env ?? {},
         credentialsFile: deps.credentialsFile ?? false,
         transport: deps.transport,
@@ -120,13 +119,11 @@ export function createServerFactory(deps: ServerDeps): () => McpServer {
           return new Client({ ...options, ...(found.clientOptions as object) });
         },
         (err: unknown) => {
-          pending = undefined;
           log.warn("config", `no credentials yet (tried again at the next call): ${err instanceof Error ? err.message : String(err)}`);
           throw err;
         },
-      );
-      return pending;
-    };
+      ),
+    );
   }
   return () => {
     const server = new McpServer({ name: PROGRAM, version: VERSION, title: TITLE }, { instructions: INSTRUCTIONS });
@@ -145,6 +142,24 @@ export function createServerFactory(deps: ServerDeps): () => McpServer {
       );
     }
     return server;
+  };
+}
+
+/**
+ * `look`, run at the first call and shared by the calls after it; one that fails is run again at
+ * the next call. It runs outside every tool call's scope (limiter.ts): its requests carry no call's
+ * signal, so the call that started it can't fail the others waiting for it by being cancelled or
+ * reaching its deadline. Each call still stops waiting at its own (callTool's race); the lookup is
+ * bounded by its own request timeout.
+ */
+export function shareLookup<T>(look: () => Promise<T>): () => Promise<T> {
+  let pending: Promise<T> | undefined;
+  return () => {
+    pending ??= callScope.exit(look).catch((err: unknown) => {
+      pending = undefined;
+      throw err;
+    });
+    return pending;
   };
 }
 

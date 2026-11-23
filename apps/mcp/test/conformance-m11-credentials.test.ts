@@ -4,6 +4,8 @@
 //   request and read no environment.
 // - The environment's credential is sent; one INFO record of `<program>.config` says where it
 //   came from, never the value.
+// - The lookup is shared by the calls waiting for it, and runs on no call's signal: cancelling the
+//   call that started it (or its deadline) fails none of the others.
 // - The value never appears in a log record, a result or an error message, even when the
 //   upstream echoes it.
 // - A credential the server obtains (a public key) is obtained once, at the first call; a lookup
@@ -18,7 +20,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { apiBase, Client, ClientError, type HttpRequest, type HttpResponse } from "../src/mcp/api.js";
 import { redactingLog, Secrets } from "../src/mcp/credentials.js";
-import { callTool, type ToolDefinition } from "../src/mcp/server.js";
+import { callScope, limitTransport } from "../src/mcp/limiter.js";
+import { callTool, shareLookup, type ToolDefinition } from "../src/mcp/server.js";
 import { TOOLS } from "../src/mcp/tools.js";
 import { PROGRAM } from "../src/mcp/version.js";
 import { config, connect, noUpstream, recorder } from "./harness.js";
@@ -144,6 +147,32 @@ test("a lookup that fails is the call's tool error, and the next call tries agai
   const second = await connection.call(c.call.name, c.call.arguments);
   assert.notEqual(second.isError, true, second.content[0]?.text);
   await connection.close();
+});
+
+test("a shared lookup runs on no call's signal: cancelling the call that started it fails none of the others waiting", async () => {
+  let release: () => void = () => {};
+  const answered = new Promise<void>((resolve) => (release = resolve));
+  // A key source that answers late and, like the real transport, ends a request when its signal aborts.
+  const source = limitTransport((request) =>
+    new Promise<HttpResponse>((resolve, reject) => {
+      if (request.signal?.aborted === true) return reject(new Error("aborted"));
+      request.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+      void answered.then(() => resolve({ status: 200, headers: {}, body: Buffer.from("key") }));
+    }),
+  );
+  let looked = 0;
+  const lookup = shareLookup(async () => {
+    looked += 1;
+    return (await source({ method: "GET", url: "https://keys.example/", headers: {} } as HttpRequest)).body.toString();
+  });
+  const first = new AbortController();
+  const waiting = [first, new AbortController()].map((call) => callScope.run({ signal: call.signal }, () => lookup()));
+  first.abort();
+  release();
+  const [a, b] = await Promise.allSettled(waiting);
+  assert.deepEqual(b, { status: "fulfilled", value: "key" }, "the other call gets the key");
+  assert.deepEqual(a, { status: "fulfilled", value: "key" }, "the lookup itself went on; the cancelled call stops waiting in callTool");
+  assert.equal(looked, 1, "looked up once");
 });
 
 test("Secrets: every occurrence replaced, the longest value first, keys too; blank and very short values are none", () => {
