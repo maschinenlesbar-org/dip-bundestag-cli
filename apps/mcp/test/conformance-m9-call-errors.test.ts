@@ -5,6 +5,7 @@
 //   narrow it; a cancelled call says so.
 // - A bug is a fixed text for the caller and an ERROR record of `<program>.server` with the details.
 // - An answer over the server's size cap says what to ask instead, not a CLI option.
+// - A retry's record names the wait the retry really has: the limiter's pause after a 429 too.
 // Shared across the repos with an MCP server; only the adapter differs.
 
 import { test } from "node:test";
@@ -115,4 +116,17 @@ test("a result's source is the tool's path under the API's base, made from the a
   assert.equal(await sourceOf((args) => `items/${String(args["id"])}`), "https://api.example/v1/items/a b");
   assert.equal(await sourceOf((_args, base) => `${base.replace("api.", "files.")}/feed.json`), "https://files.example/v1/feed.json");
   assert.equal(await sourceOf(() => "http://other.example/feed.json"), "http://other.example/feed.json");
+});
+
+test("a retry's record names the wait the limiter holds it for, not only the engine's backoff", async () => {
+  let first = true;
+  const upstream = makeMockTransport(() => (first ? ((first = false), { status: 429, headers: {}, body: Buffer.from("") }) : jsonResponse({}, 500)));
+  const { log, lines } = recorder();
+  const connection = await connect({ transport: { transport: limitTransport(upstream.transport) }, config: { callTimeoutMs: 300 }, log });
+  await connection.call(CALL.name, CALL.arguments);
+  await connection.close();
+  const retry = lines.find((line) => line.includes(`[${PROGRAM}.http] retry 1/`));
+  assert.ok(retry !== undefined, lines.join("\n"));
+  const waited = Number(/ in (\d+) ms/.exec(retry)?.[1]);
+  assert.ok(waited > 4000, `the limiter holds every start for 5 s after a 429 without Retry-After: ${retry}`);
 });

@@ -5,6 +5,8 @@
 //  - at most `perMinute` request starts in any 60 s (default 120);
 //  - a 429 pauses every start for its Retry-After (or 5 s), on top of the engine's own retry,
 //    for at most 30 s (the engine's own Retry-After ceiling): one answer can't stall the process;
+//  - `pausedFor()` says how long that pause still holds every start (server.ts names it in the
+//    record of a retry, which the limiter holds that long whatever the engine's own backoff);
 //  - a clock set back (a wall-clock correction) stretches no hold past its longest (the pause's
 //    30 s, the window's 60 s), and no timer gets more than setTimeout can take;
 //  - at most `queue` requests wait (default 32); one more is refused at once (the client's
@@ -40,7 +42,10 @@ interface Waiter {
   fail: (err: Error) => void;
 }
 
-export function limitTransport(transport: Transport, options: LimiterOptions = {}): Transport {
+/** The limited transport, and how long a 429's pause still holds every start (ms; 0 for none). */
+export type LimitedTransport = Transport & { pausedFor(): number };
+
+export function limitTransport(transport: Transport, options: LimiterOptions = {}): LimitedTransport {
   const inFlight = options.inFlight ?? 2;
   const perMinute = options.perMinute ?? 120;
   const queueSize = options.queue ?? 32;
@@ -78,7 +83,7 @@ export function limitTransport(transport: Transport, options: LimiterOptions = {
     }
   };
 
-  return async (sent: HttpRequest): Promise<HttpResponse> => {
+  const limited = async (sent: HttpRequest): Promise<HttpResponse> => {
     const call = callSignal.getStore();
     if (call?.aborted === true) throw new NetworkError(`${sent.method} ${sent.url} failed: aborted`);
     const request: HttpRequest =
@@ -119,6 +124,7 @@ export function limitTransport(transport: Transport, options: LimiterOptions = {
       pump();
     }
   };
+  return Object.assign(limited, { pausedFor: () => Math.max(0, Math.min(pausedUntil - now(), MAX_PAUSE_MS)) });
 }
 
 /** A Retry-After header in ms from `now`: delta-seconds or an HTTP date; undefined for anything else. */

@@ -13,7 +13,7 @@ import { McpServer, fromJsonSchema } from "@modelcontextprotocol/server";
 import { apiBase, Client, ClientError, cutText, NetworkError, sizeLimitMessage, type Transport } from "./api.js";
 import type { McpConfig } from "./config.js";
 import { findCredentials, redactingLog, Secrets } from "./credentials.js";
-import { callSignal } from "./limiter.js";
+import { callSignal, type LimitedTransport } from "./limiter.js";
 import { cleanStrings, fitResult } from "./result.js";
 import { DEADLINE_HINT, INSTRUCTIONS, LICENCE, SIZE_HINT, TITLE, TOOLS } from "./tools.js";
 import { PROGRAM, USER_AGENT, VERSION } from "./version.js";
@@ -65,7 +65,7 @@ const MAX_ERROR_MESSAGE = 5000;
 
 export interface ServerDeps {
   config: McpConfig;
-  /** The transport every client uses: the limited one (limiter.ts), shared across calls. */
+  /** The transport every client uses: the limited one (limiter.ts), shared across calls; a plain one in some tests. */
   transport: Transport;
   log: Logger;
   /** Where credentials are looked up (credentials.ts): index.ts passes process.env; default none. */
@@ -85,13 +85,15 @@ export function createServerFactory(deps: ServerDeps): () => McpServer {
   const secrets = new Secrets();
   const log = redactingLog(deps.log, secrets);
   const userAgent = config.userAgent ?? USER_AGENT;
+  // A retry waits for the limiter's pause after a 429 too (limiter.ts), whatever the engine's backoff.
+  const pausedFor = (deps.transport as Partial<LimitedTransport>).pausedFor ?? (() => 0);
   const options: NonNullable<ConstructorParameters<typeof Client>[0]> = {
     transport: deps.transport,
     ...(config.baseUrl === undefined ? {} : { baseUrl: config.baseUrl }),
     timeoutMs: config.timeoutMs,
     userAgent,
     maxResponseBytes: MAX_UPSTREAM_BYTES,
-    onRetry: (event) => log.warn("http", `retry ${event.retry}/${event.maxRetries} of ${event.url} in ${event.delayMs} ms${event.status === undefined ? "" : ` (HTTP ${event.status})`}`),
+    onRetry: (event) => log.warn("http", `retry ${event.retry}/${event.maxRetries} of ${event.url} in ${Math.max(event.delayMs, pausedFor())} ms${event.status === undefined ? "" : ` (HTTP ${event.status})`}`),
     onWarning: (message) => log.warn("api", message),
   };
   const client = findCredentials === undefined ? new Client(options) : lazyClient(findCredentials);
