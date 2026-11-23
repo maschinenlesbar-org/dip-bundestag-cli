@@ -127,6 +127,17 @@ test("a paged list whose next entry alone is over the cap keeps that entry, its 
   assert.equal(fitted["truncated"], true);
 });
 
+test("a list whose one entry is over the cap keeps it, its texts cut: never an empty list beside its total", () => {
+  const record = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`field${i}`, "z".repeat(1500)]));
+  const fitted: Record<string, unknown> | undefined = fitResult({ status: "ok", total: 1, briefings: [record] }, 25_000);
+  assert.ok(fitted !== undefined);
+  assert.ok(JSON.stringify(fitted).length <= 25_000, `${JSON.stringify(fitted).length}`);
+  const kept = fitted["briefings"] as Record<string, string>[];
+  assert.equal(kept.length, 1);
+  assert.equal(Object.keys(kept[0] ?? {}).length, 40);
+  assert.ok(kept[0]?.["field39"]?.endsWith(cutMark(1500)));
+});
+
 test("a result that can't be cut under the cap is a tool error that says what to ask instead", async () => {
   const numbers = Object.fromEntries(Array.from({ length: 500 }, (_, i) => [`n${i}`, 123_456_789 + i]));
   assert.equal(fitResult({ status: "ok", item: numbers }, 1000), undefined);
