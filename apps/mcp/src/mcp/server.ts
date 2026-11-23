@@ -4,7 +4,8 @@
 // signal aborts and the tool has a moment to answer with what it has read; its answer is
 // cleaned and fitted (result.ts) and sent as structuredContent with the same JSON as text. A
 // failure is a tool result with isError and a message saying what to change, never a protocol
-// error (an unknown tool or malformed call is the SDK's -32602).
+// error (an unknown tool or malformed call is the SDK's -32602); an upstream failure and the
+// deadline are also a WARN record, a bug an ERROR record.
 //
 // The same in every repository (the kit): what is particular to this one is in tools.ts (the
 // tools, the instructions, the licence) and api.ts (how to reach the client).
@@ -182,7 +183,7 @@ export async function callTool(
     apiBase: string;
     config: McpConfig;
     /** The server's log: the factory passes one that takes the secrets out (credentials.ts). */
-    log: Pick<Logger, "error" | "info">;
+    log: Pick<Logger, "error" | "warn" | "info">;
     /** Taken out of the result and the error message (credentials.ts); default none. */
     secrets?: Secrets;
   },
@@ -216,14 +217,20 @@ export async function callTool(
   } catch (err) {
     const redact = env.secrets?.redact ?? ((text: string) => text);
     if (deadline.aborted && !cancelled.aborted) {
+      env.log.warn("server", `${tool.name} stopped at the call deadline (${env.config.callTimeoutMs} ms)`);
       return errorResult(`The call took longer than ${Math.round(env.config.callTimeoutMs / 1000)} s and was stopped. ${DEADLINE_HINT}`);
     }
     if (err instanceof NetworkError && cancelled.aborted) return errorResult("The call was cancelled.");
     // The client's size-cap text names the CLI's option, which a model calling this server can't use.
     if (err instanceof NetworkError && err.message.includes(sizeLimitMessage(MAX_UPSTREAM_BYTES))) {
+      env.log.warn("http", `${tool.name}: ${redact(err.message)}`);
       return errorResult(`The answer from ${TITLE} is larger than this server accepts (${MAX_UPSTREAM_BYTES / 1024 / 1024} MiB). ${SIZE_HINT}`);
     }
-    if (err instanceof ClientError) return errorResult(redact(err.message));
+    if (err instanceof ClientError) {
+      // An operator sees why calls fail: the upstream's error (api), or the transport's (http).
+      env.log.warn(err instanceof NetworkError ? "http" : "api", `${tool.name}: ${redact(err.message)}`);
+      return errorResult(redact(err.message));
+    }
     // A bug, not an answer: the details go to the log, the caller gets a fixed text.
     env.log.error("server", `${tool.name} failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
     return errorResult(`${tool.name} failed with an internal error; the server's log has the details.`);

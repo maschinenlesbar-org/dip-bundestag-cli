@@ -1,6 +1,7 @@
 // Conformance test M9 (MCP kit, rollout plan 2026-11-19): a failed call is a tool error a model
 // can act on, never a protocol error and never a stack trace.
-// - An upstream error names the request.
+// - An upstream error names the request, and leaves a WARN record of `<program>.api` (or `.http`
+//   for the transport) naming the tool; so does the call deadline (`.server`).
 // - The call deadline (--call-timeout) stops a call that waits on the upstream, with advice to
 //   narrow it; a cancelled call says so. At the deadline the call's signal aborts, and a tool that
 //   answers with what it has read so far (a part, said so in its answer) gets that answer out.
@@ -50,6 +51,17 @@ test("an upstream error is a tool error naming the request", async () => {
   assert.match(text, /500/);
   assert.equal(result.structuredContent, undefined, "an error result carries text only");
   await connection.close();
+});
+
+test("an upstream failure and the call deadline leave a WARN record naming the tool", async () => {
+  const { log, lines } = recorder();
+  const connection = await connect({ transport: makeMockTransport(() => jsonResponse({ error: "internal error" }, 500)), log });
+  await connection.call(CALL.name, CALL.arguments);
+  await connection.close();
+  assert.ok(lines.some((line) => new RegExp(`WARN  \\[${PROGRAM}\\.(api|http)\\] ${CALL.name}: .*500`).test(line)), lines.join("\n"));
+  const { env: e, lines: deadlineLines } = env(hanging.transport, { callTimeoutMs: 30 });
+  await callTool(tool, CALL.arguments, new AbortController().signal, e);
+  assert.ok(deadlineLines.some((line) => line.includes(`WARN  [${PROGRAM}.server] ${CALL.name} stopped at the call deadline`)), deadlineLines.join("\n"));
 });
 
 test("the call deadline stops a call that waits on the upstream, with advice to narrow it", async () => {
