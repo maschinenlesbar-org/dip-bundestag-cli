@@ -11,10 +11,13 @@
 // waits on the upstream within 5 s with 143 (SIGTERM), not the kill after 10 s. MCP: an
 // initialize piped into `docker run -i` is answered and the server exits when stdin ends; over
 // HTTP (`--transport http`, the port published on loopback) an initialize is answered,
-// /healthz is 200, a foreign Origin is 403, and `docker stop` ends it with 143 within 5 s.
+// /healthz is 200, a foreign Origin is 403, and `docker stop` ends it with 143 within 5 s. With
+// `"authToken": true` in smoke.json (a server that uses a personal account and serves HTTP only with
+// a bearer token), the HTTP server gets a token file (mode 600, mounted read-only, the container run
+// as the file's owner, as its docs say) and the checks send the token; one without it must be 401.
 
 import { randomBytes } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { dockerEnv, fail, here, parseArgs, run } from "./docker.mjs";
 
@@ -122,8 +125,21 @@ async function smokeMcp() {
     `exit ${stdio.status}, stdout ${JSON.stringify(stdio.stdout.slice(0, 300))}, stderr ${JSON.stringify(stdio.stderr.slice(0, 300))}`,
   );
   const http = `smoke-mcp-${id}`;
+  // The token file lives below the repository (colima shares only $HOME with its VM).
+  const tokenDir = join(here, `.smoke-token-${id}`);
+  const token = `smoke-${randomBytes(24).toString("hex")}`;
+  const auth = config.authToken === true;
   try {
-    docker(["run", "--detach", "--name", http, ...hardened, "-p", "127.0.0.1::3000", image, "--transport", "http", "--host", "0.0.0.0", "--allowed-hosts", "localhost,127.0.0.1"]);
+    let tokenArgs = [];
+    let runAs = hardened;
+    if (auth) {
+      mkdirSync(tokenDir, { mode: 0o700 });
+      writeFileSync(join(tokenDir, "token"), `${token}\n`, { mode: 0o600 });
+      tokenArgs = ["--auth-token-file", "/run/secrets/mcp-token"];
+      const owner = `${process.getuid()}:${process.getgid()}`;
+      runAs = [...hardened.slice(0, hardened.indexOf("--user")), "--user", owner, "-v", `${join(tokenDir, "token")}:/run/secrets/mcp-token:ro`];
+    }
+    docker(["run", "--detach", "--name", http, ...runAs, "-p", "127.0.0.1::3000", image, "--transport", "http", "--host", "0.0.0.0", "--allowed-hosts", "localhost,127.0.0.1", ...tokenArgs]);
     const port = docker(["port", http, "3000/tcp"]).stdout.trim().split("\n")[0]?.split(":").pop();
     if (port === undefined || port === "") fail("the HTTP server's port isn't published");
     waitForLog(http, "serving MCP on http");
@@ -131,7 +147,7 @@ async function smokeMcp() {
     const post = async (headers = {}) => {
       const response = await fetch(`${base}/mcp`, {
         method: "POST",
-        headers: { "content-type": "application/json", accept: "application/json, text/event-stream", ...headers },
+        headers: { "content-type": "application/json", accept: "application/json, text/event-stream", ...(auth ? { authorization: `Bearer ${token}` } : {}), ...headers },
         body: initialize,
       });
       return { status: response.status, body: await response.text() };
@@ -142,6 +158,10 @@ async function smokeMcp() {
     check("HTTP: /healthz is 200", health.status === 200, `HTTP ${health.status}`);
     const foreign = await post({ origin: "http://evil.example" });
     check("HTTP: a foreign Origin is 403", foreign.status === 403, `HTTP ${foreign.status}`);
+    if (auth) {
+      const refused = await post({ authorization: "Bearer not-the-token" });
+      check("HTTP: a request without the bearer token is 401", refused.status === 401, `HTTP ${refused.status}`);
+    }
     const stopping = Date.now();
     docker(["stop", "--time", "10", http]);
     const took = Date.now() - stopping;
@@ -149,5 +169,6 @@ async function smokeMcp() {
     check("docker stop ends the HTTP server with SIGTERM's 143, in under 5 s", exitCode === 143 && took < 5000, `exit ${exitCode} after ${took} ms`);
   } finally {
     docker(["rm", "--force", http], { allowFail: true });
+    rmSync(tokenDir, { recursive: true, force: true });
   }
 }

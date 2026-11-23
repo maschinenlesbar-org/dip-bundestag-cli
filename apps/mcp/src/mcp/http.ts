@@ -10,12 +10,16 @@
 //    so a page on any localhost port passed.
 //  - limits: a body of at most 1 MiB (413), at most 8 requests at once (503), explicit timeouts;
 //  - a client that disconnects aborts its request, and with it the tool call.
-// No authentication: the data is public and the tools only read. Exposed beyond localhost, the
-// server belongs behind a proxy that authenticates.
+//  - with --auth-token-file (auth.ts), a bearer token on every POST /mcp: a request without it,
+//    or with another, is 401 with `WWW-Authenticate: Bearer` and no detail. /healthz stays open.
+// Without a token there is no authentication: the data is public and the tools only read. Exposed
+// beyond localhost, such a server belongs behind a proxy that authenticates. A server whose API is
+// called with a personal account refuses HTTP without a token (config.ts).
 
 import http from "node:http";
 import type { Logger } from "@maschinenlesbar.org/dip-bundestag-log";
 import { createMcpHandler, validateHostHeader, type McpServer } from "@modelcontextprotocol/server";
+import { bearerMatches } from "./auth.js";
 import type { McpConfig } from "./config.js";
 
 export const MAX_BODY_BYTES = 1024 * 1024;
@@ -24,7 +28,8 @@ export const MAX_ACTIVE_REQUESTS = 8;
 /** The HTTP server, and how many MCP requests it is answering right now. */
 export type McpHttpServer = http.Server & { inFlight(): number };
 
-export function createHttpServer(factory: () => McpServer, config: McpConfig, log: Pick<Logger, "warn">): McpHttpServer {
+/** `authToken`: the bearer token every POST /mcp must send (auth.ts), or undefined for none. */
+export function createHttpServer(factory: () => McpServer, config: McpConfig, log: Pick<Logger, "warn">, authToken?: string): McpHttpServer {
   // The default response mode answers with one JSON body unless a tool sends a message before its
   // result, which none does. ("json" made the SDK print a warning outside the log.)
   const handler = createMcpHandler(factory, { onerror: (error) => log.warn("http", error.message) });
@@ -49,6 +54,9 @@ export function createHttpServer(factory: () => McpServer, config: McpConfig, lo
     const origin = req.headers.origin;
     if (origin !== undefined && !allowedOrigins.has(originOf(origin))) {
       return rpcError(res, 403, "Forbidden: this Origin is not allowed (--allowed-origins).");
+    }
+    if (authToken !== undefined && !bearerMatches(req.headers.authorization, authToken)) {
+      return rpcError(res, 401, "Unauthorized.", { "WWW-Authenticate": "Bearer" });
     }
     if (active >= MAX_ACTIVE_REQUESTS) return rpcError(res, 503, "The server is busy; try again shortly.", { "Retry-After": "1" });
     active += 1;

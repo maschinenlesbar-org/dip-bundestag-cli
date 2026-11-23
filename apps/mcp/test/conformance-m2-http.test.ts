@@ -13,7 +13,8 @@ import assert from "node:assert/strict";
 import net from "node:net";
 import { run } from "../src/mcp/run.js";
 import { PROGRAM } from "../src/mcp/version.js";
-import { headers, INITIALIZE, send, withServer } from "./harness.js";
+import { AUTH_TOKEN_REQUIRED } from "../src/mcp/auth.js";
+import { authArgs, headers, INITIALIZE, send, TEST_AUTH_TOKEN, withServer } from "./harness.js";
 
 const topic = (area: string): string => `\\[${PROGRAM.replace(/[.*+?^${}()|[\]\\-]/g, "\\$&")}\\.${area}\\]`;
 
@@ -36,7 +37,11 @@ test("a body over 1 MiB is 413", async () => {
     // the whole body raced with the server's close and sometimes ended in a reset, not the answer.)
     const answer = await new Promise<string>((resolve, reject) => {
       const socket = net.connect(port, "127.0.0.1", () =>
-        socket.write(`POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nContent-Type: application/json\r\nAccept: application/json, text/event-stream\r\nContent-Length: ${1024 * 1024 + 1}\r\n\r\n`),
+        socket.write(
+          `POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nContent-Type: application/json\r\nAccept: application/json, text/event-stream\r\n` +
+            (AUTH_TOKEN_REQUIRED ? `Authorization: Bearer ${TEST_AUTH_TOKEN}\r\n` : "") +
+            `Content-Length: ${1024 * 1024 + 1}\r\n\r\n`,
+        ),
       );
       let data = "";
       socket.on("data", (chunk: Buffer) => (data += chunk.toString("utf8")));
@@ -47,12 +52,14 @@ test("a body over 1 MiB is 413", async () => {
   });
 });
 
-test("a non-loopback address is a WARN record: the server has no authentication", async () => {
+test("a non-loopback address is a WARN record: the server has no authentication (or, with a token, it travels unencrypted)", async () => {
   const lines = await withServer(["--host", "0.0.0.0", "--allowed-hosts", "localhost,127.0.0.1"], async () => {});
   assert.match(
     lines.join("\n"),
     new RegExp(
-      `WARN  ${topic("http")} listening on 0\\.0\\.0\\.0: reachable from outside this container or machine, and the server has no authentication\\. Publish the port on 127\\.0\\.0\\.1 only \\(docker run -p 127\\.0\\.0\\.1:<host port>:\\d+\\) or put an authenticating proxy in front\\.`,
+      AUTH_TOKEN_REQUIRED
+        ? `WARN  ${topic("http")} listening on 0\\.0\\.0\\.0: reachable from outside this container or machine\\. The bearer token travels unencrypted over plain HTTP: publish the port on 127\\.0\\.0\\.1 only \\(docker run -p 127\\.0\\.0\\.1:<host port>:\\d+\\) or put a TLS proxy in front\\.`
+        : `WARN  ${topic("http")} listening on 0\\.0\\.0\\.0: reachable from outside this container or machine, and the server has no authentication\\. Publish the port on 127\\.0\\.0\\.1 only \\(docker run -p 127\\.0\\.0\\.1:<host port>:\\d+\\) or put an authenticating proxy in front\\.`,
     ),
   );
 });
@@ -65,7 +72,7 @@ test("a usage error is one ERROR record and exit 2; a port in use is exit 1", as
   assert.match(lines[0] ?? "", new RegExp(`ERROR ${topic("mcp")} --port must be a whole number`));
   await withServer([], async (port) => {
     const busy: string[] = [];
-    const again = await run(["--transport", "http", "--port", String(port)], { stdout: () => {}, stderr: (line) => busy.push(line), stopped: Promise.resolve() });
+    const again = await run(["--transport", "http", "--port", String(port), ...authArgs()], { stdout: () => {}, stderr: (line) => busy.push(line), stopped: Promise.resolve() });
     assert.equal(again, 1);
     assert.match(busy.join("\n"), new RegExp(`ERROR ${topic("http")} Could not listen`));
   });

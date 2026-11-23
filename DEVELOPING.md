@@ -750,7 +750,7 @@ asks DIP's own host, also under `--base-url` (the credential context carries no 
 | `packages/log` | The log records (text/jsonl), shared by both apps; `createLogger({ program })`. |
 | `src/mcp/tools.ts` | This repo's: the five tools (flat input schemas with limits, no root combinators; one object output schema each; descriptions under 2000 characters), the instructions, the licence (the Bundestag's "Nutzungsbedingungen für DIP" in short with the link), the hints the server's messages give, `withKeyHint`. `readDocument` pages its passages and `searchRecords` its records (offset, limit, `nextOffset`). |
 | `src/mcp/api.ts` | This repo's: how the kit reaches the client (`DipClient` as `Client`, `DipError` as `ClientError`, `DipNetworkError` as `NetworkError`, `apiBase` with `/api/v1`) and `findCredentials` (the key, above). |
-| `src/mcp/credentials.ts` | The kit's credentials hook: `findCredentials` read from `api.ts` when it exports one, `Secrets` (the values never shown), `redactingLog`. |
+| `src/mcp/credentials.ts`, `auth.ts` | The kit's credentials hook: `findCredentials` read from `api.ts` when it exports one, `Secrets` (the values never shown), `redactingLog`; the HTTP bearer token of `--auth-token-file`. |
 | `src/mcp/server.ts` | The McpServer factory (the client built at the first call once the credentials are found), the tool types, `callTool`: deadline (`--call-timeout`) plus the client's cancellation, cleaned, redacted and fitted answers, failures as `isError` results. |
 | `src/mcp/result.ts` | `cleanStrings` (control, bidi, zero-width characters dropped in the value; strings cut at 2000 characters, hence the passages), `fitResult` (whole list entries dropped under `--max-result-chars`, `nextOffset`). |
 | `src/mcp/limiter.ts` | One per process around the upstream transport: 2 in flight, 120 a minute, pause on 429, a bounded queue. DIP documents no request limit; its terms say overloading can get a key blocked. |
@@ -774,7 +774,9 @@ Tests (`apps/mcp/test`) run in-process over the SDK's InMemoryTransport with raw
 kit's `harness.ts`, which gives every server `helpers.ts`'s `TEST_ENV`, a test key, unless a test
 passes its own environment: no test reads a credentials file or obtains a key over the network).
 The rules every server follows are the shared conformance tests `conformance-m1-…` to
-`conformance-m11-…`, each with an adapter block naming this repo's calls and mock answers; M11
+`conformance-m12-…`, each with an adapter block naming this repo's calls and mock answers (M12:
+the HTTP bearer token of `--auth-token-file`, `auth.ts`, optional here: the key is public, so
+`api.ts` doesn't export `HTTP_NEEDS_AUTH_TOKEN`); M11
 covers the key: nothing looked up before the first call, the environment's key sent with one
 INFO record, the key never in a record, a result or an error even when the upstream echoes it,
 the published key obtained once (from a document shaped like DIP's help document, a value in DIP's

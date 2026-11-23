@@ -56,6 +56,9 @@ const CREDENTIALS = {
   | undefined;
 // --------------------------------------------------------------------------------------
 
+// A client for a test (harness.ts: with the repository's test login, where its client needs one).
+const { newClient } = await import("./harness.js");
+
 const skip = CREDENTIALS === undefined ? "the API needs no credentials" : false;
 /** The value the adapter's key source gives (an adapter without `value` gets the default). */
 const obtainedValueOf = (obtained: object): string => (obtained as { value?: string }).value ?? "obtained-public-credential";
@@ -157,7 +160,7 @@ test("a tool error and a bug's record (the server's log) never carry a secret", 
   const { log, lines } = recorder();
   const tool = TOOLS[0] as ToolDefinition;
   // The server's log, as the factory builds it.
-  const env = { client: new Client({ transport: noUpstream }), apiBase: apiBase(undefined), config: config(), log: redactingLog(log, secrets), secrets };
+  const env = { client: newClient({ transport: noUpstream }) as Client, apiBase: apiBase(undefined), config: config(), log: redactingLog(log, secrets), secrets };
   const refused = await callTool({ ...tool, run: () => Promise.reject(new ClientError("refused with s3cret-value")) }, {}, new AbortController().signal, env);
   assert.equal(refused.content[0]?.text, "refused with ***");
   const bug = await callTool({ ...tool, run: () => Promise.reject(new Error("crashed on s3cret-value")) }, {}, new AbortController().signal, env);

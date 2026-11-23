@@ -128,6 +128,7 @@ Every tool only reads. An answer is JSON (`structuredContent` and the same as te
 --port <n>                 HTTP: the port (default 3000)
 --allowed-hosts <list>     HTTP: Host header names to answer (default localhost,127.0.0.1,[::1])
 --allowed-origins <list>   HTTP: browser origins allowed to call, exactly (https://app.example.org); none by default
+--auth-token-file <path>   HTTP: a file with the bearer token every request must send (mode 600, 32+ characters)
 --base-url <url>           API host (default https://search.dip.bundestag.de)
 --timeout <ms>             per upstream request (default 30000)
 --call-timeout <ms>        per tool call, retries included (default 45000)
@@ -140,10 +141,14 @@ Every tool only reads. An answer is JSON (`structuredContent` and the same as te
 ## What it does and doesn't do
 
 - **Read-only.** No tool changes anything, here or upstream.
-- **No authentication** on HTTP. It listens on loopback by default; it checks the `Host` header
-  and, from a browser, the `Origin` (only the origins given with `--allowed-origins`, matched
-  exactly) against DNS rebinding and other web pages. Exposed beyond localhost (it logs a warning
-  then), it belongs behind a proxy that authenticates.
+- **No authentication** on HTTP unless you give one. It listens on loopback by default; it checks
+  the `Host` header and, from a browser, the `Origin` (only the origins given with
+  `--allowed-origins`, matched exactly) against DNS rebinding and other web pages. With
+  `--auth-token-file <path>` every request must send `Authorization: Bearer <token>` (the file holds
+  one token of at least 32 characters, mode 600, owned by the user the server runs as; read once at
+  start; `(umask 077; openssl rand -hex 32 > mcp-token)` makes one); anything else is answered 401.
+  Exposed beyond localhost (it logs a warning then), it belongs behind a proxy that authenticates or
+  at least terminates TLS.
 - **Gentle with the upstream.** One server process sends at most 2 requests at a time and 120 a
   minute to the API, pauses on HTTP 429, and stops a tool call after its deadline. DIP's terms
   warn that overloading the API can get a key blocked. `trackProcedure` makes two requests for an

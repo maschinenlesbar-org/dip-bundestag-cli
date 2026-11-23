@@ -12,12 +12,12 @@ test("defaults: stdio, loopback, the localhost Host names, 45 s per call, 25000 
   if (parsed.kind !== "run") return;
   assert.deepEqual(
     { ...parsed.config },
-    { transport: "stdio", host: "127.0.0.1", port: 3000, allowedHosts: ["localhost", "127.0.0.1", "[::1]"], allowedOrigins: [], baseUrl: undefined, timeoutMs: 30000, callTimeoutMs: 45000, maxResultChars: 25000, maxPages: 10, userAgent: undefined, logFormat: "text" },
+    { transport: "stdio", host: "127.0.0.1", port: 3000, allowedHosts: ["localhost", "127.0.0.1", "[::1]"], allowedOrigins: [], authTokenFile: undefined, baseUrl: undefined, timeoutMs: 30000, callTimeoutMs: 45000, maxResultChars: 25000, maxPages: 10, userAgent: undefined, logFormat: "text" },
   );
 });
 
 test("every option parses", () => {
-  const parsed = parseConfig(["--transport", "http", "--host", "0.0.0.0", "--port", "0", "--allowed-hosts", "MCP.example.org,localhost", "--allowed-origins", "https://App.Example.org,http://localhost:6274", "--base-url", "https://mirror.example/", "--timeout", "0", "--call-timeout", "1000", "--max-result-chars", "1000", "--max-pages", "1", "--user-agent", "test/1", "--log-format", "jsonl"]);
+  const parsed = parseConfig(["--transport", "http", "--host", "0.0.0.0", "--port", "0", "--allowed-hosts", "MCP.example.org,localhost", "--allowed-origins", "https://App.Example.org,http://localhost:6274", "--base-url", "https://mirror.example/", "--timeout", "0", "--call-timeout", "1000", "--max-result-chars", "1000", "--max-pages", "1", "--user-agent", "test/1", "--log-format", "jsonl", "--auth-token-file", "/run/secrets/mcp-token"]);
   assert.equal(parsed.kind, "run");
   if (parsed.kind !== "run") return;
   assert.equal(parsed.config.transport, "http");
@@ -25,6 +25,7 @@ test("every option parses", () => {
   assert.equal(parsed.config.baseUrl, "https://mirror.example/");
   assert.deepEqual(parsed.config.allowedOrigins, ["https://app.example.org", "http://localhost:6274"]);
   assert.equal(parsed.config.logFormat, "jsonl");
+  assert.equal(parsed.config.authTokenFile, "/run/secrets/mcp-token");
 });
 
 test("refused before anything starts", () => {
@@ -46,6 +47,8 @@ test("refused before anything starts", () => {
     ["--log-format", "xml"],
     ["--user-agent", "a\nb"],
     ["--host", ""],
+    ["--auth-token-file", "/run/secrets/mcp-token"],
+    ["--transport", "http", "--auth-token-file", " "],
     ["--unknown"],
     ["positional"],
   ]) {

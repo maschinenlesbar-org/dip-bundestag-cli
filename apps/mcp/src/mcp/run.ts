@@ -6,7 +6,9 @@ import type { Server } from "node:http";
 import { createLogger, type Logger } from "@maschinenlesbar.org/dip-bundestag-log";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { nodeHttpTransport, type Transport } from "./api.js";
+import { readAuthTokenFile } from "./auth.js";
 import { HELP, parseConfig, type McpConfig } from "./config.js";
+import { redactingLog, Secrets } from "./credentials.js";
 import { createHttpServer, isLoopback } from "./http.js";
 import { limitTransport } from "./limiter.js";
 import { createServerFactory } from "./server.js";
@@ -55,12 +57,25 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<numbe
     return 0;
   }
   const format = parsed.kind === "run" ? parsed.config.logFormat : "text";
-  const log = createLogger({ program: PROGRAM, format, write: deps.stderr, ...(deps.now === undefined ? {} : { now: deps.now }) });
+  let log = createLogger({ program: PROGRAM, format, write: deps.stderr, ...(deps.now === undefined ? {} : { now: deps.now }) });
   if (parsed.kind === "error") {
     log.error("mcp", `${parsed.message} See --help.`);
     return USAGE_EXIT;
   }
   const config = parsed.config;
+  // HTTP with a bearer token (auth.ts): read once, before anything listens; never in a record.
+  let authToken: string | undefined;
+  if (config.authTokenFile !== undefined) {
+    try {
+      authToken = readAuthTokenFile(config.authTokenFile);
+    } catch (err) {
+      log.error("config", err instanceof Error ? err.message : String(err));
+      return 1;
+    }
+    const secrets = new Secrets();
+    secrets.add([authToken]);
+    log = redactingLog(log, secrets);
+  }
   deps.onLogger?.(log);
   if (config.baseUrl?.startsWith("http:") === true) {
     log.warn("http", `requests to ${config.baseUrl} are sent unencrypted (plain http).`);
@@ -72,7 +87,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<numbe
     ...(deps.env === undefined ? {} : { env: deps.env }),
     ...(deps.credentialsFile === undefined ? {} : { credentialsFile: deps.credentialsFile }),
   });
-  return config.transport === "stdio" ? serveOnStdio(factory, deps, log) : serveOnHttp(factory, config, deps, log);
+  return config.transport === "stdio" ? serveOnStdio(factory, deps, log) : serveOnHttp(factory, config, deps, log, authToken);
 }
 
 async function serveOnStdio(factory: ReturnType<typeof createServerFactory>, deps: RunDeps, log: Logger): Promise<number> {
@@ -91,8 +106,8 @@ async function serveOnStdio(factory: ReturnType<typeof createServerFactory>, dep
   return 0;
 }
 
-async function serveOnHttp(factory: ReturnType<typeof createServerFactory>, config: McpConfig, deps: RunDeps, log: Logger): Promise<number> {
-  const server = createHttpServer(factory, config, log);
+async function serveOnHttp(factory: ReturnType<typeof createServerFactory>, config: McpConfig, deps: RunDeps, log: Logger, authToken: string | undefined): Promise<number> {
+  const server = createHttpServer(factory, config, log, authToken);
   try {
     await new Promise<void>((resolve, reject) => {
       server.once("error", reject);
@@ -105,6 +120,7 @@ async function serveOnHttp(factory: ReturnType<typeof createServerFactory>, conf
   const address = server.address();
   const port = typeof address === "object" && address !== null ? address.port : config.port;
   log.info("mcp", `${PROGRAM} ${VERSION} serving MCP on http://${config.host.includes(":") ? `[${config.host}]` : config.host}:${port}/mcp`);
+  if (authToken !== undefined) log.info("http", `every request must send the bearer token from ${config.authTokenFile} (Authorization: Bearer …)`);
   if (isLoopback(config.host) && (deps.inContainer ?? inContainer)()) {
     // Docker forwards a published port to the container's own interface, never to its loopback.
     log.warn("http", `listening on ${config.host} inside a container: a published port (docker run -p) can't reach it. Add --host 0.0.0.0 to serve through the published port.`);
@@ -114,7 +130,9 @@ async function serveOnHttp(factory: ReturnType<typeof createServerFactory>, conf
     // `-p 3000:3000` doesn't. Say both, without claiming which one this is.
     log.warn(
       "http",
-      `listening on ${config.host}: reachable from outside this container or machine, and the server has no authentication. Publish the port on 127.0.0.1 only (docker run -p 127.0.0.1:<host port>:${port}) or put an authenticating proxy in front.`,
+      authToken === undefined
+        ? `listening on ${config.host}: reachable from outside this container or machine, and the server has no authentication. Publish the port on 127.0.0.1 only (docker run -p 127.0.0.1:<host port>:${port}) or put an authenticating proxy in front.`
+        : `listening on ${config.host}: reachable from outside this container or machine. The bearer token travels unencrypted over plain HTTP: publish the port on 127.0.0.1 only (docker run -p 127.0.0.1:<host port>:${port}) or put a TLS proxy in front.`,
     );
   }
   deps.onListening?.(server);

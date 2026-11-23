@@ -5,6 +5,7 @@
 import { parseArgs } from "node:util";
 import { DEFAULT_LOG_FORMAT, logFormatProblem, type LogFormat } from "@maschinenlesbar.org/dip-bundestag-log";
 import { baseUrlProblem, DEFAULT_BASE_URL, MAX_TIMEOUT_MS } from "./api.js";
+import { AUTH_TOKEN_REQUIRED } from "./auth.js";
 import { DESCRIPTION, PROGRAM } from "./version.js";
 
 export interface McpConfig {
@@ -15,6 +16,8 @@ export interface McpConfig {
   allowedHosts: string[];
   /** Browser origins (scheme://host[:port]) that may call; none by default. */
   allowedOrigins: string[];
+  /** HTTP: the file holding the bearer token every request must send (auth.ts); none by default. */
+  authTokenFile: string | undefined;
   baseUrl: string | undefined;
   /** Per upstream request, whole response included (ms). */
   timeoutMs: number;
@@ -44,13 +47,16 @@ ${wrap(DESCRIPTION, 92)}
 Options:
   --transport <stdio|http>   stdio (default), or Streamable HTTP on POST /mcp
   --host <address>           HTTP: the address to listen on (default ${DEFAULTS.host}); anything
-                             but loopback exposes the server, which has no authentication
+                             but loopback exposes the server${AUTH_TOKEN_REQUIRED ? "" : ", which has no authentication\n                             unless --auth-token-file is given"}
   --port <n>                 HTTP: the port (default ${DEFAULTS.port})
   --allowed-hosts <list>     HTTP: Host header names to answer, comma-separated
                              (default localhost,127.0.0.1,[::1])
   --allowed-origins <list>   HTTP: browser origins allowed to call, comma-separated, exactly as
                              the browser sends them (https://app.example.org,
                              http://localhost:6274); none by default
+  --auth-token-file <path>   HTTP: a file with the bearer token every request must send
+                             (Authorization: Bearer <token>; one token of at least 32
+                             characters, mode 600)${AUTH_TOKEN_REQUIRED ? "; required: this server uses\n                             a personal account's login" : ""}
   --base-url <url>           API base URL (default ${DEFAULT_BASE_URL})
   --timeout <ms>             per upstream request, whole response included (default ${DEFAULTS.timeoutMs})
   --call-timeout <ms>        per tool call, retries included (default ${DEFAULTS.callTimeoutMs})
@@ -89,6 +95,7 @@ export function parseConfig(argv: readonly string[]): ParsedArgs {
         port: { type: "string" },
         "allowed-hosts": { type: "string" },
         "allowed-origins": { type: "string" },
+        "auth-token-file": { type: "string" },
         "base-url": { type: "string" },
         timeout: { type: "string" },
         "call-timeout": { type: "string" },
@@ -124,6 +131,14 @@ export function parseConfig(argv: readonly string[]): ParsedArgs {
     if (userAgent !== undefined && (userAgent.trim() === "" || /[\u0000-\u001f\u007f]/.test(userAgent))) {
       throw new Error("--user-agent must be visible text on one line.");
     }
+    const authTokenFile = str("auth-token-file");
+    if (authTokenFile !== undefined && authTokenFile.trim() === "") throw new Error("--auth-token-file needs a path.");
+    if (authTokenFile !== undefined && transport !== "http") throw new Error("--auth-token-file is for --transport http; on stdio only the process that started the server talks to it.");
+    if (authTokenFile === undefined && transport === "http" && AUTH_TOKEN_REQUIRED) {
+      throw new Error(
+        "--transport http needs --auth-token-file <path>: this server calls the API with a personal account's login, so over HTTP it serves only callers that send the bearer token from that file. (umask 077; openssl rand -hex 32 > mcp-token) makes one.",
+      );
+    }
     const host = str("host") ?? DEFAULTS.host;
     if (host.trim() === "" || /\s/.test(host)) throw new Error(`--host must be an address, got ${JSON.stringify(host)}.`);
     return {
@@ -134,6 +149,7 @@ export function parseConfig(argv: readonly string[]): ParsedArgs {
         port: wholeNumber("--port", str("port"), DEFAULTS.port, 0, 65535),
         allowedHosts: list("--allowed-hosts", str("allowed-hosts")) ?? ["localhost", "127.0.0.1", "[::1]"],
         allowedOrigins: origins("--allowed-origins", str("allowed-origins")) ?? [],
+        authTokenFile,
         baseUrl,
         timeoutMs: wholeNumber("--timeout", str("timeout"), DEFAULTS.timeoutMs, 0, MAX_TIMEOUT_MS),
         callTimeoutMs: wholeNumber("--call-timeout", str("call-timeout"), DEFAULTS.callTimeoutMs, 1000, MAX_TIMEOUT_MS),

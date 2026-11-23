@@ -22,11 +22,20 @@ import { jsonResponse, makeMockTransport } from "./helpers.js";
 const CALL = { name: "getRecord", arguments: { resource: "person", id: 1502 } };
 // --------------------------------------------------------------------------------------
 
+// A client for a test (harness.ts: with the repository's test login, where its client needs one).
+const { newClient } = await import("./harness.js");
+
 const tool = TOOLS.find((t) => t.name === CALL.name) as ToolDefinition;
-const hanging = makeMockTransport(() => new Promise(() => {}));
+// An upstream that never answers, but ends a request when its signal aborts, as the real
+// transport does: a request left open would keep the client's request timer (30 s) alive
+// after the test, and the file would take that long.
+const hangUntilAborted = (signal: AbortSignal | undefined): Promise<never> =>
+  new Promise((_, reject) => signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true }));
+const hanging = makeMockTransport((request) => hangUntilAborted(request.signal));
+// The client gets the limited transport, as in the server: it adds the call's signal to every request.
 const env = (transport: Transport, overrides = {}) => {
   const { log, lines } = recorder();
-  return { lines, env: { client: new Client({ transport }), apiBase: apiBase(undefined), config: config(overrides), log } };
+  return { lines, env: { client: newClient({ transport: limitTransport(transport) }) as Client, apiBase: apiBase(undefined), config: config(overrides), log } };
 };
 
 test("an upstream error is a tool error naming the request", async () => {
@@ -59,9 +68,9 @@ test("a request of a call that ignores the signal still carries it, and none is 
   const seen: (AbortSignal | undefined)[] = [];
   const recording: Transport = (request) => {
     seen.push(request.signal);
-    return new Promise(() => {});
+    return hangUntilAborted(request.signal);
   };
-  const { env: e } = env(limitTransport(recording), { callTimeoutMs: 30 });
+  const { env: e } = env(recording, { callTimeoutMs: 30 });
   const deaf: ToolDefinition = { ...tool, run: (args, context) => tool.run(args, { ...context, signal: new AbortController().signal }) };
   await callTool(deaf, CALL.arguments, new AbortController().signal, e);
   assert.ok(seen.length >= 1 && seen.every((signal) => signal?.aborted === true), "every request's signal aborted with the call");
