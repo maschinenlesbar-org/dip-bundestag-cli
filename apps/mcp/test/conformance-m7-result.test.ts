@@ -243,6 +243,31 @@ test("a tool that passes long text on purpose keeps up to its maxFieldLength", a
   assert.equal(cut.structuredContent?.["truncated"], true);
 });
 
+test("a tool's source can cite what its run learned: source gets the answer, as run returned it, after the arguments and the base", async () => {
+  // A tool that resolves a name to an id while it runs cites the request it made with that id.
+  const answer = { status: "ok", mandate: 200, label: "Eve​" };
+  const seen: unknown[] = [];
+  const resolving: ToolDefinition = {
+    ...(TOOLS[0] as ToolDefinition),
+    source: (args, apiBase, given) => {
+      seen.push(args, apiBase, given);
+      return `votes?mandate=${String(given["mandate"])}`;
+    },
+    run: async () => answer,
+  };
+  const env = { client: newClient({ transport: noUpstream }), apiBase: "https://api.example/api", config: config(), log: recorder().log };
+  const args = { name: "Eve" };
+  const result = await callTool(resolving, args, new AbortController().signal, env);
+  assert.equal(result.structuredContent?.["source"], "https://api.example/api/votes?mandate=200");
+  assert.equal(seen[0], args);
+  assert.equal(seen[1], "https://api.example/api");
+  assert.equal(seen[2], answer, "the answer itself, before cleaning");
+  assert.equal(result.structuredContent?.["label"], "Eve", "the result is still cleaned");
+  // A source made from the arguments alone, as most tools have, is unchanged.
+  const fromArgs: ToolDefinition = { ...resolving, source: (given) => `votes?name=${String(given["name"])}` };
+  assert.equal((await callTool(fromArgs, args, new AbortController().signal, env)).structuredContent?.["source"], "https://api.example/api/votes?name=Eve");
+});
+
 test("a result over --max-result-chars drops whole list entries, says truncated, and where to go on", async () => {
   const connection = await connect({ transport: MANY, config: { maxResultChars: 2000 } });
   const result = await connection.call(PAGED_CALL.name, PAGED_CALL.arguments);

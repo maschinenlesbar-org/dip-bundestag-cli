@@ -53,9 +53,12 @@ export interface ToolDefinition {
   outputSchema: JsonSchema;
   /**
    * The path under the API's base the answer comes from (`source`), or how to make it from the
-   * arguments and that base. An absolute URL (an API on a second host) is used as it is.
+   * arguments, that base and the tool's answer (what `run` returned, before cleaning): a tool that
+   * learns the request while it runs (a name resolved to an id) cites the one it made. Cite what
+   * identifies the request (ids, the arguments), not upstream text: `source` is never cut. An
+   * absolute URL (an API on a second host) is used as it is.
    */
-  source: string | ((args: Record<string, unknown>, apiBase: string) => string);
+  source: string | ((args: Record<string, unknown>, apiBase: string, answer: Record<string, unknown>) => string);
   /** For a paged list: which list `nextOffset` counts, and where the page began. */
   paged?: (args: Record<string, unknown>) => { list: string; offset: number };
   /**
@@ -217,7 +220,7 @@ export async function callTool(
         Math.min(DEADLINE_GRACE_MS, Math.ceil(env.config.callTimeoutMs / 10)),
       ),
     );
-    const path = typeof tool.source === "function" ? tool.source(args, env.apiBase) : tool.source;
+    const path = typeof tool.source === "function" ? tool.source(args, env.apiBase, answer) : tool.source;
     const cited = /^https?:\/\//.test(path) ? path : `${env.apiBase}/${path}`;
     // A client that follows redirects may have fetched the answer from another origin: not the API's own.
     const elsewhere = [...redirects.answered.keys()];
@@ -231,7 +234,8 @@ export async function callTool(
     const clean = <T>(value: T): T => cleanStrings(value, { maxLength: tool.maxFieldLength ?? MAX_FIELD_LENGTH, onCut: () => (cut = true) });
     const cleaned = env.secrets === undefined ? clean(answer) : env.secrets.redactAll(clean(env.secrets.redactAll(answer)));
     // `source` and `licence` are the server's own (the licence a constant, the source the request,
-    // bounded by the input schema's limits): `source` is cleaned but never cut like upstream text.
+    // bounded by the input schema's limits and the ids it cites): `source` is cleaned but never cut
+    // like upstream text.
     const shaped = fitResult({ ...cleaned, source: cleanText(source), licence: LICENCE, ...(cut ? { truncated: true } : {}) }, env.config.maxResultChars, tool.paged?.(args), SIZE_HINT);
     if (shaped === undefined) {
       env.log.warn("server", `${tool.name}: the result is over --max-result-chars (${env.config.maxResultChars}) even with its lists and texts cut down`);
