@@ -65,7 +65,7 @@ export function createHttpServer(factory: () => McpServer, config: McpConfig, lo
     if (path === "/healthz") return req.method === "GET" || req.method === "HEAD" ? plain(res, 200, "ok\n") : plain(res, 405, "Method not allowed.\n", { Allow: "GET" });
     if (path !== "/mcp") return plain(res, 404, "Not found. The MCP endpoint is POST /mcp.\n");
     const host = validateHostHeader(req.headers.host, config.allowedHosts);
-    if (!host.ok) return rpcError(res, 403, "Forbidden: this Host is not allowed (--allowed-hosts).");
+    if (!host.ok || !plainHost(req.headers.host)) return rpcError(res, 403, "Forbidden: this Host is not allowed (--allowed-hosts).");
     // No Origin (not a browser) passes; `null`, anything not a URL and any other origin don't.
     const origin = req.headers.origin;
     if (origin !== undefined && !allowedOrigins.has(originOf(origin))) {
@@ -147,6 +147,15 @@ function plain(res: http.ServerResponse, status: number, text: string, headers: 
 function rpcError(res: http.ServerResponse, status: number, message: string, headers: Record<string, string> = {}): void {
   res.writeHead(status, { "Content-Type": "application/json", ...headers, Connection: "close" });
   res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32000, message }, id: null }));
+}
+
+/**
+ * True for a Host header that is a name or an address and an optional port, nothing more. The SDK's
+ * check reads the name out of anything a URL parses, so `evil@localhost` passed and then broke the
+ * request URL (a 500), and `localhost/x` passed with a path.
+ */
+function plainHost(value: string | undefined): boolean {
+  return value !== undefined && /^(\[[0-9A-Fa-f:.]+\]|[^\s@/\\?#[\]:]+)(:\d{1,5})?$/.test(value);
 }
 
 /** The origin of an Origin header value (scheme://host[:port], normalised), or "" for anything else. */

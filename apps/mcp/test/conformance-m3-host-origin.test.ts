@@ -1,5 +1,6 @@
 // Conformance test M3 (MCP kit, rollout plan 2026-11-19): DNS-rebinding protection on HTTP.
-// - A foreign Host is 403; one on --allowed-hosts is served.
+// - A foreign Host is 403; one on --allowed-hosts is served. A Host that is more than a name and
+//   a port (a user name, a path) is 403 too, never a 500.
 // - A browser Origin must be one of --allowed-origins exactly (scheme, host and port); none is
 //   allowed by default, not even the server's own; `null` is refused; no Origin (not a browser)
 //   passes.
@@ -17,6 +18,16 @@ test("a foreign Host is refused (DNS rebinding), an allowed one served", async (
     assert.equal((await send(port, { headers: headers(port, { host: `evil.example:${port}` }), body: INITIALIZE })).status, 403);
     assert.equal((await send(port, { headers: headers(port, { host: "mcp.example.org" }), body: INITIALIZE })).status, 200);
   });
+});
+
+test("a Host with a user name or a path is refused like a foreign one, not a 500", async () => {
+  const lines = await withServer([], async (port) => {
+    for (const host of [`a@127.0.0.1:${port}`, "evil@localhost", `user:pass@127.0.0.1:${port}`, `127.0.0.1:${port}/x`, "localhost?x"]) {
+      const answer = await send(port, { headers: headers(port, { host }), body: INITIALIZE });
+      assert.equal(answer.status, 403, `${host}: ${answer.body}`);
+    }
+  });
+  assert.ok(!lines.some((line) => line.includes("request failed")), lines.join("\n"));
 });
 
 test("a browser Origin must be one of --allowed-origins exactly (scheme, host and port); none is allowed by default", async () => {
