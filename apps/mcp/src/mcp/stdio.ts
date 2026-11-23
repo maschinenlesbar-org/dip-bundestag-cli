@@ -1,8 +1,11 @@
 // stdio for the SDK's serveStdio (its `transport` option): newline-delimited JSON-RPC on stdin and
-// stdout, as the SDK's StdioServerTransport reads and writes it, with one difference: the end of
-// stdin doesn't close it. The SDK's closed at once and dropped the calls it had read but not yet
-// answered (a client that writes its requests and closes the pipe got only the initialize back,
-// exit 0, nothing in the log). run.ts waits for them (`whenAnswered`) and closes then.
+// stdout, as the SDK's StdioServerTransport reads and writes it, with two differences:
+//  - the end of stdin doesn't close it. The SDK's closed at once and dropped the calls it had read
+//    but not yet answered (a client that writes its requests and closes the pipe got only the
+//    initialize back, exit 0, nothing in the log). run.ts waits for them (`whenAnswered`).
+//  - a line that isn't JSON is answered with a parse error (-32700), one that isn't a JSON-RPC 2.0
+//    message with an invalid request (-32600), both with id null as JSON-RPC 2.0 says, and leaves
+//    a WARN record. The SDK's skipped them in silence: a client with a framing bug waited forever.
 
 import type { Readable, Writable } from "node:stream";
 import {
@@ -26,9 +29,11 @@ export class StdioWire implements Transport {
   private waiters: ((left: number) => void)[] = [];
   private closed = false;
 
+  /** `warn`: one WARN record (run.ts: of `<program>.mcp`). */
   constructor(
     private readonly stdin: Readable,
     private readonly stdout: Writable,
+    private readonly warn: (message: string) => void,
   ) {}
 
   async start(): Promise<void> {
@@ -98,13 +103,18 @@ export class StdioWire implements Transport {
   private readonly onStdinError = (error: Error): void => this.onerror?.(error);
 
   private receive(line: string): void {
+    if (line.trim() === "") return;
+    let value: unknown;
+    try {
+      value = JSON.parse(line);
+    } catch {
+      return this.refuse(-32700, "Parse error: the line is not JSON.");
+    }
     let message: JSONRPCMessage;
     try {
-      message = parseJSONRPCMessage(JSON.parse(line));
-    } catch (error) {
-      // As the SDK's transport: a line that isn't JSON is skipped, one that isn't JSON-RPC reported.
-      if (!(error instanceof SyntaxError)) this.onerror?.(error instanceof Error ? error : new Error(String(error)));
-      return;
+      message = parseJSONRPCMessage(value);
+    } catch {
+      return this.refuse(-32600, "Invalid Request: the line is not a JSON-RPC 2.0 message (one object per line, jsonrpc \"2.0\", a method or a result).");
     }
     if (isJSONRPCRequest(message)) this.pending.add(message.id);
     else if (isJSONRPCNotification(message) && message.method === "notifications/cancelled") {
@@ -113,6 +123,12 @@ export class StdioWire implements Transport {
       if (id !== undefined) this.settle(id);
     }
     this.onmessage?.(message);
+  }
+
+  /** Answer a line that can't be served, with id null (its id can't be trusted), and log it. */
+  private refuse(code: number, message: string): void {
+    this.warn(`stdin: ${message} Answered with JSON-RPC error ${code}.`);
+    if (!this.closed) this.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", id: null, error: { code, message } })}\n`);
   }
 
   private settle(id: RequestId): void {

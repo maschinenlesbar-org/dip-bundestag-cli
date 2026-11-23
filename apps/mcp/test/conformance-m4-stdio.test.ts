@@ -5,6 +5,9 @@
 // - --version and --help print to stdout and exit 0; a usage error is one record and exit 2.
 // - stdin closed before any message (docker run without -i) is an ERROR record that says so, and
 //   exit 1.
+// - A line that isn't JSON is answered with a parse error (-32700), one that isn't a JSON-RPC 2.0
+//   message with an invalid request (-32600), both with id null, and leaves a WARN record; the
+//   server goes on.
 // These start a process (STARTS_A_PROCESS: 30 s, the workspace's allowance for that). Shared whole
 // across the repos with an MCP server: nothing here is particular to one.
 
@@ -77,4 +80,22 @@ test("stdin closed before any message (docker run without -i) is an ERROR record
   const expected = `ERROR [${PROGRAM}.mcp] stdin ended before any MCP message: no client is connected on stdio. In a container, run it with docker run -i (an MCP client does); for HTTP use --transport http --host 0.0.0.0.`;
   assert.ok((lines.at(-1) ?? "").endsWith(expected), lines.at(-1));
   assert.equal(server.out(), "", "stdout stays empty");
+});
+
+test("a line that isn't JSON-RPC is answered with -32700 or -32600 and a WARN record; the server goes on", STARTS_A_PROCESS, async () => {
+  const server = start();
+  const invalid = ["not json", "{oops", "[]", JSON.stringify({ jsonrpc: "2.0", id: 99 }), JSON.stringify({ jsonrpc: "1.0", id: 98, method: "ping" })];
+  server.child.stdin.write(`${invalid.join("\n")}\n${initialize}\n`);
+  for (let i = 0; i < 200 && server.out().split("\n").filter(Boolean).length < invalid.length + 1; i++) await new Promise((r) => setTimeout(r, 25));
+  server.child.stdin.end();
+  assert.deepEqual(await server.exited, { code: 0, signal: null });
+  const answers = server.out().split("\n").filter(Boolean).map((line) => JSON.parse(line) as { id: unknown; error?: { code: number }; result?: unknown });
+  assert.deepEqual(
+    answers.slice(0, invalid.length).map((answer) => [answer.id, answer.error?.code]),
+    [[null, -32700], [null, -32700], [null, -32600], [null, -32600], [null, -32600]],
+    server.out(),
+  );
+  assert.equal(answers[invalid.length]?.id, 1, "the initialize after them is answered");
+  const warnings = records(server.err()).filter((line) => new RegExp(`WARN  \\[${escape(PROGRAM)}\\.mcp\\] stdin: `).test(line));
+  assert.equal(warnings.length, invalid.length, server.err());
 });

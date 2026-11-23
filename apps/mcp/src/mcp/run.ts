@@ -95,7 +95,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<numbe
 }
 
 async function serveOnStdio(factory: ReturnType<typeof createServerFactory>, config: McpConfig, deps: RunDeps, log: Logger): Promise<number> {
-  const wire = new StdioWire(deps.stdio?.stdin ?? process.stdin, deps.stdio?.stdout ?? process.stdout);
+  const wire = new StdioWire(deps.stdio?.stdin ?? process.stdin, deps.stdio?.stdout ?? process.stdout, (message) => log.warn("mcp", message));
   const handle = serveStdio(factory, { transport: wire });
   log.info("mcp", `${PROGRAM} ${VERSION} serving MCP on stdio`);
   await deps.stopped;
