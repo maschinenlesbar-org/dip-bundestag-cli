@@ -1,10 +1,22 @@
 // Conformance test M5 (MCP kit, rollout plan 2026-11-19): the server's options: defaults, bounds,
 // and the refusals that happen before anything starts (a credential in --base-url among them: a
-// server runs for others). Shared whole across the repos with an MCP server.
+// server runs for others; and every value the client's constructor would refuse, so the server
+// never fails building its client after it started). Shared whole across the repos with an MCP server.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseConfig } from "../src/mcp/config.js";
+import { newClient } from "./harness.js";
+
+/** The client's own verdict on `options` (its constructor), with the test login where it needs one. */
+function clientTakes(options: Record<string, unknown>): boolean {
+  try {
+    newClient(options);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 test("defaults: stdio, loopback, the localhost Host names, 45 s per call, 25000 characters, 10 pages", () => {
   const parsed = parseConfig([]);
@@ -57,6 +69,15 @@ test("refused before anything starts", () => {
   }
   const userinfo = parseConfig(["--base-url", "https://user:secret@mirror.example"]);
   assert.ok(userinfo.kind === "error" && !userinfo.message.includes("secret"), "the message doesn't repeat the password");
+});
+
+test("--base-url: refused at start wherever the client would refuse it, not when the server builds the client", () => {
+  // Paths and forms some clients refuse beyond the shared base-URL rules (dwd: a version path).
+  for (const baseUrl of ["https://mirror.example/", "https://mirror.example/api", "https://mirror.example/v30", "https://mirror.example/v16/", "http://127.0.0.1:9/a/b", "https://mirror.example:8443"]) {
+    const parsed = parseConfig(["--base-url", baseUrl]);
+    assert.equal(parsed.kind === "run", clientTakes({ baseUrl }), `${baseUrl}: ${parsed.kind === "error" ? parsed.message : "taken"}`);
+    if (parsed.kind === "error") assert.match(parsed.message, /^--base-url: /);
+  }
 });
 
 test("help and version", () => {

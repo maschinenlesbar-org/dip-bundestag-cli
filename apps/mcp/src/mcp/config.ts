@@ -1,10 +1,13 @@
 // The server's options, parsed with node:util's parseArgs (no commander: the MCP app has no
 // runtime dependency besides the MCP SDK). Every value is checked here, before anything starts:
-// the client's own rules for the base URL, whole numbers within bounds, a known log format.
+// the client's own rules for the base URL, whole numbers within bounds, a known log format. What
+// goes to the client is also given to its constructor once, so a value it refuses (a path a
+// client knows is wrong) is a usage error here, never a crash when the server builds the client.
 
 import { parseArgs } from "node:util";
 import { DEFAULT_LOG_FORMAT, logFormatProblem, type LogFormat } from "@maschinenlesbar.org/dip-bundestag-log";
-import { baseUrlProblem, DEFAULT_BASE_URL, MAX_TIMEOUT_MS } from "./api.js";
+import * as api from "./api.js";
+import { baseUrlProblem, Client, DEFAULT_BASE_URL, MAX_TIMEOUT_MS } from "./api.js";
 import { AUTH_TOKEN_REQUIRED } from "./auth.js";
 import { DESCRIPTION, PROGRAM } from "./version.js";
 
@@ -27,6 +30,23 @@ export interface McpConfig {
   maxPages: number;
   userAgent: string | undefined;
   logFormat: LogFormat;
+}
+
+/**
+ * Options that let the client be built without a login, for a client that refuses to be built
+ * without one (api.ts's `CHECK_CLIENT_OPTIONS`, e.g. `{ guest: true }`): the check below builds
+ * one. Read through the module namespace, so an api.ts that exports none needs no change.
+ */
+const CHECK_CLIENT_OPTIONS: Record<string, unknown> = (api as unknown as { CHECK_CLIENT_OPTIONS?: Record<string, unknown> }).CHECK_CLIENT_OPTIONS ?? {};
+
+/** The client constructor's objection to `options` (its message), or undefined when it takes them. */
+function clientObjection(options: Record<string, unknown>): string | undefined {
+  try {
+    new Client({ ...CHECK_CLIENT_OPTIONS, ...options } as NonNullable<ConstructorParameters<typeof Client>[0]>);
+    return undefined;
+  } catch (err) {
+    return err instanceof Error ? err.message : String(err);
+  }
 }
 
 export type ParsedArgs = { kind: "run"; config: McpConfig } | { kind: "help" } | { kind: "version" } | { kind: "error"; message: string };
@@ -126,6 +146,8 @@ export function parseConfig(argv: readonly string[]): ParsedArgs {
       const url = new URL(baseUrl);
       // A server runs for others: a credential in its upstream URL would be one every caller uses.
       if (url.username !== "" || url.password !== "") throw new Error("--base-url must not carry a user name or password.");
+      const objection = clientObjection({ baseUrl });
+      if (objection !== undefined) throw new Error(`--base-url: ${objection}`);
     }
     const userAgent = str("user-agent");
     if (userAgent !== undefined && (userAgent.trim() === "" || /[\u0000-\u001f\u007f]/.test(userAgent))) {
