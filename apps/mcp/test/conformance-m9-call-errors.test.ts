@@ -166,6 +166,16 @@ test("a result's source is the tool's path under the API's base, made from the a
   assert.equal(await sourceOf(() => "http://other.example/feed.json"), "http://other.example/feed.json");
 });
 
+test("a long source is never cut like upstream text: it is the whole request, and the result is not truncated", async () => {
+  const { env: e } = env(hanging.transport);
+  // A search for 500 letters "ä" and a place: a URL of over 4000 characters, as the request had it.
+  const path = `search?query=${encodeURIComponent("ä".repeat(500))}&place=${"x".repeat(200)}`;
+  const probe: ToolDefinition = { ...tool, source: () => path, run: async () => ({ status: "ok" }) };
+  const result = (await callTool(probe, {}, new AbortController().signal, { ...e, apiBase: "https://api.example/v1" })).structuredContent ?? {};
+  assert.equal(result["source"], `https://api.example/v1/${path}`);
+  assert.equal(result["truncated"], undefined);
+});
+
 test("a retry's record names the wait the limiter holds it for, not only the engine's backoff", async () => {
   let first = true;
   const upstream = makeMockTransport(() => (first ? ((first = false), { status: 429, headers: {}, body: Buffer.from("") }) : jsonResponse({}, 500)));

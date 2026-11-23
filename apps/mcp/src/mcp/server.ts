@@ -230,7 +230,9 @@ export async function callTool(
     let cut = false;
     const clean = <T>(value: T): T => cleanStrings(value, { maxLength: tool.maxFieldLength ?? MAX_FIELD_LENGTH, onCut: () => (cut = true) });
     const cleaned = env.secrets === undefined ? clean(answer) : env.secrets.redactAll(clean(env.secrets.redactAll(answer)));
-    const shaped = fitResult({ ...cleaned, source: cleanStrings(source), licence: LICENCE, ...(cut ? { truncated: true } : {}) }, env.config.maxResultChars, tool.paged?.(args));
+    // `source` and `licence` are the server's own (the licence a constant, the source the request,
+    // bounded by the input schema's limits): `source` is cleaned but never cut like upstream text.
+    const shaped = fitResult({ ...cleaned, source: cleanText(source), licence: LICENCE, ...(cut ? { truncated: true } : {}) }, env.config.maxResultChars, tool.paged?.(args));
     return { content: [{ type: "text", text: JSON.stringify(shaped) }], structuredContent: shaped };
   } catch (err) {
     // The secrets taken out before and after cleaning, as from an answer; the whole message, so
