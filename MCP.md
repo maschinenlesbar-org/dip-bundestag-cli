@@ -151,7 +151,8 @@ Every tool only reads. An answer is JSON (`structuredContent` and the same as te
   at least terminates TLS.
 - **Gentle with the upstream.** One server process sends at most 2 requests at a time and 120 a
   minute to the API, pauses on HTTP 429 (as long as its Retry-After asks, at most 30 s), and stops a
-  tool call after its deadline. DIP's terms warn that overloading the API can get a key blocked.
+  tool call after its deadline (a tool that has read part of its answer by then may answer with that
+  part, and says so). DIP's terms warn that overloading the API can get a key blocked.
   `trackProcedure` makes two requests for an id (a title search one more, a long history one more
   per 100 steps), `profileMember` one or two (a name DIP misses, with a term: one per 100 people of
   the term, at most `--max-pages`), `readDocument` one or two, `searchRecords` one per 100 records

@@ -2,7 +2,8 @@
 // can act on, never a protocol error and never a stack trace.
 // - An upstream error names the request.
 // - The call deadline (--call-timeout) stops a call that waits on the upstream, with advice to
-//   narrow it; a cancelled call says so.
+//   narrow it; a cancelled call says so. At the deadline the call's signal aborts, and a tool that
+//   answers with what it has read so far (a part, said so in its answer) gets that answer out.
 // - A bug is a fixed text for the caller and an ERROR record of `<program>.server` with the details.
 // - An answer over the server's size cap says what to ask instead, not a CLI option.
 // - A retry's record names the wait the retry really has: the limiter's pause after a 429 too.
@@ -56,6 +57,26 @@ test("the call deadline stops a call that waits on the upstream, with advice to 
   const result = await callTool(tool, CALL.arguments, new AbortController().signal, e);
   assert.equal(result.isError, true);
   assert.match(result.content[0]?.text ?? "", /^The call took longer than 0 s and was stopped\. \S/);
+});
+
+test("at the deadline a tool that keeps what it has read answers with that part", async () => {
+  const { env: e } = env(hanging.transport, { callTimeoutMs: 30 });
+  const keeping: ToolDefinition = {
+    ...tool,
+    run: async (_args, context) => {
+      try {
+        // Page 1 was read; page 2 waits until the call's signal aborts it.
+        await new Promise((_, reject) => context.signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true }));
+        return { status: "ok", pages: ["page 1", "page 2"] };
+      } catch {
+        return { status: "ok", pages: ["page 1"], complete: false };
+      }
+    },
+  };
+  const result = await callTool(keeping, CALL.arguments, new AbortController().signal, e);
+  assert.notEqual(result.isError, true, result.content[0]?.text);
+  assert.deepEqual(result.structuredContent?.["pages"], ["page 1"]);
+  assert.equal(result.structuredContent?.["complete"], false);
 });
 
 test("the deadline stops a call even when the tool's code ignores the signal", async () => {

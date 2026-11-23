@@ -1,6 +1,7 @@
 // The MCP server: a factory of McpServer instances (the SDK asks for one per HTTP request and
 // one per stdio connection), with the tools of tools.ts and the server instructions. Each tool
-// call runs under a deadline (`--call-timeout`) and the client's cancellation; its answer is
+// call runs under a deadline (`--call-timeout`) and the client's cancellation; at the deadline its
+// signal aborts and the tool has a moment to answer with what it has read; its answer is
 // cleaned and fitted (result.ts) and sent as structuredContent with the same JSON as text. A
 // failure is a tool result with isError and a message saying what to change, never a protocol
 // error (an unknown tool or malformed call is the SDK's -32602).
@@ -25,7 +26,11 @@ export type JsonSchema = Record<string, unknown>;
 /** What a tool's `run` gets besides its arguments. */
 export interface ToolContext {
   client: Client;
-  /** Aborts at the call's deadline or when the caller cancels: pass it to every request. */
+  /**
+   * Aborts at the call's deadline or when the caller cancels: pass it to every request. After the
+   * deadline the tool has a moment (DEADLINE_GRACE_MS, at most a tenth of the call's time) to
+   * answer with what it has read, saying it is a part; a cancelled call's answer is not awaited.
+   */
   signal: AbortSignal;
   /** `--max-pages`: the most pages a tool reads per collection. */
   maxPages: number;
@@ -59,6 +64,9 @@ export const ANNOTATIONS = { readOnlyHint: true, destructiveHint: false, openWor
 
 /** The largest upstream answer the server reads (the client's maxResponseBytes). */
 export const MAX_UPSTREAM_BYTES = 16 * 1024 * 1024;
+
+/** The longest a tool may take after the deadline to answer with what it has read (ms). */
+export const DEADLINE_GRACE_MS = 1000;
 
 /** The longest error message a tool result carries. */
 const MAX_ERROR_MESSAGE = 5000;
@@ -195,7 +203,9 @@ export async function callTool(
           const client = typeof env.client === "function" ? await env.client() : env.client;
           return tool.run(args, { client, signal, maxPages: env.config.maxPages, apiBase: env.apiBase });
         })(),
-        signal,
+        cancelled,
+        deadline,
+        Math.min(DEADLINE_GRACE_MS, Math.ceil(env.config.callTimeoutMs / 10)),
       ),
     );
     const path = typeof tool.source === "function" ? tool.source(args, env.apiBase) : tool.source;
@@ -222,15 +232,27 @@ export async function callTool(
   }
 }
 
-/** `promise`, unless `signal` aborts first: then a rejection with the client's network error. */
-function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) return Promise.reject(new NetworkError("aborted"));
-  let onAbort = (): void => {};
-  const aborted = new Promise<never>((_, reject) => {
-    onAbort = () => reject(new NetworkError("aborted"));
-    signal.addEventListener("abort", onAbort, { once: true });
+/**
+ * `promise`, unless `cancelled` aborts first, or `deadline` and then `graceMs` pass (time for the
+ * tool to answer with what it has): then a rejection with the client's network error.
+ */
+function untilAborted<T>(promise: Promise<T>, cancelled: AbortSignal, deadline: AbortSignal, graceMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let grace: NodeJS.Timeout | undefined;
+    const stop = (): void => reject(new NetworkError("aborted"));
+    const onDeadline = (): void => {
+      grace ??= setTimeout(stop, graceMs);
+    };
+    cancelled.addEventListener("abort", stop, { once: true });
+    deadline.addEventListener("abort", onDeadline, { once: true });
+    if (cancelled.aborted) stop();
+    else if (deadline.aborted) onDeadline();
+    promise.then(resolve, reject).finally(() => {
+      clearTimeout(grace);
+      cancelled.removeEventListener("abort", stop);
+      deadline.removeEventListener("abort", onDeadline);
+    });
   });
-  return Promise.race([promise, aborted]).finally(() => signal.removeEventListener("abort", onAbort));
 }
 
 function errorResult(message: string): { content: { type: "text"; text: string }[]; isError: true } {
