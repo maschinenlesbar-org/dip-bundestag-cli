@@ -904,6 +904,14 @@ function searchable(value: string): string[] {
   return [plain, fold(value.replace(/(\p{L})-[ \t]*\n[ \t]*(\p{Ll})/gu, "$1$2")).replace(/\s+/g, " ")];
 }
 
+/** How many times `wanted` stands in `text`, not overlapping. */
+function occurrences(text: string, wanted: string): number {
+  if (wanted === "") return 0;
+  let count = 0;
+  for (let at = text.indexOf(wanted); at !== -1; at = text.indexOf(wanted, at + wanted.length)) count += 1;
+  return count;
+}
+
 const CITE: Record<string, string> = { "drucksache:BT": "BT-Drs.", "drucksache:BR": "BR-Drs.", "plenarprotokoll:BT": "BT-PlPr.", "plenarprotokoll:BR": "BR-PlPr." };
 
 function documentOf(raw: JsonObject, kind: DocumentKind): DocumentInfo {
@@ -1010,8 +1018,15 @@ export async function readDocument(client: DipClient, input: ReadDocumentInput):
   let selected = all.map((passage, index): Passage => ({ index, text: passage }));
   if (find !== undefined) {
     const wanted = fold(find).replace(/\s+/g, " ");
-    // A phrase can run across the end of a passage: each is compared with the start of the next.
-    selected = selected.filter((passage, i) => searchable(passage.text + (all[i + 1] ?? "").slice(0, find.length + 40)).some((form) => form.includes(wanted)));
+    // A phrase can run across the end of a passage: each is compared with the start of the next,
+    // and holds the phrase when that joined text has more occurrences than the next's start alone
+    // (one starts in this passage, not only in the next).
+    selected = selected.filter((passage, i) => {
+      const next = (all[i + 1] ?? "").slice(0, find.length + 40);
+      const joined = searchable(passage.text + next);
+      const after = searchable(next);
+      return joined.some((form, k) => occurrences(form, wanted) > occurrences(after[k] as string, wanted));
+    });
     if (selected.length === 0) {
       return {
         status: "empty",

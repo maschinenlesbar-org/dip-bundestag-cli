@@ -390,6 +390,22 @@ test("readDocument with find: only the passages holding the words, their indexes
   assert.equal(kept.status === "ok" && kept.matches, 1);
 });
 
+test("readDocument with find: a word at the start of a passage doesn't select the passage before; a phrase across a passage end selects where it starts", async () => {
+  const filler = (c: string) => `${`${c} `.repeat(30)}\n`.repeat(24); // 1464 characters of lines
+  const text = `${filler("a")}Sonderwort beginnt den zweiten Abschnitt.\n${filler("b")}Hier steht das Sonderwort noch einmal.\n${filler("c")}`;
+  const doc = { ...DRUCKSACHE_TEXT_267686, text };
+  assert.ok(splitPassages(text)[1]?.startsWith("Sonderwort"), "the word opens passage 1");
+  const word = await readDocument(client(dip({ "drucksache-text/1": doc })), { id: 1, find: "Sonderwort" });
+  if (word.status !== "ok") return assert.fail(word.status);
+  assert.deepEqual(word.passages.map((p) => p.index), [1, 2]);
+  assert.equal(word.matches, 2);
+  const across = `${"x ".repeat(740)}Die Wärme-\npumpe läuft.\n`;
+  assert.ok(splitPassages(across)[0]?.endsWith("Wärme-\n"), "the hyphenated word spans the passage end");
+  const phrase = await readDocument(client(dip({ "drucksache-text/1": { ...doc, text: across } })), { id: 1, find: "Wärmepumpe" });
+  if (phrase.status !== "ok") return assert.fail(phrase.status);
+  assert.deepEqual(phrase.passages.map((p) => p.index), [0]);
+});
+
 test("readDocument with find that matches nothing is empty with the document and what to try", async () => {
   const answer = await readDocument(client(dip({ "drucksache-text/267686": DRUCKSACHE_TEXT_267686 })), { id: 267686, find: "Tagesordnungspunkt 99" });
   assert.equal(answer.status, "empty");
