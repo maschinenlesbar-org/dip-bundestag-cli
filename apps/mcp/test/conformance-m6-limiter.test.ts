@@ -1,7 +1,7 @@
 // Conformance test M6 (MCP kit, rollout plan 2026-11-19): the limiter around the upstream
 // transport: requests in flight, the per-minute window, a 429's pause (seconds or an HTTP date),
 // the bounded queue (refused with the client's network error), and an abort that leaves the
-// queue. Shared whole across the repos with an MCP server.
+// queue. A pause lasts at most 30 s, whatever the Retry-After. Shared whole across the repos with an MCP server.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -79,6 +79,31 @@ test("a 429's Retry-After in seconds or as an HTTP date pauses until then; an un
     assert.equal(await pending, "left");
     t = pausedFor;
     assert.equal((await limited(request())).status, 200, `starts again at ${pausedFor} ms`);
+  }
+});
+
+test("a 429's pause lasts at most 30 s, however long its Retry-After", async () => {
+  for (const header of ["86400", "Fri, 01 Jan 2100 00:00:00 GMT"]) {
+    let t = 0;
+    let first = true;
+    const limited = limitTransport(async () => (first ? ((first = false), ok(429, { "retry-after": header })) : ok()), { now: () => t });
+    await limited(request());
+    t = 29_999;
+    let started = false;
+    const controller = new AbortController();
+    const pending = limited(request(controller.signal)).then(() => (started = true), () => "left");
+    await tick();
+    assert.equal(started, false, `still paused just before 30 s (${header})`);
+    controller.abort();
+    assert.equal(await pending, "left");
+    t = 30_000;
+    const after = new AbortController();
+    let again = false;
+    const next = limited(request(after.signal)).then(() => (again = true), () => "left");
+    await tick();
+    assert.equal(again, true, `starts again at 30 s (${header})`);
+    after.abort();
+    await next;
   }
 });
 

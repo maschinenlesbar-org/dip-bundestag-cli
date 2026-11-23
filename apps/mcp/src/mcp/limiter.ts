@@ -3,7 +3,8 @@
 // several requests (paging, a name resolved before the answer's own requests).
 //  - at most `inFlight` requests at once (default 2);
 //  - at most `perMinute` request starts in any 60 s (default 120);
-//  - a 429 pauses every start for its Retry-After (or 5 s), on top of the engine's own retry;
+//  - a 429 pauses every start for its Retry-After (or 5 s), on top of the engine's own retry,
+//    for at most 30 s (the engine's own Retry-After ceiling): one answer can't stall the process;
 //  - at most `queue` requests wait (default 32); one more is refused at once (the client's
 //    network error, so the call's answer says so);
 //  - a waiting request whose signal aborts leaves the queue;
@@ -27,6 +28,8 @@ export const callSignal = new AsyncLocalStorage<AbortSignal>();
 
 const WINDOW_MS = 60_000;
 const DEFAULT_PAUSE_MS = 5_000;
+/** The longest pause a 429 starts: the engine retries no Retry-After over 30 s either. */
+export const MAX_PAUSE_MS = 30_000;
 
 interface Waiter {
   start: () => void;
@@ -101,7 +104,7 @@ export function limitTransport(transport: Transport, options: LimiterOptions = {
       const response = await transport(request);
       if (response.status === 429) {
         const retryAfter = retryAfterMs(response.headers["retry-after"], now());
-        pausedUntil = Math.max(pausedUntil, now() + (retryAfter ?? DEFAULT_PAUSE_MS));
+        pausedUntil = Math.max(pausedUntil, now() + Math.min(retryAfter ?? DEFAULT_PAUSE_MS, MAX_PAUSE_MS));
       }
       return response;
     } finally {
