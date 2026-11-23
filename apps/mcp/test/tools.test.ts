@@ -9,7 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { listTools } from "../src/mcp/server.js";
-import { keyHint } from "../src/mcp/tools.js";
+import { DEADLINE_HINT, keyHint, SIZE_HINT, TOOLS } from "../src/mcp/tools.js";
 import { KEY_SOURCE_URL } from "@maschinenlesbar.org/dip-bundestag-client/internal/obtain-key";
 import { connect, recorder } from "./harness.js";
 import { dipApi, jsonResponse, makeMockTransport, PERSON_1502, POSITIONEN_298723, RECORDED_ROUTES, TEST_KEY } from "./helpers.js";
@@ -202,4 +202,32 @@ test("without a key the published one is obtained and verified first: a candidat
   assert.match(lines.join("\n"), /INFO {2}\[dip-mcp\.config\] using the public API key obtained from https:\/\/content\.dip\.bundestag\.de\/\S+ and verified against the API/);
   assert.ok(!lines.join("\n").includes(current) && !lines.join("\n").includes(stale));
   await connection.close();
+});
+
+/** Each option an advice text names comes with the tools that take it ("limit (searchRecords, readDocument)"). */
+function assertOptionsNamedWithTheirTools(text: string): void {
+  const schemas = new Map(TOOLS.map((tool) => [tool.name, Object.keys((tool.inputSchema as { properties: Record<string, unknown> }).properties)]));
+  const pairs = [...text.matchAll(/(\w+(?: or \w+)*) \((\w+(?:, \w+)*)\)/g)];
+  assert.ok(pairs.length >= 3, text);
+  for (const [, options, tools] of pairs) {
+    for (const tool of (tools as string).split(", ")) {
+      assert.ok(schemas.has(tool), `no tool ${tool}: ${text}`);
+      for (const option of (options as string).split(" or ")) assert.ok(schemas.get(tool)?.includes(option), `${tool} takes no ${option}: ${text}`);
+    }
+  }
+  const named = new Set(pairs.flatMap(([, options]) => (options as string).split(" or ")));
+  const every = new Set([...schemas.values()].flat());
+  for (const word of text.split(/\W+/)) assert.ok(!every.has(word) || named.has(word) || ["id"].includes(word), `${word} named without its tools: ${text}`);
+}
+
+test("the size cap's and the deadline's advice fit every tool: each option named with the tools that take it", async () => {
+  assertOptionsNamedWithTheirTools(SIZE_HINT);
+  assertOptionsNamedWithTheirTools(DEADLINE_HINT);
+  const hanging = { transport: (): Promise<never> => new Promise<never>(() => {}) };
+  const connection = await connect({ transport: hanging, config: { callTimeoutMs: 30 } });
+  const text = (await connection.call("getRecord", { resource: "person", id: 1502 })).content[0]?.text ?? "";
+  await connection.close();
+  assert.match(text, /took longer than .* and was stopped/);
+  assert.ok(text.endsWith(DEADLINE_HINT), text);
+  assert.match(DEADLINE_HINT, /try again/);
 });
