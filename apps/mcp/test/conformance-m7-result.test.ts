@@ -12,7 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { HttpRequest, Transport } from "../src/mcp/api.js";
 import { limitTransport } from "../src/mcp/limiter.js";
-import { cleanStrings, fitResult, MAX_FIELD_LENGTH } from "../src/mcp/result.js";
+import { cleanStrings, cutMark, fitResult, MAX_FIELD_LENGTH } from "../src/mcp/result.js";
 import { callTool, type ToolDefinition } from "../src/mcp/server.js";
 import { TOOLS } from "../src/mcp/tools.js";
 import { PROGRAM } from "../src/mcp/version.js";
@@ -54,11 +54,17 @@ test("cleanStrings keeps emoji whole: a joiner between emoji and the emoji style
   assert.equal(cleanStrings("❤\ufe0f\ufe0f\u200d\u200d👍\u200dx"), "❤\ufe0f👍x");
 });
 
-test("cleanStrings replaces lone surrogates and cuts long text with an ellipsis", () => {
-  assert.equal(cleanStrings("a\ud800b"), "a�b");
-  const long = cleanStrings("x".repeat(MAX_FIELD_LENGTH + 10));
-  assert.equal(long.length, MAX_FIELD_LENGTH + 1);
-  assert.ok(long.endsWith("…"));
+test("cleanStrings replaces lone surrogates and cuts long text with a mark that says so", () => {
+  assert.equal(cleanStrings("a\ud800b"), "a\ufffdb");
+  let cuts = 0;
+  const long = cleanStrings("x".repeat(MAX_FIELD_LENGTH + 10), { onCut: () => cuts++ });
+  assert.equal(long.length, MAX_FIELD_LENGTH, "the mark is counted in");
+  assert.ok(long.endsWith(cutMark(MAX_FIELD_LENGTH + 10)), long.slice(-40));
+  assert.match(cutMark(2010), /cut.*2010 characters/);
+  assert.equal(cuts, 1);
+  assert.equal(cleanStrings(long, { onCut: () => cuts++ }), long, "a cut string cleaned again stays as it is");
+  assert.equal(cuts, 1);
+  assert.equal(cleanStrings("y".repeat(5000), { maxLength: 6000 }).length, 5000, "a larger maxLength keeps more");
 });
 
 test("cleanStrings keeps every key: one that cleaning makes equal to another gets a suffix, a clean key keeps its name", () => {
@@ -89,6 +95,35 @@ test("text from upstream is cleaned in the value through a tool call: control, b
   assert.doesNotMatch(result.content[0]?.text ?? "", /\\u202e|\\u0007|\\u2028|\\u200b|\\u0000/);
   assert.doesNotMatch(result.content[0]?.text ?? "", /\u{e0041}|\ufe0f/u);
   await connection.close();
+});
+
+test("a string cut by the cleaning is marked in the value and in the result: truncated", async () => {
+  // It starts like the text of the cleaning test above: a mock that filters by the call's query keeps it.
+  const long = `Evil ${"x".repeat(3000)} end`;
+  const connection = await connect({ transport: hostile(long) });
+  const result = await connection.call(HOSTILE_CALL.name, HOSTILE_CALL.arguments);
+  assert.notEqual(result.isError, true, result.content[0]?.text);
+  const value = String(hostileValue(result.structuredContent ?? {}));
+  assert.ok(value.startsWith("Evil x") && value.endsWith(cutMark(long.length)), value.slice(-60));
+  assert.ok(value.length <= MAX_FIELD_LENGTH);
+  assert.equal(result.structuredContent?.["truncated"], true);
+  await connection.close();
+  // A short answer is not marked.
+  const short = await connect({ transport: hostile("short") });
+  assert.equal((await short.call(HOSTILE_CALL.name, HOSTILE_CALL.arguments)).structuredContent?.["truncated"], undefined);
+  await short.close();
+});
+
+test("a tool that passes long text on purpose keeps up to its maxFieldLength", async () => {
+  const text = "y".repeat(5000);
+  const long: ToolDefinition = { ...(TOOLS[0] as ToolDefinition), source: "long", maxFieldLength: 8000, run: async () => ({ status: "ok", text }) };
+  const env = { client: newClient({ transport: noUpstream }), apiBase: "https://api.example/api", config: config(), log: recorder().log };
+  const kept = await callTool(long, {}, new AbortController().signal, env);
+  assert.equal(kept.structuredContent?.["text"], text);
+  assert.equal(kept.structuredContent?.["truncated"], undefined);
+  const cut = await callTool({ ...long, maxFieldLength: MAX_FIELD_LENGTH }, {}, new AbortController().signal, env);
+  assert.equal(String(cut.structuredContent?.["text"]).length, MAX_FIELD_LENGTH);
+  assert.equal(cut.structuredContent?.["truncated"], true);
 });
 
 test("a result over --max-result-chars drops whole list entries, says truncated, and where to go on", async () => {

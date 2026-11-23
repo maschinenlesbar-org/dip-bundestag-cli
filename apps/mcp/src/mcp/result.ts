@@ -5,8 +5,23 @@
 
 import { cutText, toWellFormed } from "./api.js";
 
-/** The longest string a result keeps; longer upstream text is cut, with an ellipsis. */
+/**
+ * The longest string a result keeps (a tool may allow more: ToolDefinition.maxFieldLength); longer
+ * upstream text is cut and ends in a mark that says so (cutMark), the mark counted in.
+ */
 export const MAX_FIELD_LENGTH = 2000;
+
+/** What a cut string ends in: the model sees that it has a part, and how long the whole was. */
+export function cutMark(total: number): string {
+  return `…[cut, ${total} characters in all]`;
+}
+
+export interface CleanOptions {
+  /** The longest string kept, cut mark included (default MAX_FIELD_LENGTH). */
+  maxLength?: number;
+  /** Called for every string that is cut (the server then marks the result `truncated`). */
+  onCut?: () => void;
+}
 
 // What is invisible or able to reorder or hide text, never content: control characters (but TAB
 // and LF), DEL and C1, every Default_Ignorable_Code_Point (zero-width and bidi format characters,
@@ -26,18 +41,23 @@ function cleanText(text: string): string {
 }
 
 /**
- * `value` with every string (keys too) cleaned and cut; lone surrogates replaced. A key that
+ * `value` with every string (keys too) cleaned and cut; lone surrogates replaced. A cut string
+ * ends in cutMark and is at most `maxLength` long, so cleaning it again changes nothing. A key that
  * cleaning makes equal to another key gets a suffix (`~2`, `~3`, …) and a key that was clean keeps
  * its name: no value is lost, and an upstream can't take a field's name with an invisible character.
  */
-export function cleanStrings<T>(value: T): T {
+export function cleanStrings<T>(value: T, options: CleanOptions = {}): T {
   if (typeof value === "string") {
     const clean = cleanText(value);
-    return (clean.length > MAX_FIELD_LENGTH ? `${cutText(clean, MAX_FIELD_LENGTH)}…` : clean) as T;
+    const max = options.maxLength ?? MAX_FIELD_LENGTH;
+    if (clean.length <= max) return clean as T;
+    options.onCut?.();
+    const mark = cutMark(clean.length);
+    return `${cutText(clean, max - mark.length)}${mark}` as T;
   }
-  if (Array.isArray(value)) return value.map((item) => cleanStrings(item)) as T;
+  if (Array.isArray(value)) return value.map((item) => cleanStrings(item, options)) as T;
   if (typeof value === "object" && value !== null) {
-    const entries = Object.entries(value).map(([key, item]) => [key, cleanStrings(key), cleanStrings(item)] as const);
+    const entries = Object.entries(value).map(([key, item]) => [key, cleanStrings(key, options), cleanStrings(item, options)] as const);
     const taken = new Set(entries.filter(([key, clean]) => key === clean).map(([key]) => key));
     // The next suffix to try per cleaned key, so many alike keys stay linear.
     const next = new Map<string, number>();

@@ -17,7 +17,7 @@ import { apiBase, Client, ClientError, cutText, NetworkError, sizeLimitMessage, 
 import type { McpConfig } from "./config.js";
 import { findCredentials, redactingLog, Secrets } from "./credentials.js";
 import { callScope, Redirects, type LimitedTransport } from "./limiter.js";
-import { cleanStrings, fitResult } from "./result.js";
+import { cleanStrings, fitResult, MAX_FIELD_LENGTH } from "./result.js";
 import { DEADLINE_HINT, INSTRUCTIONS, LICENCE, SIZE_HINT, TITLE, TOOLS } from "./tools.js";
 import { PROGRAM, USER_AGENT, VERSION } from "./version.js";
 
@@ -58,6 +58,12 @@ export interface ToolDefinition {
   source: string | ((args: Record<string, unknown>, apiBase: string) => string);
   /** For a paged list: which list `nextOffset` counts, and where the page began. */
   paged?: (args: Record<string, unknown>) => { list: string; offset: number };
+  /**
+   * For a tool that passes long text on purpose (a document page, a full description): the
+   * longest string its result keeps (default MAX_FIELD_LENGTH, 2000). `--max-result-chars` still
+   * caps the whole result.
+   */
+  maxFieldLength?: number;
   run(args: Record<string, unknown>, context: ToolContext): Promise<Record<string, unknown>>;
 }
 
@@ -219,9 +225,12 @@ export async function callTool(
     const source = elsewhere.length === 0 ? cited : `${cited} (answered by ${elsewhere.join(", ")} after a redirect)`;
     // The secrets are taken out before cleaning (which cuts long strings: never half a secret left)
     // and again after it: cleaning removes invisible characters, and would put back together a
-    // secret the upstream echoed with one inside.
-    const redacted = env.secrets === undefined ? answer : env.secrets.redactAll(cleanStrings(env.secrets.redactAll(answer)));
-    const shaped = fitResult(cleanStrings({ ...redacted, source, licence: LICENCE }), env.config.maxResultChars, tool.paged?.(args));
+    // secret the upstream echoed with one inside. A string cut by the cleaning marks the result
+    // truncated (the string itself ends in a cut mark).
+    let cut = false;
+    const clean = <T>(value: T): T => cleanStrings(value, { maxLength: tool.maxFieldLength ?? MAX_FIELD_LENGTH, onCut: () => (cut = true) });
+    const cleaned = env.secrets === undefined ? clean(answer) : env.secrets.redactAll(clean(env.secrets.redactAll(answer)));
+    const shaped = fitResult({ ...cleaned, source: cleanStrings(source), licence: LICENCE, ...(cut ? { truncated: true } : {}) }, env.config.maxResultChars, tool.paged?.(args));
     return { content: [{ type: "text", text: JSON.stringify(shaped) }], structuredContent: shaped };
   } catch (err) {
     // The secrets taken out before and after cleaning, as from an answer (errorResult cleans it again).
