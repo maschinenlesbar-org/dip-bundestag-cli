@@ -729,20 +729,22 @@ an app that has one).
 what it returns. `findCredentials` takes `DIP_API_KEY` from the server's environment (checked with
 `apiKeyProblem`), else (only when the server runs from its bin, never in a test) the `api-key` of
 the credentials file through the client's `CredentialStore.usable` (a stored value the CLI would
-refuse is an error naming the file and the fix, never skipped), else the published key through
-the client's `obtainKey` **with its verification** (as `dip obtain-key`: the help document, then
-the README it falls back to, each candidate tried against `GET /api/v1/vorgang` until DIP accepts
-one), over the server's limited transport and inside the call's deadline; a failure there says how
-to set the key instead (the CLI's `--no-verify` hint is taken out). A lookup that fails is tried
-again at the next call. Not at start: the handshake, the tool list, the image's smoke test and the
-tests that start the bin need neither the network nor a credentials file. One INFO record of
-`dip-mcp.config` names the source, never the key; every form of the key is a secret from then on,
-replaced with `***` in every record the server logs (`redactingLog`), every result
-(`Secrets.redactAll`) and every error message. The server has no option for the key (argv shows in
-`ps`), and HTTP needs no authentication for the public key. A 401 is a tool error that says the
-Bundestag renews its public key and how to get the current one (`withKeyHint` in `tools.ts`); the
-server does not obtain a new key by itself while it runs (a restart does). The verification always
-asks DIP's own host, also under `--base-url` (the credential context carries no base URL).
+refuse is an error naming the file and the fix, never skipped), else the published key through the
+client's `obtainKey` **with its verification** (as `dip obtain-key`: the help document, then the
+README it falls back to, each candidate tried against `GET /api/v1/vorgang` until DIP accepts one),
+over the server's limited transport and inside the call's deadline; a failure there says how to set
+the key instead (the CLI's `--no-verify` hint is taken out). A lookup that fails is tried again at
+the next call. Not at start: the handshake, the tool list, the image's smoke test and the tests that
+start the bin need neither the network nor a credentials file. One INFO record of `dip-mcp.config`
+names the source, never the key; every form of the key is a secret from then on, replaced with `***`
+in every record the server logs (`redactingLog`), every result (`Secrets.redactAll`) and every error
+message (`Secrets` in the kit's `credentials.ts`: a value under 16 characters only as a whole
+occurrence, not inside a run of letters and digits of any script, as the client's `redactSecrets`
+does; a longer one wherever it stands). The server has no option for the key (argv shows in `ps`),
+and HTTP needs no authentication for the public key. A 401 is a tool error that says the Bundestag
+renews its public key and how to get the current one (`withKeyHint` in `tools.ts`); the server does
+not obtain a new key by itself while it runs (a restart does). The verification always asks DIP's
+own host, also under `--base-url` (the credential context carries no base URL).
 
 | Module | Role |
 |---|---|

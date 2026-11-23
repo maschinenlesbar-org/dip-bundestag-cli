@@ -8,7 +8,9 @@
 //
 // The values are secrets of the server from the moment they are found: replaced with *** in every
 // record the server's code logs (server.ts logs through `redactingLog`), in every tool result and in
-// every error message. Where they came from is one INFO record of `<program>.config`, never the values.
+// every error message. A short one (a user name) only where it stands whole, not inside a word of
+// the data (the user name "Bund" leaves "Bundesländer" alone); one of LONG_SECRET_LENGTH characters
+// or more (a token, a long password) wherever it stands. Where they came from is one INFO record of `<program>.config`, never the values.
 // The server takes no credential from its argv: the environment (an MCP client's config sets it)
 // or the repository's credentials file, or what api.ts obtains.
 
@@ -54,21 +56,43 @@ export const findCredentials: FindCredentials | undefined = (api as unknown as {
 /** The shortest value treated as a secret: a shorter one would replace ordinary text. */
 const MIN_SECRET_LENGTH = 4;
 
+/**
+ * The shortest secret replaced wherever it stands, even inside a longer run of letters and digits:
+ * no word of the data is that long by chance. A shorter one is replaced only as a whole occurrence.
+ */
+export const LONG_SECRET_LENGTH = 16;
+
+/**
+ * Where `value` stands whole: not inside a run of letters and digits (any script), except after a
+ * percent escape (`%3A` + the value, as in URL text, ends such a run).
+ */
+function wholeOccurrences(value: string): RegExp {
+  const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:(?<![\\p{L}\\p{N}])|(?<=%[0-9A-Fa-f]{2}))${escaped}(?![\\p{L}\\p{N}])`, "gu");
+}
+
 /** The server's secrets, and how to take them out of a text or a result. */
 export class Secrets {
   #values: string[] = [];
+  /** Per value (in #values' order): how its occurrences are found, for a short one. */
+  #whole = new Map<string, RegExp>();
 
   /** Make `values` secrets from now on (blank and very short ones are ignored). */
   add(values: readonly string[]): void {
     const all = new Set([...this.#values, ...values.filter((value) => value.trim().length >= MIN_SECRET_LENGTH)]);
     // Longest first: a secret that contains another is replaced whole.
     this.#values = [...all].sort((a, b) => b.length - a.length);
+    for (const value of this.#values) if (value.length < LONG_SECRET_LENGTH && !this.#whole.has(value)) this.#whole.set(value, wholeOccurrences(value));
   }
 
-  /** `text` with every secret replaced by `***`. */
+  /** `text` with every secret replaced by `***` (a short one where it stands whole). */
   readonly redact = (text: string): string => {
     let out = text;
-    for (const value of this.#values) if (out.includes(value)) out = out.split(value).join("***");
+    for (const value of this.#values) {
+      if (!out.includes(value)) continue;
+      const whole = this.#whole.get(value);
+      out = whole === undefined ? out.split(value).join("***") : out.replace(whole, "***");
+    }
     return out;
   };
 

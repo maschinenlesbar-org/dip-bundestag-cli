@@ -11,7 +11,8 @@
 // - A credential the server obtains (a public key) is obtained once, at the first call; a lookup
 //   that fails is that call's tool error and is tried again at the next call.
 // - The secrets are replaced in every string of a result (keys too), in a tool error's message
-//   and in the ERROR record of a bug; very short values are no secrets.
+//   and in the ERROR record of a bug; very short values are no secrets; a short value (a user
+//   name) only where it stands whole, never inside a word of the data.
 // The tests run in process with their own environment (never the real one, never a credentials
 // file). Those that need credentials are skipped for an API without them. Shared across the repos with an MCP server; only
 // the adapter differs.
@@ -181,6 +182,20 @@ test("Secrets: every occurrence replaced, the longest value first, keys too; bla
   secrets.add(["s3cret", "s3cret-longer", "abc", "  "]);
   assert.equal(secrets.redact("x s3cret-longer y s3cret z abc"), "x *** y *** z abc");
   assert.deepEqual(secrets.redactAll({ list: ["s3cret", 1, null], "s3cret key": { deep: "a s3cret" } }), { list: ["***", 1, null], "*** key": { deep: "a ***" } });
+});
+
+test("Secrets: a short value is replaced only where it stands whole, never inside a word of the data; a long one wherever it stands", () => {
+  const secrets = new Secrets();
+  secrets.add(["Bund", "table", "Stra"]);
+  assert.equal(
+    secrets.redact("Bundesländer, Bund, timetable, table1, {\"kind\":\"table\"}, Straße, user=Bund, Bund@host, %3ABund"),
+    "Bundesländer, ***, timetable, table1, {\"kind\":\"***\"}, Straße, user=***, ***@host, %3A***",
+  );
+  assert.deepEqual(secrets.redactAll({ title: "Bevölkerung: Bundesländer", by: "Bund" }), { title: "Bevölkerung: Bundesländer", by: "***" });
+  // A token or a long password is replaced even glued to other text: no word of the data is that long by chance.
+  const token = "tok-0123456789abcdef";
+  secrets.add([token]);
+  assert.equal(secrets.redact(`key${token}x and ${token}`), "key***x and ***");
 });
 
 test("a tool error and a bug's record (the server's log) never carry a secret", async () => {

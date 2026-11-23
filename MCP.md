@@ -40,11 +40,12 @@ server takes it, at the first tool call, from:
    have lagged behind the current key), so a renewed key needs no new release.
 
 One INFO record on stderr says which, never the key. The key is replaced with `***` in every log
-record, result and error. The server takes no key on its command line. A lookup that fails (the
-source unreachable, no published key accepted) is that call's error, and the next call tries
-again. When DIP refuses the key (HTTP 401, after a renewal), the error says so: restart the server
-to obtain the current one. In a container without network access to content.dip.bundestag.de,
-pass the key: `docker run -i --rm -e DIP_API_KEY ghcr.io/…`.
+record, result and error (a key shorter than 16 characters only where it stands whole, not inside a
+longer word of the data). The server takes no key on its command line. A lookup that fails (the
+source unreachable, no published key accepted) is that call's error, and the next call tries again.
+When DIP refuses the key (HTTP 401, after a renewal), the error says so: restart the server to
+obtain the current one. In a container without network access to content.dip.bundestag.de, pass the
+key: `docker run -i --rm -e DIP_API_KEY ghcr.io/…`.
 
 ## Connect a client
 
