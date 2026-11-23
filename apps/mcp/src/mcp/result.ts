@@ -8,9 +8,22 @@ import { cutText, toWellFormed } from "./api.js";
 /** The longest string a result keeps; longer upstream text is cut, with an ellipsis. */
 export const MAX_FIELD_LENGTH = 2000;
 
-// Control characters (but TAB and LF), DEL and C1, zero-width and bidi format characters, the
-// line and paragraph separators, BOM: invisible or able to reorder or hide text, never content.
-const INVISIBLE = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u061c\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff]/gu;
+// What is invisible or able to reorder or hide text, never content: control characters (but TAB
+// and LF), DEL and C1, every Default_Ignorable_Code_Point (zero-width and bidi format characters,
+// BOM, soft hyphen, variation selectors, Hangul fillers, the tag characters U+E0000 to U+E007F that
+// spell text no reader sees), the line and paragraph separators and the interlinear annotation
+// marks. Two of them are kept where they belong to an emoji (the first group): a zero-width joiner
+// between two emoji (a family of three is three emoji joined so) and the emoji style selector
+// U+FE0F right after one (a red heart); stacked or elsewhere they are dropped. A flag's tag
+// sequence goes with the other tags (it can carry any text): the flag stays, black. Each
+// alternative matches its character first, so the look-behinds run only at a joiner or selector.
+const INVISIBLE =
+  /(\u200d(?<=\p{Extended_Pictographic}(?:\ufe0f|\p{Emoji_Modifier})?\u200d)(?=\p{Extended_Pictographic})|\ufe0f(?<=\p{Extended_Pictographic}\ufe0f))|(?![\t\n])[\p{Cc}\p{Default_Ignorable_Code_Point}\u2028\u2029\ufff9-\ufffb]/gu;
+
+/** `text` without invisible characters (INVISIBLE), lone surrogates replaced; not cut. */
+function cleanText(text: string): string {
+  return toWellFormed(text).replace(INVISIBLE, (_, emoji: string | undefined) => emoji ?? "");
+}
 
 /**
  * `value` with every string (keys too) cleaned and cut; lone surrogates replaced. A key that
@@ -19,7 +32,7 @@ const INVISIBLE = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u061c\u200b-\u200f\u
  */
 export function cleanStrings<T>(value: T): T {
   if (typeof value === "string") {
-    const clean = toWellFormed(value).replace(INVISIBLE, "");
+    const clean = cleanText(value);
     return (clean.length > MAX_FIELD_LENGTH ? `${cutText(clean, MAX_FIELD_LENGTH)}…` : clean) as T;
   }
   if (Array.isArray(value)) return value.map((item) => cleanStrings(item)) as T;
