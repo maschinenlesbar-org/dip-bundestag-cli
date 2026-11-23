@@ -3,12 +3,19 @@
 //   characters dropped, lone surrogates replaced, long text cut; through a real tool call too.
 // - A result over --max-result-chars drops whole list entries (never cuts the JSON), says
 //   truncated, and for a paged list where to go on (nextOffset).
+// - An answer a redirect brought from another origin (a client that follows redirects) names that
+//   origin in `source`, with a WARN record: it is not cited as the API's own.
 // Shared across the repos with an MCP server; only the adapter differs.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import type { HttpRequest, Transport } from "../src/mcp/api.js";
+import { limitTransport } from "../src/mcp/limiter.js";
 import { cleanStrings, fitResult, MAX_FIELD_LENGTH } from "../src/mcp/result.js";
-import { connect } from "./harness.js";
+import { callTool, type ToolDefinition } from "../src/mcp/server.js";
+import { TOOLS } from "../src/mcp/tools.js";
+import { PROGRAM } from "../src/mcp/version.js";
+import { config, connect, newClient, noUpstream, recorder } from "./harness.js";
 
 // ---- adapter (per repo) -------------------------------------------------------------
 import { dipApi } from "./helpers.js";
@@ -69,4 +76,42 @@ test("a result over --max-result-chars drops whole list entries, says truncated,
   assert.ok(kept > 0, "some entries are kept");
   assert.equal(answer["nextOffset"], PAGED_OFFSET + kept);
   await connection.close();
+});
+
+test("an answer a redirect brought from another origin names that origin in source, with a WARN record", async () => {
+  // The upstream: /away redirects to another host, /moved to another path of the same host.
+  const answers: Transport = async (request) => {
+    const url = new URL(request.url);
+    if (url.host === "api.example" && url.pathname === "/api/away") return { status: 302, headers: { location: `https://mirror.example:8443${url.pathname}?x=1` }, body: Buffer.alloc(0) };
+    if (url.pathname === "/api/moved") return { status: 301, headers: { location: "/api/here" }, body: Buffer.alloc(0) };
+    return { status: 200, headers: { "content-type": "application/json" }, body: Buffer.from("{}") };
+  };
+  const upstream = limitTransport(answers);
+  // A tool whose client follows redirects, as some clients do: each hop is a request of its own.
+  const following = (path: string): ToolDefinition => ({
+    ...(TOOLS[0] as ToolDefinition),
+    source: path,
+    run: async () => {
+      let url = `https://api.example/api/${path}`;
+      for (let hop = 0; hop < 3; hop++) {
+        const response = await upstream({ method: "GET", url, headers: {} } as HttpRequest);
+        const location = response.headers.location;
+        if (response.status < 300 || response.status > 399 || location === undefined) break;
+        url = new URL(location, url).href;
+      }
+      return { status: "ok" };
+    },
+  });
+  const { log, lines } = recorder();
+  const env = { client: newClient({ transport: noUpstream }), apiBase: "https://api.example/api", config: config(), log };
+  for (const [path, source] of [
+    ["plain", "https://api.example/api/plain"],
+    ["moved", "https://api.example/api/moved"],
+    ["away", "https://api.example/api/away (answered by https://mirror.example:8443 after a redirect)"],
+  ] as const) {
+    const result = await callTool(following(path), {}, new AbortController().signal, env);
+    assert.equal(result.structuredContent?.["source"], source, path);
+  }
+  assert.equal(lines.length, 1, lines.join("\n"));
+  assert.match(lines[0] ?? "", new RegExp(`WARN  \\[${PROGRAM}\\.http\\] .*https://api\\.example redirected the call to https://mirror\\.example:8443`));
 });

@@ -2,7 +2,8 @@
 // one per stdio connection), with the tools of tools.ts and the server instructions. Each tool
 // call runs under a deadline (`--call-timeout`) and the client's cancellation; at the deadline its
 // signal aborts and the tool has a moment to answer with what it has read; its answer is
-// cleaned and fitted (result.ts) and sent as structuredContent with the same JSON as text. A
+// cleaned and fitted (result.ts) and sent as structuredContent with the same JSON as text (its
+// `source` names another origin a redirect fetched it from, limiter.ts's Redirects). A
 // failure is a tool result with isError and a message saying what to change, never a protocol
 // error (an unknown tool or malformed call is the SDK's -32602); an upstream failure and the
 // deadline are also a WARN record, a bug an ERROR record.
@@ -15,7 +16,7 @@ import { McpServer, fromJsonSchema } from "@modelcontextprotocol/server";
 import { apiBase, Client, ClientError, cutText, NetworkError, sizeLimitMessage, type Transport } from "./api.js";
 import type { McpConfig } from "./config.js";
 import { findCredentials, redactingLog, Secrets } from "./credentials.js";
-import { callScope, type LimitedTransport } from "./limiter.js";
+import { callScope, Redirects, type LimitedTransport } from "./limiter.js";
 import { cleanStrings, fitResult } from "./result.js";
 import { DEADLINE_HINT, INSTRUCTIONS, LICENCE, SIZE_HINT, TITLE, TOOLS } from "./tools.js";
 import { PROGRAM, USER_AGENT, VERSION } from "./version.js";
@@ -194,11 +195,12 @@ export async function callTool(
   const deadline = timer.signal;
   const stopAt = setTimeout(() => timer.abort(), env.config.callTimeoutMs);
   const signal = AbortSignal.any([cancelled, deadline]);
+  const redirects = new Redirects();
   try {
     // Inside callScope, every request of the call carries its signal, and none waits in the limiter
     // past the deadline (limiter.ts); the race ends the call at the deadline even when the client's
     // code still waits (a retry's backoff).
-    const answer = await callScope.run({ signal, endsAt: Date.now() + env.config.callTimeoutMs }, () =>
+    const answer = await callScope.run({ signal, endsAt: Date.now() + env.config.callTimeoutMs, redirects }, () =>
       untilAborted(
         (async () => {
           const client = typeof env.client === "function" ? await env.client() : env.client;
@@ -210,7 +212,11 @@ export async function callTool(
       ),
     );
     const path = typeof tool.source === "function" ? tool.source(args, env.apiBase) : tool.source;
-    const source = /^https?:\/\//.test(path) ? path : `${env.apiBase}/${path}`;
+    const cited = /^https?:\/\//.test(path) ? path : `${env.apiBase}/${path}`;
+    // A client that follows redirects may have fetched the answer from another origin: not the API's own.
+    const elsewhere = [...redirects.answered.keys()];
+    for (const [origin, start] of redirects.answered) env.log.warn("http", `${tool.name}: ${start} redirected the call to ${origin}, which answered; the result's source names it`);
+    const source = elsewhere.length === 0 ? cited : `${cited} (answered by ${elsewhere.join(", ")} after a redirect)`;
     // The secrets are taken out before cleaning (which cuts long strings: never half a secret left)
     // and again after it: cleaning removes invisible characters, and would put back together a
     // secret the upstream echoed with one inside.

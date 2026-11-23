@@ -18,7 +18,10 @@
 //    it with "exceeded deadline" for a request never sent. A hold is logged once (`log`);
 //  - a request made inside a tool call (callScope.run) carries the call's signal too, so the
 //    call's deadline and cancellation reach the transport even through a client whose calls
-//    take no signal of their own; once that signal has aborted, nothing more is sent.
+//    take no signal of their own; once that signal has aborted, nothing more is sent;
+//  - a request made inside a tool call notes the call's redirects across origins (`Redirects`), so
+//    an answer a client that follows redirects fetched from another origin is not cited as the
+//    API's own (server.ts). For a client that follows none, a redirect is an error and this a no-op.
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { NetworkError, type HttpRequest, type HttpResponse, type Transport } from "./api.js";
@@ -37,6 +40,45 @@ export interface LimiterOptions {
 export interface CallScope {
   signal: AbortSignal;
   endsAt?: number;
+  /** Where the call's requests were redirected to (server.ts reads it after the call). */
+  redirects?: Redirects;
+}
+
+/** The HTTP statuses a client follows as a redirect. */
+const REDIRECTS = new Set([301, 302, 303, 307, 308]);
+
+/** `url`'s origin (resolved against `base`), or undefined when it doesn't parse. */
+function originOf(url: string, base?: string): string | undefined {
+  try {
+    return new URL(url, base).origin;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * A tool call's redirects across origins, as the limited transport sees each hop: which origins
+ * answered (with anything but a redirect) a request that a redirect from another origin led to.
+ */
+export class Redirects {
+  /** An origin a redirect points to, and the origin its chain of redirects started at. */
+  #pending = new Map<string, string>();
+  /** The origins that answered after a redirect, each with the origin the chain started at. */
+  readonly answered = new Map<string, string>();
+
+  /** Take note of the answer to a request for `url`. */
+  note(url: string, response: HttpResponse): void {
+    const origin = originOf(url);
+    if (origin === undefined) return;
+    const start = this.#pending.get(origin) ?? origin;
+    const location = response.headers.location;
+    if (REDIRECTS.has(response.status) && typeof location === "string") {
+      const target = originOf(location, url);
+      if (target !== undefined && target !== start) this.#pending.set(target, start);
+      return;
+    }
+    if (start !== origin) this.answered.set(origin, start);
+  }
 }
 
 /** The tool call of the requests made inside it (server.ts runs every call inside it). */
@@ -158,6 +200,7 @@ export function limitTransport(transport: Transport, options: LimiterOptions = {
     });
     try {
       const response = await transport(request);
+      scope?.redirects?.note(request.url, response);
       if (response.status === 429) {
         const retryAfter = retryAfterMs(response.headers["retry-after"], now());
         pausedUntil = Math.max(pausedUntil, now() + Math.min(retryAfter ?? DEFAULT_PAUSE_MS, MAX_PAUSE_MS));
