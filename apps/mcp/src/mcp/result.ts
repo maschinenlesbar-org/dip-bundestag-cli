@@ -12,7 +12,11 @@ export const MAX_FIELD_LENGTH = 2000;
 // line and paragraph separators, BOM: invisible or able to reorder or hide text, never content.
 const INVISIBLE = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u061c\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff]/gu;
 
-/** `value` with every string (keys too) cleaned and cut; lone surrogates replaced. */
+/**
+ * `value` with every string (keys too) cleaned and cut; lone surrogates replaced. A key that
+ * cleaning makes equal to another key gets a suffix (`~2`, `~3`, …) and a key that was clean keeps
+ * its name: no value is lost, and an upstream can't take a field's name with an invisible character.
+ */
 export function cleanStrings<T>(value: T): T {
   if (typeof value === "string") {
     const clean = toWellFormed(value).replace(INVISIBLE, "");
@@ -20,7 +24,21 @@ export function cleanStrings<T>(value: T): T {
   }
   if (Array.isArray(value)) return value.map((item) => cleanStrings(item)) as T;
   if (typeof value === "object" && value !== null) {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [cleanStrings(key), cleanStrings(item)])) as T;
+    const entries = Object.entries(value).map(([key, item]) => [key, cleanStrings(key), cleanStrings(item)] as const);
+    const taken = new Set(entries.filter(([key, clean]) => key === clean).map(([key]) => key));
+    // The next suffix to try per cleaned key, so many alike keys stay linear.
+    const next = new Map<string, number>();
+    return Object.fromEntries(
+      entries.map(([key, clean, item]) => {
+        if (key === clean) return [key, item];
+        let n = next.get(clean) ?? 2;
+        let name = clean;
+        while (taken.has(name)) name = `${clean}~${n++}`;
+        next.set(clean, n);
+        taken.add(name);
+        return [name, item];
+      }),
+    ) as T;
   }
   return value;
 }

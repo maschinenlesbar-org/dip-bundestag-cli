@@ -44,6 +44,14 @@ test("cleanStrings replaces lone surrogates and cuts long text with an ellipsis"
   assert.ok(long.endsWith("…"));
 });
 
+test("cleanStrings keeps every key: one that cleaning makes equal to another gets a suffix, a clean key keeps its name", () => {
+  // An upstream can't take a field's name with an invisible character, nor make a value disappear.
+  assert.deepEqual(cleanStrings({ "name​": "evil", name: "real", "name‮": "more", "name~2": "own" }), { name: "real", "name~3": "evil", "name~4": "more", "name~2": "own" });
+  // Two long keys alike up to the cut stay two.
+  const long = "k".repeat(MAX_FIELD_LENGTH + 10);
+  assert.equal(Object.keys(cleanStrings({ [`${long}a`]: 1, [`${long}b`]: 2 })).length, 2);
+});
+
 test("fitResult leaves a result that fits alone, and otherwise drops entries from the longest list", () => {
   const small = { status: "ok", data: [1, 2] };
   assert.equal(fitResult(small, 1000), small);

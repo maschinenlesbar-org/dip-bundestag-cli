@@ -165,9 +165,10 @@ failure is a tool error that says what to change.
   wait is not sent: the call fails at once, naming the limit and when to ask again (and the log says
   so).
 - **Results are data.** Text from the API, keys included, is cleaned (control, bidi and zero-width
-  characters removed; the API key echoed with one inside is still replaced), but it is still text
-  from outside: a model can be told things in it. The server can't act on that (it has no tool that
-  writes), but other tools in the same session could.
+  characters removed; the API key echoed with one inside is still replaced; a key that cleaning
+  makes equal to another stays, as `name~2`), but it is still text from outside: a model can be told
+  things in it. The server can't act on that (it has no tool that writes), but other tools in the
+  same session could.
 - **Stops cleanly.** On `docker stop` (SIGTERM) or Ctrl-C the HTTP server takes no new connection
   and lets calls in flight answer for up to 5 s, then exits 143 (130); a second signal ends it at
   once. On stdio a signal ends it at once; when stdin ends, it first answers the requests it has
