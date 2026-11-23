@@ -122,7 +122,27 @@ test("trackProcedure: more steps than a page are read with the same filter on ev
   if (capped.status !== "ok") return assert.fail(capped.status);
   assert.equal(capped.timeline.length, 200);
   assert.equal(capped.complete, false);
-  assert.match(capped.note ?? "", /first 200 of 230 steps/);
+  assert.match(capped.note ?? "", /200 of 230 steps were read \(page limit\)/);
+});
+
+test("a page DIP repeats under a new cursor ends the reading: no step twice, and the answer says it is incomplete", async () => {
+  const steps = Array.from({ length: 100 }, (_, i) => ({ id: String(1000 + i), vorgangsposition: "2. Beratung", datum: "2024-01-01", zuordnung: "BT", beschlussfassung: [{ beschlusstenor: "Annahme" }] }));
+  let n = 0;
+  const repeating = () => list(steps, 250, `c${(n++ % 2) + 1}`);
+  const mock = dip({ "vorgang/7": { id: "7", titel: "Test" }, vorgangsposition: repeating });
+  const answer = await trackProcedure(client(mock), { id: 7 });
+  if (answer.status !== "ok") return assert.fail(answer.status);
+  assert.equal(answer.timeline.length, 100);
+  assert.equal(new Set(answer.timeline.map((s) => s.id)).size, 100);
+  assert.equal(answer.votes.length, 100);
+  assert.equal(answer.complete, false);
+  assert.match(answer.note ?? "", /100 of 250 steps/);
+  assert.equal(mock.calls.length, 3, "the repeated page is read once, then the reading stops");
+  n = 0;
+  const records = await listRecords(client(dip({ vorgangsposition: repeating })), { resource: "vorgangsposition", filters: { "f.vorgang": 7 }, offset: 95, limit: 10 });
+  assert.deepEqual(records.records.map((r) => r["id"]), ["1095", "1096", "1097", "1098", "1099"]);
+  assert.equal(records.nextOffset, undefined, "nothing past the repeated page can be had");
+  assert.match(records.note ?? "", /repeated/);
 });
 
 test("trackProcedure by title: several are ambiguous, laws first, with the search scoped by term; never picked", async () => {

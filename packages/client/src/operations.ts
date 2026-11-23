@@ -73,32 +73,51 @@ interface Collected {
   /** True when every matching document was read. */
   complete: boolean;
   pages: number;
+  /** True when DIP answered a page of documents already read (under a new cursor): the reading stopped there. */
+  repeated: boolean;
+}
+
+/** Why a list was read only in part, for a note: the page limit or a page DIP repeated. */
+function partly(read: Collected): string {
+  return read.repeated ? "DIP repeated a page of documents already read, under a new cursor, and the reading stopped there" : "page limit";
 }
 
 /**
  * Read `want` documents (default: all) of a list, sending the same filters with every cursor:
  * DIP doesn't bind a cursor to its query, so a cursor alone pages through the whole unfiltered
  * collection. Stops when `numFound` is reached, a page is empty, the cursor stops changing (DIP's
- * last page), or after `maxPages` pages.
+ * last page), a page holds only documents already read (DIP repeating itself under a new cursor:
+ * `repeated`, and the list is not complete), or after `maxPages` pages. A document already read
+ * (by its id) is not taken twice.
  */
 async function collect(client: DipClient, resource: ListResource, filters: QueryParams, maxPages: number, want = Number.POSITIVE_INFINITY): Promise<Collected> {
   const list = group(client, resource);
   // An unfiltered list is paged on purpose: the bare cursor is then what the caller asked for.
   const unfiltered = Object.values(filters).every((value) => value === undefined || value === null);
   const documents: JsonObject[] = [];
+  const seen = new Set<string>();
   let total = 0;
   let cursor: string | undefined;
   let pages = 0;
+  let repeated = false;
   while (pages < maxPages) {
     const page: ListResult = await list.list(cursor === undefined ? filters : { ...filters, cursor }, { allowUnfilteredCursor: unfiltered });
     pages += 1;
     total = page.numFound;
-    documents.push(...page.documents);
-    const done = page.documents.length === 0 || documents.length >= total || documents.length >= want || page.cursor === undefined || page.cursor === cursor;
+    const fresh = page.documents.filter((doc) => {
+      const id = doc["id"];
+      if (typeof id !== "string" && typeof id !== "number") return true;
+      if (seen.has(String(id))) return false;
+      seen.add(String(id));
+      return true;
+    });
+    repeated = page.documents.length > 0 && fresh.length === 0;
+    documents.push(...fresh);
+    const done = repeated || page.documents.length === 0 || documents.length >= total || documents.length >= want || page.cursor === undefined || page.cursor === cursor;
     cursor = page.cursor;
     if (done) break;
   }
-  return { total, documents, complete: documents.length >= total, pages };
+  return { total, documents, complete: !repeated && documents.length >= total, pages, repeated };
 }
 
 /** `value[key]` as a string, if it is one and not blank. */
@@ -313,7 +332,7 @@ export type ProcedureTrack =
       votes: (Decision & { date?: string; chamber?: string; step?: string })[];
       /** The lead committees (federführend), per chamber (the Bundesrat refers to its own). */
       leadCommittees: { chamber?: string; committee: string }[];
-      /** How many steps DIP holds; less than the timeline's length only when the page limit stopped the reading. */
+      /** How many steps DIP holds; more than the timeline's length when the reading stopped early (`complete` false, `note` says why). */
       stepsTotal: number;
       complete: boolean;
       note?: string;
@@ -473,7 +492,7 @@ export async function trackProcedure(client: DipClient, input: TrackProcedureInp
   const notes: string[] = [];
   if (steps.length === 0) notes.push("DIP lists no steps for this procedure yet.");
   if (steps.length === 1) notes.push("One step only: normal for a question that is not answered yet, or a fresh procedure.");
-  if (!positions.complete) notes.push(`Only the first ${steps.length} of ${positions.total} steps were read (page limit); the timeline is incomplete.`);
+  if (!positions.complete) notes.push(`Only ${steps.length} of ${positions.total} steps were read (${partly(positions)}); the timeline is incomplete.`);
   return {
     status: "ok",
     searched,
@@ -704,7 +723,7 @@ export async function profileMember(client: DipClient, input: ProfileMemberInput
       // f.person misses a name spelled differently in DIP: the term's whole list, matched by name.
       const all = await collect(client, "person", { "f.wahlperiode": term }, maxPages);
       matches = all.documents.filter((person) => nameMatches(person, words));
-      resolvedBy = `matched by name across ${all.pages} page(s) of electoral term ${term}${all.complete ? "" : ` (only ${all.documents.length} of ${all.total} people read: page limit)`}`;
+      resolvedBy = `matched by name across ${all.pages} page(s) of electoral term ${term}${all.complete ? "" : ` (only ${all.documents.length} of ${all.total} people read: ${partly(all)})`}`;
     }
     if (matches.length === 0) {
       const others = found.documents.map(memberCandidate).slice(0, limit);
@@ -1108,6 +1127,7 @@ export async function listRecords(client: DipClient, input: ListRecordsInput, op
   const records = read.documents.slice(offset, offset + limit);
   const searched = { resource, filters };
   const next = offset + records.length;
+  if (read.repeated) notes.push(`${partly(read)}: ${read.documents.length} of ${read.total} records could be read; narrow the filters (f.datum.start/end) to reach the others.`);
   if (read.total === 0) {
     return { status: "empty", searched, total: 0, records, reason: "No record matches these filters. Text filters match whole words (f.titel), f.person complete names; drop a filter or widen the dates.", ...(notes.length > 0 ? { note: notes.join(" ") } : {}) };
   }
@@ -1116,7 +1136,7 @@ export async function listRecords(client: DipClient, input: ListRecordsInput, op
     searched,
     total: read.total,
     records,
-    ...(next < read.total && records.length > 0 ? { nextOffset: next } : {}),
+    ...(next < (read.repeated ? read.documents.length : read.total) && records.length > 0 ? { nextOffset: next } : {}),
     ...(records.length === 0 ? { reason: `offset ${offset} is past the last record (${read.total}).` } : {}),
     ...(notes.length > 0 ? { note: notes.join(" ") } : {}),
   };
