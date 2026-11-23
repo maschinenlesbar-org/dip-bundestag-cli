@@ -163,3 +163,43 @@ test("a retry's record names the wait the limiter holds it for, not only the eng
   const waited = Number(/ in (\d+) ms/.exec(retry)?.[1]);
   assert.ok(waited > 4000, `the limiter holds every start for 5 s after a 429 without Retry-After: ${retry}`);
 });
+
+// An HTTP client that goes away (its connection closes before the answer) cancels its call: the
+// upstream request in flight is aborted, the call ends and gives its request slot back. The SDK's
+// handler only learnt of it through the web Request's signal, which stopped following the
+// server's once the garbage collector ran: the call went on to the end, every request included.
+test("an HTTP client that goes away cancels its call: the upstream request is aborted", async () => {
+  const { headers, startHttp } = await import("./harness.js");
+  const http = await import("node:http");
+  const v8 = await import("node:v8");
+  const vm = await import("node:vm");
+  v8.setFlagsFromString("--expose-gc");
+  const collectGarbage = vm.runInNewContext("gc") as () => void;
+  let reached: () => void = () => {};
+  const upstream = new Promise<void>((resolve) => (reached = resolve));
+  let aborted: () => void = () => {};
+  const cancelled = new Promise<string>((resolve) => (aborted = () => resolve("aborted")));
+  const { transport } = makeMockTransport((request) => {
+    reached();
+    request.signal?.addEventListener("abort", () => aborted(), { once: true });
+    return hangUntilAborted(request.signal);
+  });
+  // A deadline of 2 s: without the cancellation the call would end there, after the 1 s looked for.
+  const server = await startHttp(["--call-timeout", "2000"], { transport });
+  try {
+    const body = JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/call", params: CALL });
+    const req = http.request({ host: "127.0.0.1", port: server.port, path: "/mcp", method: "POST", headers: { ...headers(server.port), "mcp-protocol-version": "2025-06-18", "content-length": String(Buffer.byteLength(body)) } });
+    req.on("error", () => {});
+    req.end(body);
+    await upstream;
+    // A moment first: what the current job has touched stays alive until it ends.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    collectGarbage();
+    req.destroy();
+    const outcome = await Promise.race([cancelled, new Promise<string>((resolve) => setTimeout(() => resolve("still running after 1 s"), 1000))]);
+    assert.equal(outcome, "aborted");
+  } finally {
+    server.stop();
+    await server.done;
+  }
+});

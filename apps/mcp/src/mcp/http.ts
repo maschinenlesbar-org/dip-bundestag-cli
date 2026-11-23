@@ -11,13 +11,15 @@
 //  - CORS for an allowed Origin only: its preflight (OPTIONS /mcp, which carries no token) is 204
 //    with the methods and headers an MCP client sends, and every answer to it names the origin.
 //  - limits: a body of at most 1 MiB (413), at most 8 requests at once (503), explicit timeouts;
-//  - a client that disconnects aborts its request, and with it the tool call.
+//  - a client that disconnects closes the McpServer serving its request, which aborts the tool
+//    call (the SDK's own path, the web Request's signal, was lost once the garbage collector ran).
 //  - with --auth-token-file (auth.ts), a bearer token on every POST /mcp: a request without it,
 //    or with another, is 401 with `WWW-Authenticate: Bearer` and no detail. /healthz stays open.
 // Without a token there is no authentication: the data is public and the tools only read. Exposed
 // beyond localhost, such a server belongs behind a proxy that authenticates. A server whose API is
 // called with a personal account refuses HTTP without a token (config.ts).
 
+import { AsyncLocalStorage } from "node:async_hooks";
 import http from "node:http";
 import type { Logger } from "@maschinenlesbar.org/dip-bundestag-log";
 import { createMcpHandler, validateHostHeader, type McpServer } from "@modelcontextprotocol/server";
@@ -38,7 +40,14 @@ export type McpHttpServer = http.Server & { inFlight(): number };
 export function createHttpServer(factory: () => McpServer, config: McpConfig, log: Pick<Logger, "warn">, authToken?: string): McpHttpServer {
   // The default response mode answers with one JSON body unless a tool sends a message before its
   // result, which none does. ("json" made the SDK print a warning outside the log.)
-  const handler = createMcpHandler(factory, { onerror: (error) => log.warn("http", error.message) });
+  // The signal of the HTTP request being served: its McpServer closes when it aborts.
+  const disconnected = new AsyncLocalStorage<AbortSignal>();
+  const serverFor = (): McpServer => {
+    const server = factory();
+    disconnected.getStore()?.addEventListener("abort", () => void server.close().catch(() => {}), { once: true });
+    return server;
+  };
+  const handler = createMcpHandler(serverFor, { onerror: (error) => log.warn("http", error.message) });
   const allowedOrigins = new Set(config.allowedOrigins);
   let active = 0;
 
@@ -81,7 +90,9 @@ export function createHttpServer(factory: () => McpServer, config: McpConfig, lo
     try {
       const body = await readBody(req);
       if (body === undefined) return rpcError(res, 413, `The request body is larger than ${MAX_BODY_BYTES} bytes.`);
-      // A client that goes away before its answer cancels the call.
+      // A client that goes away before its answer cancels the call: closing its McpServer aborts
+      // the call's signal. (The web Request's signal reaches the SDK through an undici clone that
+      // holds its link weakly: after a garbage collection the abort no longer arrived.)
       const controller = new AbortController();
       res.once("close", () => {
         if (!res.writableFinished) controller.abort();
@@ -92,8 +103,8 @@ export function createHttpServer(factory: () => McpServer, config: McpConfig, lo
         else if (Array.isArray(value)) for (const item of value) headers.append(name, item);
       }
       const hasBody = req.method !== "GET" && req.method !== "HEAD";
-      const response = await handler.fetch(
-        new Request(`http://${req.headers.host ?? "localhost"}${req.url ?? "/"}`, { method: req.method ?? "GET", headers, signal: controller.signal, ...(hasBody ? { body } : {}) }),
+      const response = await disconnected.run(controller.signal, () =>
+        handler.fetch(new Request(`http://${req.headers.host ?? "localhost"}${req.url ?? "/"}`, { method: req.method ?? "GET", headers, signal: controller.signal, ...(hasBody ? { body } : {}) })),
       );
       res.writeHead(response.status, Object.fromEntries(response.headers));
       if (response.body !== null) for await (const chunk of response.body) res.write(chunk);
