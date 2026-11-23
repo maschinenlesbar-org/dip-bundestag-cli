@@ -4,7 +4,7 @@
 //   to serve HTTP without a token file; any server takes one, and stdio takes none.
 // - The file is read once, at start, with the credentials file's rules: no link, not another
 //   user's, readable by nobody else, one token of at least 32 characters; a refusal names the fix
-//   and never the content.
+//   and never the content. A FIFO or a device is refused at once, never waited on.
 // - Every POST /mcp must send `Authorization: Bearer <token>`: anything else is 401 with
 //   `WWW-Authenticate: Bearer` and no detail; /healthz needs none; the Host check comes first.
 // - The token never appears in a record.
@@ -12,6 +12,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync, spawn } from "node:child_process";
 import { chmodSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { AUTH_TOKEN_REQUIRED, bearerMatches, readAuthTokenFile } from "../src/mcp/auth.js";
@@ -82,6 +83,21 @@ test("the token file's rules: no link, readable by nobody else, one token of 32 
   assert.equal(code, 1);
   assert.equal(lines.length, 1, records(lines));
   assert.match(lines[0] ?? "", new RegExp(`ERROR \\[${PROGRAM}\\.config\\] --auth-token-file ${open.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}: can be read by others`));
+});
+
+test("a FIFO as the token file is refused at once, not waited on", { skip: process.platform === "win32" ? "no FIFOs" : false }, async () => {
+  const fifo = join(dirname(writeTokenFile(TOKEN)), "fifo");
+  execFileSync("mkfifo", ["-m", "600", fifo]);
+  // Without a writer, opening a FIFO blocks the whole process (no timer, no signal handler runs):
+  // a writer that comes after 2 s ends that wait, so a regression fails here instead of hanging.
+  const writer = spawn("sh", ["-c", `sleep 2; echo ${TOKEN} > "$0"`, fifo], { stdio: "ignore" });
+  try {
+    const started = Date.now();
+    assert.throws(() => readAuthTokenFile(fifo), /is not a regular file/);
+    assert.ok(Date.now() - started < 1000, `waited ${Date.now() - started} ms for a writer`);
+  } finally {
+    writer.kill("SIGKILL");
+  }
 });
 
 test("bearerMatches: the scheme in any case, the exact token; anything else is no match", () => {

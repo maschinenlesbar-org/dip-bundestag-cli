@@ -7,8 +7,8 @@
 //
 // The file is read once, at start, with the rules of the CLI's credentials file (what ssh checks of
 // a private key): a regular file, not a link, owned by the user the server runs as, readable by
-// nobody else; one token of at least 32 characters a header can carry (RFC 6750's b64token), a
-// trailing line break allowed. The token is compared in constant time, and it is never logged.
+// nobody else (a FIFO or a device is refused at once, never waited on); one token of at least 32
+// characters a header can carry (RFC 6750's b64token), a trailing line break allowed. The token is compared in constant time, and it is never logged.
 // The same in every repository (the kit).
 
 import { createHash, timingSafeEqual } from "node:crypto";
@@ -51,7 +51,9 @@ export function readAuthTokenFile(path: string, options: TokenFileOptions = {}):
   if (link.isSymbolicLink()) throw fail("is a symbolic link; give the file itself.");
   let fd: number;
   try {
-    fd = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    // O_NONBLOCK: a FIFO opens at once instead of blocking the whole process (signals included)
+    // until a writer comes; fstat below then refuses it. A regular file reads as without it.
+    fd = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0));
   } catch (err) {
     throw fail(`can't be read (${(err as { code?: string }).code ?? String(err)}).`);
   }
