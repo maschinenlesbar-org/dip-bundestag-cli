@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Binary entry point. On stdio, stdout is the protocol: nothing else may write there, so the
-// console goes to stderr. The server stops when stdin ends (a stdio client closed it) or on
-// SIGINT/SIGTERM, exiting 0 or 130/143: in a container this process is PID 1, which ignores a
-// signal nothing listens for.
+// console goes to stderr. The server stops when stdin ends (a stdio client closed it; the requests
+// it has read are answered first, run.ts) or on SIGINT/SIGTERM, exiting 0 or 130/143: in a
+// container this process is PID 1, which ignores a signal nothing listens for.
 
 import { format } from "node:util";
 import { installWarningLog } from "@maschinenlesbar.org/dip-bundestag-log";

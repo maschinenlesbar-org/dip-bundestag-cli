@@ -3,6 +3,7 @@
 
 import { existsSync } from "node:fs";
 import type { Server } from "node:http";
+import type { Readable, Writable } from "node:stream";
 import { createLogger, type Logger } from "@maschinenlesbar.org/dip-bundestag-log";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { nodeHttpTransport, type Transport } from "./api.js";
@@ -12,6 +13,7 @@ import { redactingLog, Secrets } from "./credentials.js";
 import { createHttpServer, isLoopback } from "./http.js";
 import { limitTransport } from "./limiter.js";
 import { createServerFactory } from "./server.js";
+import { StdioWire } from "./stdio.js";
 import { PROGRAM, VERSION } from "./version.js";
 
 export const USAGE_EXIT = 2;
@@ -42,6 +44,8 @@ export interface RunDeps {
   env?: Readonly<Record<string, string | undefined>>;
   /** Whether the repository's credentials file may be read (index.ts only; default false). */
   credentialsFile?: boolean;
+  /** On stdio: the protocol's streams (default process.stdin and process.stdout; tests pass their own). */
+  stdio?: { stdin: Readable; stdout: Writable };
 }
 
 const inContainer = (): boolean => existsSync("/.dockerenv") || existsSync("/run/.containerenv");
@@ -87,13 +91,27 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<numbe
     ...(deps.env === undefined ? {} : { env: deps.env }),
     ...(deps.credentialsFile === undefined ? {} : { credentialsFile: deps.credentialsFile }),
   });
-  return config.transport === "stdio" ? serveOnStdio(factory, deps, log) : serveOnHttp(factory, config, deps, log, authToken);
+  return config.transport === "stdio" ? serveOnStdio(factory, config, deps, log) : serveOnHttp(factory, config, deps, log, authToken);
 }
 
-async function serveOnStdio(factory: ReturnType<typeof createServerFactory>, deps: RunDeps, log: Logger): Promise<number> {
-  const handle = serveStdio(factory);
+async function serveOnStdio(factory: ReturnType<typeof createServerFactory>, config: McpConfig, deps: RunDeps, log: Logger): Promise<number> {
+  const wire = new StdioWire(deps.stdio?.stdin ?? process.stdin, deps.stdio?.stdout ?? process.stdout);
+  const handle = serveStdio(factory, { transport: wire });
   log.info("mcp", `${PROGRAM} ${VERSION} serving MCP on stdio`);
   await deps.stopped;
+  // stdin ended: the requests already read are answered first (a client may write its requests
+  // and close the pipe), each call within its deadline, the wait bounded all the same.
+  let code = 0;
+  const unanswered = wire.unanswered();
+  if (unanswered > 0) {
+    const waitMs = config.callTimeoutMs + DRAIN_MS;
+    log.info("mcp", `stdin ended: answering ${requests(unanswered)} still running first (up to ${Math.ceil(waitMs / 1000)} s)`);
+    const left = await wire.whenAnswered(waitMs);
+    if (left > 0) {
+      log.error("mcp", `stopping with ${requests(left)} unanswered after ${Math.ceil(waitMs / 1000)} s`);
+      code = 1;
+    }
+  }
   await handle.close();
   if (deps.stdinReceived?.() === false) {
     // `docker run <image>` without -i closes stdin at once: the server would end, exit 0, unexplained.
@@ -103,8 +121,10 @@ async function serveOnStdio(factory: ReturnType<typeof createServerFactory>, dep
     );
     return 1;
   }
-  return 0;
+  return code;
 }
+
+const requests = (count: number): string => `${count} request${count === 1 ? "" : "s"}`;
 
 async function serveOnHttp(factory: ReturnType<typeof createServerFactory>, config: McpConfig, deps: RunDeps, log: Logger, authToken: string | undefined): Promise<number> {
   const server = createHttpServer(factory, config, log, authToken);

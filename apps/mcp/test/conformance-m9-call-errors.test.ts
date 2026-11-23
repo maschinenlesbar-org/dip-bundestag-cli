@@ -203,3 +203,33 @@ test("an HTTP client that goes away cancels its call: the upstream request is ab
     await server.done;
   }
 });
+
+// On stdio, the end of stdin (a client that wrote its requests and closed the pipe) stops the
+// server only after the calls it has read are answered; the SDK's transport closed at once and
+// dropped them, with exit 0 and nothing in the log.
+test("on stdio, a call still running when stdin ends is answered before the server stops", async () => {
+  const { PassThrough } = await import("node:stream");
+  const { run } = await import("../src/mcp/run.js");
+  const { TEST_ENV } = await import("./harness.js");
+  const stdin = new PassThrough();
+  const stdout = new PassThrough();
+  let out = "";
+  stdout.on("data", (chunk: Buffer) => (out += chunk.toString("utf8")));
+  const lines: string[] = [];
+  // As index.ts: the server stops when stdin ends.
+  const stopped = new Promise<void>((resolve) => stdin.once("end", () => resolve()));
+  // An upstream that answers a moment later, with an error: the call's answer is a tool error.
+  const slow = makeMockTransport(() => new Promise((resolve) => setTimeout(() => resolve(jsonResponse({ error: "internal error" }, 500)), 50)));
+  const done = run(["--call-timeout", "2000"], { stdout: () => {}, stderr: (line) => lines.push(line), stopped, transport: slow.transport, env: TEST_ENV, stdio: { stdin, stdout } });
+  const initialize = { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "t", version: "0" } } };
+  const initialized = { jsonrpc: "2.0", method: "notifications/initialized" };
+  const call = { jsonrpc: "2.0", id: 2, method: "tools/call", params: CALL };
+  stdin.end([initialize, initialized, call].map((message) => `${JSON.stringify(message)}\n`).join(""));
+  assert.equal(await done, 0, lines.join("\n"));
+  const answers = out
+    .split("\n")
+    .filter((line) => line !== "")
+    .map((line) => JSON.parse(line) as { id?: number; result?: unknown });
+  assert.ok(answers.some((answer) => answer.id === 2 && answer.result !== undefined), out);
+  assert.ok(lines.some((line) => line.includes(`INFO  [${PROGRAM}.mcp] stdin ended: answering 1 request still running first`)), lines.join("\n"));
+});

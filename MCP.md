@@ -164,9 +164,10 @@ Every tool only reads. An answer is JSON (`structuredContent` and the same as te
 - **Results are data.** Text from the API is cleaned (control, bidi and zero-width characters
   removed), but it is still text from outside: a model can be told things in it. The server can't
   act on that (it has no tool that writes), but other tools in the same session could.
-- **Stops cleanly.** On `docker stop` (SIGTERM) or Ctrl-C the HTTP server takes no new
-  connection and lets calls in flight answer for up to 5 s, then exits 143 (130); a second signal
-  ends it at once. On stdio it ends at once, and when stdin ends.
+- **Stops cleanly.** On `docker stop` (SIGTERM) or Ctrl-C the HTTP server takes no new connection
+  and lets calls in flight answer for up to 5 s, then exits 143 (130); a second signal ends it at
+  once. On stdio a signal ends it at once; when stdin ends, it first answers the requests it has
+  read (each within its call deadline), then exits.
 - **In a container** it needs at least 12 processes and threads (`--pids-limit`) and about
   256 MB of memory.
 - **Logs** go to stderr, one record per line; stdout carries only the protocol. A call that fails
