@@ -8,6 +8,7 @@
 // - A line that isn't JSON is answered with a parse error (-32700), one that isn't a JSON-RPC 2.0
 //   message with an invalid request (-32600), both with id null, and leaves a WARN record; the
 //   server goes on.
+// - A repeated --transport means the last one, for the parser and the bin alike.
 // These start a process (STARTS_A_PROCESS: 30 s, the workspace's allowance for that). Shared whole
 // across the repos with an MCP server: nothing here is particular to one.
 
@@ -98,4 +99,12 @@ test("a line that isn't JSON-RPC is answered with -32700 or -32600 and a WARN re
   assert.equal(answers[invalid.length]?.id, 1, "the initialize after them is answered");
   const warnings = records(server.err()).filter((line) => new RegExp(`WARN  \\[${escape(PROGRAM)}\\.mcp\\] stdin: `).test(line));
   assert.equal(warnings.length, invalid.length, server.err());
+});
+
+test("a repeated --transport means the last one: stdio, which ends with stdin like any other", STARTS_A_PROCESS, async () => {
+  const server = start(["--transport", "http", "--transport", "stdio"]);
+  server.child.stdin.end();
+  assert.deepEqual(await server.exited, { code: 1, signal: null }, server.err());
+  assert.match(records(server.err()).at(-1) ?? "", new RegExp(`ERROR \\[${escape(PROGRAM)}\\.mcp\\] stdin ended before any MCP message`));
+  assert.ok(records(server.err()).every((line) => new RegExp(`^\\S+Z (INFO|WARN|ERROR) +\\[${escape(PROGRAM)}\\.\\w+\\] `).test(line)), server.err());
 });

@@ -6,6 +6,7 @@
 
 import { format } from "node:util";
 import { installWarningLog } from "@maschinenlesbar.org/dip-bundestag-log";
+import { parseConfig } from "./config.js";
 import { run } from "./run.js";
 
 console.log = console.error;
@@ -14,7 +15,10 @@ console.debug = console.error;
 console.warn = console.error;
 
 const argv = process.argv.slice(2);
-const stdio = !argv.some((arg, i) => arg === "--transport=http" || (arg === "--transport" && argv[i + 1] === "http"));
+// The transport as the parser decides it (a repeated --transport: the last), so this file and
+// run.ts never disagree; help, version and a usage error count as stdio and end at once.
+const parsed = parseConfig(argv);
+const stdio = parsed.kind !== "run" || parsed.config.transport === "stdio";
 
 let received = false;
 if (stdio) process.stdin.on("data", () => (received = true));
