@@ -108,8 +108,8 @@ and the type Gesetzgebung; several matches are reported with the candidates, law
 picked; a procedure's steps are joined on the positions (`f.vorgang`), read page after page with
 the same filter (a cursor alone would page through every procedure's steps) and sorted by date;
 not every decision is a vote: a referral, a procedural motion, a Bundesrat opinion or a resolution
-is named as such, and "passed" comes only from an adoption in the 2./3. Beratung or from
-promulgation; names match only as complete first or last names, so the surname is sent and a
+is named as such, and "passed" comes only from an adoption in the 2./3. Beratung (or of the
+mediation committee's proposal, the version that becomes law) or from promulgation; names match only as complete first or last names, so the surname is sent and a
 name DIP misses is looked up in the term's whole list; a Fraktion is given only for members
 (MdB), and earlier roles carry the ministry, not the role's title; a document is found on the
 light metadata endpoint and only then read from the heavy text endpoint; a Plenarprotokoll is the

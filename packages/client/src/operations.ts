@@ -7,7 +7,7 @@
 // - trackProcedure (dip-procedure-tracker): a Vorgang by id or title words, its steps
 //   (Vorgangspositionen, joined by `f.vorgang` on the positions, every page) as a chronological
 //   timeline, each decision named for what it is: only a vote on the bill in the 2./3. Beratung
-//   is a vote; a referral, a procedural motion, a Bundesrat opinion or a resolution is not.
+//   (or on the mediation committee's proposal) is a vote; a referral, a procedural motion, a Bundesrat opinion or a resolution is not.
 // - profileMember (dip-member-dossier): a person by id or name (`f.person` matches complete
 //   names only), the current function and Fraktion from the top level, the earlier roles from
 //   `person_roles` (no role title there), optionally the activities of a term.
@@ -309,7 +309,7 @@ export type ProcedureTrack =
       inForce?: { date?: string; note?: string }[];
       /** Every step, oldest first. */
       timeline: ProcedureStep[];
-      /** The decisions that are votes on the bill (2./3. Beratung), with their step. */
+      /** The decisions that are votes on the bill (2./3. Beratung, or on the mediation committee's proposal), with their step. */
       votes: (Decision & { date?: string; chamber?: string; step?: string })[];
       /** The lead committees (federführend), per chamber (the Bundesrat refers to its own). */
       leadCommittees: { chamber?: string; committee: string }[];
@@ -322,9 +322,11 @@ export type ProcedureTrack =
   | { status: "empty"; searched: Record<string, unknown>; reason: string };
 
 /**
- * What a decision is: a procedural motion, a referral, a Bundesrat opinion or its decision in the
- * 2. Durchgang, a resolution, or a vote on the bill (an adoption or rejection in the 2./3.
- * Beratung). Not every `beschlussfassung` is a vote: "Überweisung" at a 1. Beratung is the
+ * What a decision is: a procedural motion, a referral, a Bundesrat opinion, a resolution, the
+ * Bundesrat's decision (in its 2. Durchgang, or in a later sitting: the consent or objection after
+ * the mediation committee), or a vote on the bill (an adoption or rejection in the 2./3. Beratung,
+ * or of the mediation committee's proposal, "Abstimmung über Vermittlungsvorschlag": the version
+ * that becomes law). Not every `beschlussfassung` is a vote: "Überweisung" at a 1. Beratung is the
  * referral, "Annahme Geschäftsordnungsantrag" a procedural motion, "Annahme einer Entschließung"
  * a resolution.
  */
@@ -334,7 +336,8 @@ export function decisionKind(step: string, tenor: string, chamber: string | unde
   if (/^\s*stellungnahme/i.test(tenor)) return "opinion";
   if (chamber === "BR" && /durchgang/i.test(step)) return "bundesrat";
   if (/entschließung/i.test(tenor)) return "resolution";
-  if (/^\s*(annahme|ablehnung)/i.test(tenor) && /(^|\D)[23]\.\s*beratung/i.test(step)) return "vote";
+  if (chamber === "BR") return "bundesrat";
+  if (/^\s*(annahme|ablehnung)/i.test(tenor) && (/(^|\D)[23]\.\s*beratung/i.test(step) || /vermittlungsvorschlag/i.test(step))) return "vote";
   return "other";
 }
 

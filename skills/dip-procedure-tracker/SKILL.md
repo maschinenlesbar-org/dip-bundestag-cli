@@ -143,7 +143,8 @@ stops changing. The fields that matter per step:
 2. Tag each step with its chamber (`zuordnung`) so a reader sees the BT/BR ping-pong.
 3. Pull out the two things that carry real news:
    - **Votes** — steps whose `beschlussfassung[]` decides on the bill itself, typically
-     "2. Beratung" / "3. Beratung": report `beschlusstenor` + `abstimmungsart` + `mehrheit`
+     "2. Beratung" / "3. Beratung", and after a Vermittlungsausschuss "Abstimmung über
+     Vermittlungsvorschlag" (the version that becomes law): report `beschlusstenor` + `abstimmungsart` + `mehrheit`
      (the last two are often absent). "Annahme" = adopted, "Ablehnung" = rejected. **Not
      every `beschlussfassung` is a vote on the bill:** `Überweisung` at a 1. Beratung is the
      committee referral, `… Geschäftsordnungsantrag` is procedural, and a Bundesrat
@@ -188,4 +189,7 @@ Rules:
   plainly rather than implying data is missing.
 - Don't infer "passed" from a 1. Beratung or from any `Annahme` tenor (a
   `Geschäftsordnungsantrag` can be "angenommen" too); only the adoption of the bill in the
-  2./3. Beratung, or `verkuendung`/`inkrafttreten` on the Vorgang, mean passed/enacted.
+  2./3. Beratung (after the Vermittlungsausschuss: the adoption of its proposal, "Abstimmung über
+  Vermittlungsvorschlag", the version that becomes law), or `verkuendung`/`inkrafttreten` on the
+  Vorgang, mean passed/enacted. The Bundesrat's consent or objection after the
+  Vermittlungsausschuss stands in a later "BR-Sitzung" step, not in a Durchgang.

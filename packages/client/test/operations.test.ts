@@ -174,6 +174,43 @@ test("decisionKind: the classification the tracker uses", () => {
   assert.equal(decisionKind("3. Beratung", "Annahme Geschäftsordnungsantrag", "BT"), "procedural");
 });
 
+test("trackProcedure: after the mediation committee the Bundestag's vote on its proposal is a vote, the Bundesrat's consent its decision", async () => {
+  // The Wachstumschancengesetz (303318) as DIP recorded it on 2026-11-22: the November version
+  // stopped by the Bundesrat, the mediation committee's proposal adopted in February, consent in March.
+  const step = (id: string, datum: string, zuordnung: string, vorgangsposition: string, beschlusstenor?: string) => ({
+    id, datum, zuordnung, vorgangsposition, ...(beschlusstenor === undefined ? {} : { beschlussfassung: [{ beschlusstenor }] }),
+  });
+  const mock = dip({
+    "vorgang/303318": { id: "303318", titel: "Wachstumschancengesetz", vorgangstyp: "Gesetzgebung", beratungsstand: "Verkündet" },
+    vorgangsposition: list([
+      step("1", "2023-11-17", "BT", "2. Beratung", "Annahme in Ausschussfassung"),
+      step("2", "2023-11-17", "BT", "3. Beratung", "Annahme in Ausschussfassung"),
+      step("3", "2023-11-24", "BR", "2. Durchgang", "Anrufung des Vermittlungsausschusses"),
+      step("4", "2024-02-21", "BT", "Vermittlungsvorschlag"),
+      step("5", "2024-02-23", "BT", "Abstimmung über Vermittlungsvorschlag", "Annahme"),
+      step("6", "2024-03-22", "BR", "BR-Sitzung", "Zustimmung"),
+      step("7", "2024-03-22", "BR", "BR-Sitzung", "Annahme einer Entschließung"),
+    ]),
+  });
+  const answer = await trackProcedure(client(mock), { id: 303318 });
+  if (answer.status !== "ok") return assert.fail(answer.status);
+  assert.deepEqual(answer.votes.map((v) => [v.date, v.step, v.text]), [
+    ["2023-11-17", "2. Beratung", "Annahme in Ausschussfassung"],
+    ["2023-11-17", "3. Beratung", "Annahme in Ausschussfassung"],
+    ["2024-02-23", "Abstimmung über Vermittlungsvorschlag", "Annahme"],
+  ]);
+  const kinds = answer.timeline.flatMap((s) => (s.decisions ?? []).map((d) => `${s.chamber} ${s.step}: ${d.text}: ${d.kind}`));
+  assert.deepEqual(kinds.slice(2), [
+    "BR 2. Durchgang: Anrufung des Vermittlungsausschusses: bundesrat",
+    "BT Abstimmung über Vermittlungsvorschlag: Annahme: vote",
+    "BR BR-Sitzung: Zustimmung: bundesrat",
+    "BR BR-Sitzung: Annahme einer Entschließung: resolution",
+  ]);
+  assert.equal(decisionKind("Abstimmung über Vermittlungsvorschlag", "Ablehnung", "BT"), "vote");
+  assert.equal(decisionKind("BR-Sitzung", "Einspruch", "BR"), "bundesrat");
+  assert.equal(decisionKind("BR-Sitzung", "Stellungnahme", "BR"), "opinion");
+});
+
 // ---- profileMember
 
 test("profileMember by name: f.person with the term; the current function and Fraktion from the top level, earlier roles as ministry only", async () => {
