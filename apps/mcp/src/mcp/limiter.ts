@@ -3,10 +3,13 @@
 // several requests (paging, a name resolved before the answer's own requests).
 //  - at most `inFlight` requests at once (default 2);
 //  - at most `perMinute` request starts in any 60 s (default 120);
-//  - a 429 pauses every start for its Retry-After (or 5 s), on top of the engine's own retry,
-//    for at most 30 s (the engine's own Retry-After ceiling): one answer can't stall the process;
-//  - `pausedFor()` says how long that pause still holds every start (server.ts names it in the
-//    record of a retry, which the limiter holds that long whatever the engine's own backoff);
+//  - a 429 pauses every start to the origin that answered it for its Retry-After (or 5 s), on top
+//    of the engine's own retry, for at most 30 s (the engine's own Retry-After ceiling): one answer
+//    can't stall the process, and an API on several hosts (a list of portals) goes on with the
+//    others; a request waiting for a paused origin holds up none to another;
+//  - `pausedFor(url)` says how long that pause still holds the starts to the url's origin
+//    (server.ts names it in the record of a retry, which the limiter holds that long whatever the
+//    engine's own backoff);
 //  - a clock set back (a wall-clock correction) stretches no hold past its longest (the pause's
 //    30 s, the window's 60 s), and no timer gets more than setTimeout can take;
 //  - at most `queue` requests wait (default 32); one more is refused at once (the client's
@@ -92,12 +95,17 @@ export const MAX_PAUSE_MS = 30_000;
 const MAX_TIMER_MS = 2 ** 31 - 1;
 
 interface Waiter {
+  /** The origin it is for (a 429's pause holds only its own). */
+  origin: string;
   start: () => void;
   fail: (err: Error) => void;
 }
 
-/** The limited transport, and how long a 429's pause still holds every start (ms; 0 for none). */
-export type LimitedTransport = Transport & { pausedFor(): number };
+/**
+ * The limited transport, and how long a 429's pause still holds the starts to `url`'s origin (ms;
+ * 0 for none); without a url, the longest pause of any origin.
+ */
+export type LimitedTransport = Transport & { pausedFor(url?: string): number };
 
 export function limitTransport(transport: Transport, options: LimiterOptions = {}): LimitedTransport {
   const inFlight = options.inFlight ?? 2;
@@ -107,16 +115,24 @@ export function limitTransport(transport: Transport, options: LimiterOptions = {
   const starts: number[] = [];
   const waiting: Waiter[] = [];
   let active = 0;
-  let pausedUntil = 0;
+  /** Until when a 429 pauses the starts to an origin. */
+  const pausedUntil = new Map<string, number>();
   let timer: NodeJS.Timeout | undefined;
-  let loggedUntil = 0;
+  /** Until when a hold is logged already: per origin for a pause, "" for the budget. */
+  const loggedUntil = new Map<string, number>();
 
-  /** Forget the starts that left the window; after the clock was set back, count holds from now. */
+  /** Forget the starts that left the window and the pauses that ended; after the clock was set back, count holds from now. */
   const prune = (t: number): void => {
-    pausedUntil = Math.min(pausedUntil, t + MAX_PAUSE_MS);
+    for (const [origin, until] of pausedUntil) {
+      if (until <= t) pausedUntil.delete(origin);
+      else pausedUntil.set(origin, Math.min(until, t + MAX_PAUSE_MS));
+    }
     for (let i = starts.length - 1; i >= 0 && (starts[i] as number) > t; i--) starts[i] = t;
     while (starts.length > 0 && (starts[0] as number) <= t - WINDOW_MS) starts.shift();
   };
+
+  /** How long a 429's pause still holds the starts to `origin`. */
+  const pauseOf = (origin: string, t: number): number => Math.max(0, (pausedUntil.get(origin) ?? 0) - t);
 
   /** How long the budget holds a start with `ahead` requests waiting before it (at least, when unknown). */
   const budgetWait = (t: number, ahead: number): number => {
@@ -125,13 +141,14 @@ export function limitTransport(transport: Transport, options: LimiterOptions = {
     return index < starts.length ? (starts[index] as number) + WINDOW_MS - t : WINDOW_MS;
   };
 
-  /** Start as many waiters as the limits allow; else wake up when the next one may start. */
+  /** Start as many waiters as the limits allow, the first whose origin no pause holds; else wake up when the next one may start. */
   const pump = (): void => {
     while (waiting.length > 0) {
       const t = now();
       prune(t);
       if (active >= inFlight) return;
-      const wait = Math.max(pausedUntil - t, budgetWait(t, 0));
+      const at = waiting.findIndex((waiter) => pauseOf(waiter.origin, t) === 0);
+      const wait = Math.max(budgetWait(t, 0), at >= 0 ? 0 : Math.min(...waiting.map((waiter) => pauseOf(waiter.origin, t))));
       if (wait > 0) {
         if (timer === undefined) {
           timer = setTimeout(() => {
@@ -142,7 +159,7 @@ export function limitTransport(transport: Transport, options: LimiterOptions = {
         }
         return;
       }
-      const next = waiting.shift() as Waiter;
+      const next = waiting.splice(at, 1)[0] as Waiter;
       active += 1;
       starts.push(t);
       next.start();
@@ -158,27 +175,30 @@ export function limitTransport(transport: Transport, options: LimiterOptions = {
     if (waiting.length >= queueSize) {
       throw new NetworkError(`The server is busy: ${queueSize} requests to the API are already waiting. Try again shortly.`);
     }
+    const origin = originOf(request.url) ?? "";
     const t = now();
     prune(t);
-    const paused = Math.max(0, pausedUntil - t);
+    const paused = pauseOf(origin, t);
     const budget = budgetWait(t, waiting.length);
     const held = Math.max(paused, budget);
     if (held > 0) {
       const seconds = Math.ceil(held / 1000);
-      const why =
-        paused >= budget
-          ? `the API answered HTTP 429 (too many requests), and this server holds every request to it for ${seconds} s more`
-          : `this server sends at most ${perMinute} requests a minute to the API and has used them up; the next can start in ${seconds} s`;
-      if (t >= loggedUntil) {
-        loggedUntil = t + held;
-        options.log?.(`${paused >= budget ? `the API answered HTTP 429: every request to it waits ${seconds} s` : `the budget of ${perMinute} requests a minute to the API is used up: requests wait up to ${seconds} s`}`);
+      const by429 = paused >= budget;
+      const who = origin === "" ? "the API" : origin;
+      const why = by429
+        ? `${who} answered HTTP 429 (too many requests), and this server holds every request to it for ${seconds} s more`
+        : `this server sends at most ${perMinute} requests a minute to the API and has used them up; the next can start in ${seconds} s`;
+      const key = by429 ? origin : "";
+      if (t >= (loggedUntil.get(key) ?? 0)) {
+        loggedUntil.set(key, t + held);
+        options.log?.(by429 ? `${who} answered HTTP 429: every request to it waits ${seconds} s` : `the budget of ${perMinute} requests a minute to the API is used up: requests wait up to ${seconds} s`);
       }
       const timeout = request.timeoutMs !== undefined && request.timeoutMs > 0 ? request.timeoutMs : Infinity;
       const mayWait = Math.min(timeout, scope?.endsAt === undefined ? Infinity : scope.endsAt - t);
       if (held > mayWait) throw new NetworkError(`not sent: ${why}, longer than this ${mayWait === timeout ? "request" : "call"} may wait. Ask again in ${seconds} s.`);
     }
     await new Promise<void>((resolve, reject) => {
-      const waiter: Waiter = { start: resolve, fail: reject };
+      const waiter: Waiter = { origin, start: resolve, fail: reject };
       const signal = request.signal;
       if (signal !== undefined) {
         const leave = (): void => {
@@ -203,7 +223,7 @@ export function limitTransport(transport: Transport, options: LimiterOptions = {
       scope?.redirects?.note(request.url, response);
       if (response.status === 429) {
         const retryAfter = retryAfterMs(response.headers["retry-after"], now());
-        pausedUntil = Math.max(pausedUntil, now() + Math.min(retryAfter ?? DEFAULT_PAUSE_MS, MAX_PAUSE_MS));
+        pausedUntil.set(origin, Math.max(pausedUntil.get(origin) ?? 0, now() + Math.min(retryAfter ?? DEFAULT_PAUSE_MS, MAX_PAUSE_MS)));
       }
       return response;
     } finally {
@@ -211,7 +231,14 @@ export function limitTransport(transport: Transport, options: LimiterOptions = {
       pump();
     }
   };
-  return Object.assign(limited, { pausedFor: () => Math.max(0, Math.min(pausedUntil - now(), MAX_PAUSE_MS)) });
+  const pausedFor = (url?: string): number => {
+    const t = now();
+    // A url that doesn't parse (a record's cut one) gets the longest pause, as no url does.
+    const origin = url === undefined ? undefined : originOf(url);
+    const until = origin === undefined ? Math.max(0, ...pausedUntil.values()) : (pausedUntil.get(origin) ?? 0);
+    return Math.max(0, Math.min(until - t, MAX_PAUSE_MS));
+  };
+  return Object.assign(limited, { pausedFor });
 }
 
 /** A Retry-After header in ms from `now`: delta-seconds or an HTTP date; undefined for anything else. */

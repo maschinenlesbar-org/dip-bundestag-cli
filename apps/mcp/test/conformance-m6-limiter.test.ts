@@ -1,7 +1,8 @@
 // Conformance test M6 (MCP kit, rollout plan 2026-11-19): the limiter around the upstream
 // transport: requests in flight, the per-minute window, a 429's pause (seconds or an HTTP date),
 // the bounded queue (refused with the client's network error), and an abort that leaves the
-// queue. A pause lasts at most 30 s, whatever the Retry-After; a clock set back stretches no hold
+// queue. A pause holds the starts to the origin that answered 429 only: an API on several hosts
+// (a list of portals) goes on with the others. A pause lasts at most 30 s, whatever the Retry-After; a clock set back stretches no hold
 // and no timer overflows. A request the budget or a pause would hold longer than it may wait (its
 // own timeout, its call's deadline) is refused at once, naming the limit and when it frees, with a
 // record; one that may wait that long waits. Shared whole across the repos with an MCP server.
@@ -12,8 +13,8 @@ import { NetworkError, type HttpRequest, type HttpResponse } from "../src/mcp/ap
 import { callScope, limitTransport } from "../src/mcp/limiter.js";
 
 const ok = (status = 200, headers: Record<string, string> = {}): HttpResponse => ({ status, headers, body: Buffer.from("{}") });
-const request = (signal?: AbortSignal, timeoutMs?: number): HttpRequest =>
-  ({ method: "GET", url: "https://x/", headers: {}, ...(signal === undefined ? {} : { signal }), ...(timeoutMs === undefined ? {} : { timeoutMs }) }) as HttpRequest;
+const request = (signal?: AbortSignal, timeoutMs?: number, url = "https://x/"): HttpRequest =>
+  ({ method: "GET", url, headers: {}, ...(signal === undefined ? {} : { signal }), ...(timeoutMs === undefined ? {} : { timeoutMs }) }) as HttpRequest;
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
 /** A transport whose answers the test releases one by one. */
@@ -63,6 +64,27 @@ test("a 429 pauses every start for its Retry-After", async () => {
   const pending = limited(request(controller.signal)).then(() => (started = true), () => "left");
   await tick();
   assert.equal(started, false, "paused");
+  controller.abort();
+  assert.equal(await pending, "left");
+});
+
+test("a 429 pauses only the starts to the origin that answered it: another host's requests go on, and the pause is named per origin", async () => {
+  let t = 0;
+  const records: string[] = [];
+  const limited = limitTransport(async (r) => (new URL(r.url).host === "busy.example" ? ok(429, { "retry-after": "20" }) : ok()), { now: () => t, log: (message) => records.push(message) });
+  assert.equal((await limited(request(undefined, undefined, "https://busy.example/a"))).status, 429);
+  assert.equal(limited.pausedFor("https://busy.example/b"), 20_000);
+  assert.equal(limited.pausedFor("https://other.example/"), 0);
+  assert.equal((await limited(request(undefined, 3000, "https://other.example/a"))).status, 200, "another origin starts at once");
+  // A waiter for the paused origin doesn't hold up one for another origin behind it.
+  const controller = new AbortController();
+  let paused = false;
+  const pending = limited(request(controller.signal, undefined, "https://busy.example/c")).then(() => (paused = true), () => "left");
+  assert.equal((await limited(request(undefined, 3000, "https://other.example/b"))).status, 200, "not queued behind the paused origin");
+  await tick();
+  assert.equal(paused, false, "the paused origin still waits");
+  await assert.rejects(limited(request(undefined, 3000, "https://busy.example/d")), (err: unknown) => err instanceof NetworkError && /not sent: https:\/\/busy\.example answered HTTP 429.* 20 s/.test(err.message));
+  assert.ok(records.some((r) => /^https:\/\/busy\.example answered HTTP 429: every request to it waits 20 s/.test(r)), records.join("\n"));
   controller.abort();
   assert.equal(await pending, "left");
 });

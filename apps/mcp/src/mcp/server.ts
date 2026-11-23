@@ -104,7 +104,7 @@ export function createServerFactory(deps: ServerDeps): () => McpServer {
   const secrets = new Secrets();
   const log = redactingLog(deps.log, secrets);
   const userAgent = config.userAgent ?? USER_AGENT;
-  // A retry waits for the limiter's pause after a 429 too (limiter.ts), whatever the engine's backoff.
+  // A retry waits for the limiter's pause after a 429 from its origin too (limiter.ts), whatever the engine's backoff.
   const pausedFor = (deps.transport as Partial<LimitedTransport>).pausedFor ?? (() => 0);
   const options: NonNullable<ConstructorParameters<typeof Client>[0]> = {
     transport: deps.transport,
@@ -112,7 +112,7 @@ export function createServerFactory(deps: ServerDeps): () => McpServer {
     timeoutMs: config.timeoutMs,
     userAgent,
     maxResponseBytes: MAX_UPSTREAM_BYTES,
-    onRetry: (event) => log.warn("http", `retry ${event.retry}/${event.maxRetries} of ${event.url} in ${Math.max(event.delayMs, pausedFor())} ms${event.status === undefined ? "" : ` (HTTP ${event.status})`}`),
+    onRetry: (event) => log.warn("http", `retry ${event.retry}/${event.maxRetries} of ${event.url} in ${Math.max(event.delayMs, pausedFor(event.url))} ms${event.status === undefined ? "" : ` (HTTP ${event.status})`}`),
     onWarning: (message) => log.warn("api", message),
   };
   const client = findCredentials === undefined ? new Client(options) : lazyClient(findCredentials);
