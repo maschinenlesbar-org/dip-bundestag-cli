@@ -135,7 +135,7 @@ function largest(low: number, high: number, fits: (n: number) => boolean): numbe
 /**
  * `result` cut to at most `maxChars` characters of JSON, never by cutting the JSON, with
  * `truncated: true`: first by dropping entries from the end of its lists (the longest list
- * first; for a paged list with the `nextOffset` to continue from), then by cutting its longest
+ * first; a paged list keeps its first entry and says in `nextOffset` where to continue), then by cutting its longest
  * texts, each to no less than MIN_FIT_LENGTH and ending in a cut mark. A result that fits is
  * returned as it is; one that can't be cut so far is undefined (the caller answers with an error).
  */
@@ -150,12 +150,13 @@ export function fitResult<T extends Record<string, unknown>>(result: T, maxChars
     if (paged !== undefined) fitted["nextOffset"] = paged.offset + ((fitted[paged.list] as unknown[] | undefined)?.length ?? 0);
   };
   mark();
+  // A paged list keeps its first entry, so that nextOffset always moves on.
+  const fewest = (key: string): number => (key === paged?.list ? 1 : 0);
   while (!fits()) {
-    const longest = lists.reduce<string | undefined>(
-      (best, key) => ((fitted[key] as unknown[]).length > ((best === undefined ? [] : fitted[best]) as unknown[]).length ? key : best),
-      undefined,
-    );
-    if (longest === undefined || (fitted[longest] as unknown[]).length === 0) break;
+    const longest = lists
+      .filter((key) => (fitted[key] as unknown[]).length > fewest(key))
+      .reduce<string | undefined>((best, key) => ((fitted[key] as unknown[]).length > ((best === undefined ? [] : fitted[best]) as unknown[]).length ? key : best), undefined);
+    if (longest === undefined) break;
     (fitted[longest] as unknown[]).pop();
     mark();
   }

@@ -114,6 +114,19 @@ test("fitResult keeps a result without lists under the cap by cutting its longes
   assert.equal(fitted["source"], result.source, "the server's own fields are not cut");
 });
 
+test("a paged list whose next entry alone is over the cap keeps that entry, its texts cut, so nextOffset moves on", () => {
+  const items = Array.from({ length: 5 }, (_, i) => ({ id: `i${i}`, text: `${i} ${"y".repeat(3000)}` }));
+  const fitted: Record<string, unknown> | undefined = fitResult({ status: "ok", total: 50, items }, 1000, { list: "items", offset: 20 });
+  assert.ok(fitted !== undefined);
+  assert.ok(JSON.stringify(fitted).length <= 1000, `${JSON.stringify(fitted).length}`);
+  const kept = fitted["items"] as { id: string; text: string }[];
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0]?.id, "i0");
+  assert.ok(kept[0]?.text.endsWith(cutMark(3002)), kept[0]?.text.slice(-60));
+  assert.equal(fitted["nextOffset"], 21);
+  assert.equal(fitted["truncated"], true);
+});
+
 test("a result that can't be cut under the cap is a tool error that says what to ask instead", async () => {
   const numbers = Object.fromEntries(Array.from({ length: 500 }, (_, i) => [`n${i}`, 123_456_789 + i]));
   assert.equal(fitResult({ status: "ok", item: numbers }, 1000), undefined);
