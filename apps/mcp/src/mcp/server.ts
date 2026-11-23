@@ -13,11 +13,11 @@
 
 import type { Logger } from "@maschinenlesbar.org/dip-bundestag-log";
 import { McpServer, fromJsonSchema } from "@modelcontextprotocol/server";
-import { apiBase, Client, ClientError, cutText, NetworkError, sizeLimitMessage, type Transport } from "./api.js";
+import { apiBase, Client, ClientError, NetworkError, sizeLimitMessage, type Transport } from "./api.js";
 import type { McpConfig } from "./config.js";
 import { findCredentials, redactingLog, Secrets } from "./credentials.js";
 import { callScope, Redirects, type LimitedTransport } from "./limiter.js";
-import { cleanStrings, fitResult, MAX_FIELD_LENGTH } from "./result.js";
+import { cleanStrings, cleanText, cutMiddle, fitResult, MAX_FIELD_LENGTH } from "./result.js";
 import { DEADLINE_HINT, INSTRUCTIONS, LICENCE, SIZE_HINT, TITLE, TOOLS } from "./tools.js";
 import { PROGRAM, USER_AGENT, VERSION } from "./version.js";
 
@@ -76,7 +76,7 @@ export const MAX_UPSTREAM_BYTES = 16 * 1024 * 1024;
 /** The longest a tool may take after the deadline to answer with what it has read (ms). */
 export const DEADLINE_GRACE_MS = 1000;
 
-/** The longest error message a tool result carries. */
+/** The longest error message a tool result carries; a longer one loses its middle (cutMiddle). */
 const MAX_ERROR_MESSAGE = 5000;
 
 export interface ServerDeps {
@@ -233,8 +233,9 @@ export async function callTool(
     const shaped = fitResult({ ...cleaned, source: cleanStrings(source), licence: LICENCE, ...(cut ? { truncated: true } : {}) }, env.config.maxResultChars, tool.paged?.(args));
     return { content: [{ type: "text", text: JSON.stringify(shaped) }], structuredContent: shaped };
   } catch (err) {
-    // The secrets taken out before and after cleaning, as from an answer (errorResult cleans it again).
-    const redact = (text: string): string => (env.secrets === undefined ? text : env.secrets.redact(cleanStrings(env.secrets.redact(text))));
+    // The secrets taken out before and after cleaning, as from an answer; the whole message, so
+    // errorResult's cut never leaves half a secret.
+    const redact = (text: string): string => (env.secrets === undefined ? text : env.secrets.redact(cleanText(env.secrets.redact(text))));
     if (deadline.aborted && !cancelled.aborted) {
       env.log.warn("server", `${tool.name} stopped at the call deadline (${env.config.callTimeoutMs} ms)`);
       return errorResult(`The call took longer than ${Math.round(env.config.callTimeoutMs / 1000)} s and was stopped. ${DEADLINE_HINT}`);
@@ -282,6 +283,6 @@ function untilAborted<T>(promise: Promise<T>, cancelled: AbortSignal, deadline: 
 }
 
 function errorResult(message: string): { content: { type: "text"; text: string }[]; isError: true } {
-  const cut = cutText(message, MAX_ERROR_MESSAGE);
-  return { content: [{ type: "text", text: cleanStrings(cut.length < message.length ? `${cut}…` : message) }], isError: true };
+  // Cleaned whole, then cut in the middle: the start says what failed, the end why.
+  return { content: [{ type: "text", text: cutMiddle(cleanText(message), MAX_ERROR_MESSAGE) }], isError: true };
 }

@@ -12,7 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { HttpRequest, Transport } from "../src/mcp/api.js";
 import { limitTransport } from "../src/mcp/limiter.js";
-import { cleanStrings, cutMark, fitResult, MAX_FIELD_LENGTH } from "../src/mcp/result.js";
+import { cleanStrings, cleanText, cutMark, cutMiddle, fitResult, MAX_FIELD_LENGTH } from "../src/mcp/result.js";
 import { callTool, type ToolDefinition } from "../src/mcp/server.js";
 import { TOOLS } from "../src/mcp/tools.js";
 import { PROGRAM } from "../src/mcp/version.js";
@@ -65,6 +65,17 @@ test("cleanStrings replaces lone surrogates and cuts long text with a mark that 
   assert.equal(cleanStrings(long, { onCut: () => cuts++ }), long, "a cut string cleaned again stays as it is");
   assert.equal(cuts, 1);
   assert.equal(cleanStrings("y".repeat(5000), { maxLength: 6000 }).length, 5000, "a larger maxLength keeps more");
+});
+
+test("cutMiddle keeps the start and the end of a long text, marks the cut, and splits no character", () => {
+  const text = `${"a".repeat(100)}${"😀".repeat(100)}`;
+  assert.equal(cutMiddle(text, 300), text);
+  for (let max = 60; max < 120; max++) {
+    const cut = cutMiddle(text, max);
+    assert.ok(cut.length <= max, `${max}: ${cut.length}`);
+    assert.ok(cut.startsWith("aaa") && cut.endsWith("😀") && cut.includes("[cut, 300 characters in all]"), cut);
+    assert.equal(cleanText(cut), cut, `${max}: no half character`);
+  }
 });
 
 test("cleanStrings keeps every key: one that cleaning makes equal to another gets a suffix, a clean key keeps its name", () => {

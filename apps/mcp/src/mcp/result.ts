@@ -11,9 +11,11 @@ import { cutText, toWellFormed } from "./api.js";
  */
 export const MAX_FIELD_LENGTH = 2000;
 
+const ELLIPSIS = "…";
+
 /** What a cut string ends in: the model sees that it has a part, and how long the whole was. */
 export function cutMark(total: number): string {
-  return `…[cut, ${total} characters in all]`;
+  return `${ELLIPSIS}[cut, ${total} characters in all]`;
 }
 
 export interface CleanOptions {
@@ -36,7 +38,7 @@ const INVISIBLE =
   /(\u200d(?<=\p{Extended_Pictographic}(?:\ufe0f|\p{Emoji_Modifier})?\u200d)(?=\p{Extended_Pictographic})|\ufe0f(?<=\p{Extended_Pictographic}\ufe0f))|(?![\t\n])[\p{Cc}\p{Default_Ignorable_Code_Point}\u2028\u2029\ufff9-\ufffb]/gu;
 
 /** `text` without invisible characters (INVISIBLE), lone surrogates replaced; not cut. */
-function cleanText(text: string): string {
+export function cleanText(text: string): string {
   return toWellFormed(text).replace(INVISIBLE, (_, emoji: string | undefined) => emoji ?? "");
 }
 
@@ -74,6 +76,20 @@ export function cleanStrings<T>(value: T, options: CleanOptions = {}): T {
     ) as T;
   }
   return value;
+}
+
+/**
+ * `text` cut to at most `max` characters by taking out its middle, which a mark replaces: for a
+ * message whose start says what failed and whose end says why. A quarter of the room goes to the
+ * start, the rest to the end; neither cut splits a character.
+ */
+export function cutMiddle(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const mark = `${ELLIPSIS}[cut, ${text.length} characters in all]${ELLIPSIS}`;
+  const head = cutText(text, Math.floor((max - mark.length) / 4));
+  const tail = text.slice(text.length - (max - mark.length - head.length));
+  // A tail that starts with the second half of a character drops it.
+  return `${head}${mark}${/^[\udc00-\udfff]/.test(tail) ? tail.slice(1) : tail}`;
 }
 
 /**

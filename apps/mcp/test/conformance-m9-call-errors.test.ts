@@ -12,7 +12,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { apiBase, Client, type Transport } from "../src/mcp/api.js";
+import { apiBase, Client, NetworkError, type Transport } from "../src/mcp/api.js";
 import { limitTransport } from "../src/mcp/limiter.js";
 import { callTool, type ToolDefinition } from "../src/mcp/server.js";
 import { TOOLS } from "../src/mcp/tools.js";
@@ -126,6 +126,21 @@ test("a bug is a fixed text for the caller and an ERROR record with the details"
   const result = await callTool(broken, {}, new AbortController().signal, e);
   assert.equal(result.content[0]?.text, `${tool.name} failed with an internal error; the server's log has the details.`);
   assert.ok(lines.join("\n").includes(`ERROR [${PROGRAM}.server] ${tool.name} failed: TypeError: secret detail`), lines.join("\n"));
+});
+
+test("a long tool error keeps its start, what failed, and its end, where the reason is", async () => {
+  const { env: e } = env(hanging.transport);
+  const reason = "and the reason is at the end";
+  const message = `GET https://api.example/x?q=${"k".repeat(8000)} failed ${reason}`;
+  const failing: ToolDefinition = { ...tool, run: () => Promise.reject(new NetworkError(message)) };
+  const text = (await callTool(failing, {}, new AbortController().signal, e)).content[0]?.text ?? "";
+  assert.ok(text.startsWith("GET https://api.example/x?q=kkk"), text.slice(0, 60));
+  assert.ok(text.endsWith(reason), text.slice(-60));
+  assert.ok(text.length <= 5000, `${text.length}`);
+  assert.match(text, new RegExp(`${message.length} characters in all`));
+  // A short one stays whole.
+  const short: ToolDefinition = { ...tool, run: () => Promise.reject(new NetworkError(`GET x failed ${reason}`)) };
+  assert.equal((await callTool(short, {}, new AbortController().signal, e)).content[0]?.text, `GET x failed ${reason}`);
 });
 
 test("an answer over the server's size cap is a tool error that says what to ask instead, not a CLI option", async () => {
