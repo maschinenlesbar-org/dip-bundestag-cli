@@ -125,6 +125,21 @@ test("trackProcedure: more steps than a page are read with the same filter on ev
   assert.match(capped.note ?? "", /200 of 230 steps were read \(page limit\)/);
 });
 
+test("trackProcedure with offset: the timeline from that step, the votes and committees of every step; past the end says so", async () => {
+  const mock = dip({ "vorgang/298723": VORGANG_298723, vorgangsposition: POSITIONEN_298723 });
+  const whole = await trackProcedure(client(mock), { id: 298723 });
+  const later = await trackProcedure(client(mock), { id: 298723, offset: 20 });
+  if (whole.status !== "ok" || later.status !== "ok") return assert.fail("not ok");
+  assert.deepEqual(later.timeline, whole.timeline.slice(20));
+  assert.deepEqual(later.votes, whole.votes);
+  assert.deepEqual(later.leadCommittees, whole.leadCommittees);
+  assert.equal(later.stepsTotal, 25);
+  const past = await trackProcedure(client(mock), { id: 298723, offset: 25 });
+  assert.equal(past.status === "ok" && past.timeline.length, 0);
+  assert.match(past.status === "ok" ? (past.note ?? "") : "", /offset 25 is past the last step \(25\)/);
+  await assert.rejects(trackProcedure(client(mock), { id: 298723, offset: -1 }), DipValidationError);
+});
+
 test("a page DIP repeats under a new cursor ends the reading: no step twice, and the answer says it is incomplete", async () => {
   const steps = Array.from({ length: 100 }, (_, i) => ({ id: String(1000 + i), vorgangsposition: "2. Beratung", datum: "2024-01-01", zuordnung: "BT", beschlussfassung: [{ beschlusstenor: "Annahme" }] }));
   let n = 0;

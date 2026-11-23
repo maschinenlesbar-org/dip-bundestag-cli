@@ -68,7 +68,7 @@ const output = (properties: Record<string, JsonSchema>): JsonSchema => ({
     searched: { type: "object" },
     total: { type: "integer" },
     candidates: { type: "array" },
-    complete: { type: "boolean" },
+    complete: { type: "boolean", description: "True when every match or item was read from DIP. A list the size cap cut is said by truncated, with nextOffset (call again from there) or reason." },
     ...properties,
   },
   required: ["status", "source", "licence"],
@@ -133,7 +133,7 @@ export const TOOLS: readonly ToolDefinition[] = [
     title: "Track a legislative procedure",
     description: [
       'A Bundestag procedure (Vorgang) end to end: where it stands, every step in Bundestag and Bundesrat, the votes and the committees. Use it for "Wie ist der Stand beim Heizungsgesetz?", "Wurde das Bürgergeld-Gesetz beschlossen?", "Überweisung an welche Ausschüsse?", "what\'s the status of the Heizungsgesetz?", "did the Bundestag pass X?", "where is procedure 298723 in the process?".',
-      "By id, or by whole words of the title (with electoralTerm, and type Gesetzgebung for a law): one match is tracked, several are status ambiguous (laws first, then newest): ask which and call again with its id. procedure.status (beratungsstand) is the headline; timeline is every step oldest first with chamber (BT/BR), document and decisions; votes lists only votes on the bill (2./3. Beratung, and after the mediation committee the vote on its proposal, the version that became law); leadCommittees the lead (federführend) committee per chamber; enacted is true only when promulgated or in force (promulgation, inForce).",
+      "By id, or by whole words of the title (with electoralTerm, and type Gesetzgebung for a law): one match is tracked, several are status ambiguous (laws first, then newest): ask which and call again with its id. procedure.status (beratungsstand) is the headline; timeline is every step oldest first with chamber (BT/BR), document and decisions (a long one cut to fit has nextOffset: call again with offset for the later, newest steps); votes lists only votes on the bill (2./3. Beratung, and after the mediation committee the vote on its proposal, the version that became law); leadCommittees the lead (federführend) committee per chamber; enacted is true only when promulgated or in force (promulgation, inForce).",
       "Traps: the title filter matches whole words of the title only, not the abstract and not word parts (\"Gebäudeenergie\" misses \"Gebäudeenergiegesetzes\"); a law's popular name is often not in its title: when only questions match, retry with a word of the official title and type Gesetzgebung. A decision's kind says what it is: a referral (Überweisung), a procedural motion (Geschäftsordnungsantrag), a Bundesrat opinion (Stellungnahme) or resolution is not a vote, and an Annahme in a 1. Beratung is not passing. A procedure with one step (an unanswered question) is normal.",
       RULES,
     ].join("\n\n"),
@@ -143,6 +143,7 @@ export const TOOLS: readonly ToolDefinition[] = [
       electoralTerm: term,
       type: text('Only procedures of this type with a title search: "Gesetzgebung" (laws), "Antrag", "Kleine Anfrage", …', 80),
       limit: limit(25, 10, "How many candidates when several match"),
+      offset: offset(10_000, "The first step of the timeline to give, to read on where nextOffset says; votes, leadCommittees and stepsTotal always cover every step"),
     }),
     outputSchema: output({
       procedure: obj,
@@ -153,12 +154,18 @@ export const TOOLS: readonly ToolDefinition[] = [
       votes: arr,
       leadCommittees: arr,
       stepsTotal: int,
+      nextOffset: int,
     }),
     source: (args) => byId("vorgang", args["id"]),
+    paged: (args) => ({ list: "timeline", offset: numArg(args, "offset") ?? 0 }),
     async run(args, context) {
       return {
         ...(await withKeyHint(context, () =>
-          trackProcedure(context.client, { id: numArg(args, "id"), title: strArg(args, "title"), electoralTerm: numArg(args, "electoralTerm"), type: strArg(args, "type"), limit: numArg(args, "limit") }, options(context)),
+          trackProcedure(
+            context.client,
+            { id: numArg(args, "id"), title: strArg(args, "title"), electoralTerm: numArg(args, "electoralTerm"), type: strArg(args, "type"), limit: numArg(args, "limit"), offset: numArg(args, "offset") },
+            options(context),
+          ),
         )),
       };
     },

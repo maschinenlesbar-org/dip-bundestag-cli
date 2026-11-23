@@ -12,7 +12,7 @@ import { listTools } from "../src/mcp/server.js";
 import { keyHint } from "../src/mcp/tools.js";
 import { KEY_SOURCE_URL } from "@maschinenlesbar.org/dip-bundestag-client/internal/obtain-key";
 import { connect, recorder } from "./harness.js";
-import { dipApi, jsonResponse, makeMockTransport, PERSON_1502, TEST_KEY } from "./helpers.js";
+import { dipApi, jsonResponse, makeMockTransport, PERSON_1502, POSITIONEN_298723, RECORDED_ROUTES, TEST_KEY } from "./helpers.js";
 
 const API = "https://search.dip.bundestag.de/api/v1";
 const pathOf = (call: { url: string }): string => new URL(call.url).pathname;
@@ -35,6 +35,35 @@ test("trackProcedure by id: status, timeline, the votes on the bill only, the ke
   assert.match(String(content["licence"]), /^Deutscher Bundestag, "Nutzungsbedingungen für DIP" \(27\.02\.2023\), custom terms.*Quelle: Deutscher Bundestag – DIP.*nutzungsbedingungen_dip\.pdf$/);
   assert.deepEqual(upstream.calls.map(pathOf), ["/api/v1/vorgang/298723", "/api/v1/vorgangsposition"]);
   assert.ok(upstream.calls.every((call) => call.headers?.["Authorization"] === `ApiKey ${TEST_KEY}`));
+  await connection.close();
+});
+
+test("trackProcedure: a timeline over the size cap keeps the votes whole and pages on with offset to the newest steps", async () => {
+  // The recorded 25 steps three times, a year apart (75 steps): over the default cap of 25 000.
+  const steps = [0, 1, 2].flatMap((year) =>
+    (POSITIONEN_298723.documents as Record<string, unknown>[]).map((doc) => ({ ...doc, id: `${year}-${String(doc["id"])}`, datum: String(doc["datum"]).replace(/^\d{4}/, (y) => String(Number(y) + year)) })),
+  );
+  const upstream = dipApi({ ...RECORDED_ROUTES, vorgangsposition: { numFound: steps.length, documents: steps, cursor: "end" } });
+  const connection = await connect({ transport: upstream });
+  const first = (await connection.call("trackProcedure", { id: 298723 })).structuredContent ?? {};
+  assert.equal(first["status"], "ok");
+  assert.equal(first["truncated"], true);
+  assert.equal(first["stepsTotal"], 75);
+  const timeline = first["timeline"] as { id: string; date: string }[];
+  assert.ok(timeline.length < 75);
+  assert.equal(first["nextOffset"], timeline.length, "the steps the cap dropped can be had");
+  assert.equal((first["votes"] as unknown[]).length, 6, "every vote stays, the newest included");
+  const rest: { id: string; date: string }[] = [];
+  for (let offset = first["nextOffset"] as number | undefined; offset !== undefined; ) {
+    const page = (await connection.call("trackProcedure", { id: 298723, offset })).structuredContent ?? {};
+    assert.equal(page["status"], "ok");
+    rest.push(...(page["timeline"] as { id: string; date: string }[]));
+    offset = page["nextOffset"] as number | undefined;
+  }
+  const all = [...timeline, ...rest];
+  assert.equal(all.length, 75);
+  assert.deepEqual(all.map((s) => s.date), all.map((s) => s.date).sort(), "oldest first across the pages");
+  assert.match(all[74]!.date, /^2025-/, "the newest step reached");
   await connection.close();
 });
 

@@ -238,6 +238,11 @@ export interface TrackProcedureInput {
   type?: string | undefined;
   /** At most this many candidates when several match (1-25, default 10). */
   limit?: number | undefined;
+  /**
+   * The first step of the timeline to give (default 0), to page through a long one; the votes, the
+   * lead committees and stepsTotal always cover every step.
+   */
+  offset?: number | undefined;
 }
 
 /** What a decision at a step is. Only `vote` is a vote on the bill itself. */
@@ -326,7 +331,7 @@ export type ProcedureTrack =
       enacted: boolean;
       promulgation?: { reference?: string; date?: string; pdfUrl?: string }[];
       inForce?: { date?: string; note?: string }[];
-      /** Every step, oldest first. */
+      /** Every step, oldest first (from `offset`, when given). */
       timeline: ProcedureStep[];
       /** The decisions that are votes on the bill (2./3. Beratung, or on the mediation committee's proposal), with their step. */
       votes: (Decision & { date?: string; chamber?: string; step?: string })[];
@@ -430,12 +435,14 @@ function procedureCandidate(raw: JsonObject): ProcedureCandidate {
  * one). Its steps are read with `f.vorgang` on the positions (the vorgang endpoint has no such
  * filter), every page with the same filter, and sorted oldest first (DIP's order is not
  * chronological). Each decision is named for what it is (see {@link decisionKind}); `enacted`
- * only from promulgation or entry into force, never from an "Annahme".
+ * only from promulgation or entry into force, never from an "Annahme". `offset` pages through a
+ * long timeline; the votes and lead committees are those of every step.
  */
 export async function trackProcedure(client: DipClient, input: TrackProcedureInput, options: OperationOptions = {}): Promise<ProcedureTrack> {
   oneOf("procedure", { id: input.id, title: input.title });
   const maxPages = options.maxPages ?? DEFAULT_MAX_PAGES;
   const limit = assertValid("limit", input.limit ?? 10, wholeUpTo(25));
+  const offset = assertValid("offset", input.offset ?? 0, offsetProblem);
   let id: string;
   let searched: Record<string, unknown>;
   if (input.id !== undefined) {
@@ -493,6 +500,7 @@ export async function trackProcedure(client: DipClient, input: TrackProcedureInp
   if (steps.length === 0) notes.push("DIP lists no steps for this procedure yet.");
   if (steps.length === 1) notes.push("One step only: normal for a question that is not answered yet, or a fresh procedure.");
   if (!positions.complete) notes.push(`Only ${steps.length} of ${positions.total} steps were read (${partly(positions)}); the timeline is incomplete.`);
+  if (offset > 0 && offset >= steps.length && steps.length > 0) notes.push(`offset ${offset} is past the last step (${steps.length}): the timeline is empty.`);
   return {
     status: "ok",
     searched,
@@ -500,7 +508,7 @@ export async function trackProcedure(client: DipClient, input: TrackProcedureInp
     enacted: promulgation.length > 0 || inForce.length > 0,
     ...(promulgation.length > 0 ? { promulgation } : {}),
     ...(inForce.length > 0 ? { inForce } : {}),
-    timeline: steps,
+    timeline: offset === 0 ? steps : steps.slice(offset),
     votes,
     leadCommittees,
     stepsTotal: positions.total,

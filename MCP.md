@@ -97,7 +97,7 @@ For scripts and shared configs, pin a release and its digest from the
 
 | Tool | What it answers |
 |---|---|
-| `trackProcedure` | A procedure (Vorgang) by id or title words: where it stands, every step oldest first with chamber and document, the decisions named for what they are, the votes on the bill, the lead committees, and whether it is promulgated. |
+| `trackProcedure` | A procedure (Vorgang) by id or title words: where it stands, every step oldest first with chamber and document, the decisions named for what they are, the votes on the bill, the lead committees, and whether it is promulgated. A long timeline the size cap cuts says `nextOffset`: `offset` reads on to the newest steps (the votes and committees are always those of every step). |
 | `profileMember` | A member of the Bundestag or another person by id or name: current function, Fraktion, ministry, terms, earlier roles, and on request the activities (speeches, questions, papers) of a term. |
 | `readDocument` | A Drucksache or Plenarprotokoll by id, number or title words: its metadata with the citation and PDF, and its full text in passages, or only the passages that hold a word. |
 | `searchRecords` | The records of one resource (procedures, steps, Drucksachen, Plenarprotokolle, activities, persons) with DIP's own filters, newest first, paged. |
