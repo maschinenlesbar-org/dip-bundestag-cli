@@ -9,10 +9,13 @@
 //   message with an invalid request (-32600), both with id null, and leaves a WARN record; the
 //   server goes on.
 // - A repeated --transport means the last one, for the parser and the bin alike.
-// These start a process (STARTS_A_PROCESS: 30 s, the workspace's allowance for that). Shared whole
-// across the repos with an MCP server: nothing here is particular to one.
+// These start a process (STARTS_A_PROCESS: 30 s, the workspace's allowance for that). A wait for
+// the server has no deadline of its own (a fixed 5 s failed on a loaded machine): the test's
+// timeout bounds it. Whatever the outcome, a test ends its server when it ends: stdin closed, and
+// SIGKILL if it still runs after a grace, so a failed or timed-out test can't keep `node --test`
+// waiting. Shared whole across the repos with an MCP server: nothing here is particular to one.
 
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -22,7 +25,11 @@ const STARTS_A_PROCESS = { timeout: 30_000 };
 const bin = fileURLToPath(new URL("../src/mcp/index.js", import.meta.url));
 const initialize = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "t", version: "0" } } });
 
-function start(argv: string[] = []) {
+/** How long a server the test has finished with gets to end by itself before it is killed. */
+const GRACE_MS = 2000;
+
+/** Start the bin; the test `t` ends it when the test ends, passed, failed or timed out. */
+function start(t: TestContext, argv: string[] = []) {
   // An upstream nobody listens on: no test here makes a request.
   const child = spawn(process.execPath, [bin, "--base-url", "https://127.0.0.1:9", ...argv], { stdio: ["pipe", "pipe", "pipe"] });
   let stdout = "";
@@ -30,18 +37,47 @@ function start(argv: string[] = []) {
   child.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString("utf8")));
   child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString("utf8")));
   const exited = new Promise<{ code: number | null; signal: string | null }>((resolve) => child.once("exit", (code, signal) => resolve({ code, signal })));
+  let closed = false;
+  child.once("close", () => (closed = true));
+  child.stdin.on("error", () => {}); // a server that already ended: EPIPE on stdin is no failure
+  t.after(async () => {
+    if (child.exitCode !== null || child.signalCode !== null) return;
+    child.stdin.end();
+    let timer: NodeJS.Timeout | undefined;
+    const graceOver = new Promise<"grace over">((resolve) => (timer = setTimeout(() => resolve("grace over"), GRACE_MS)));
+    const outcome = await Promise.race([exited, graceOver]);
+    clearTimeout(timer);
+    if (outcome === "grace over") {
+      child.kill("SIGKILL");
+      await exited;
+    }
+  });
+  /** Resolves once `ready()` holds or the server's output has ended; the test's timeout bounds the wait. */
+  const until = (ready: () => boolean): Promise<void> =>
+    new Promise((resolve) => {
+      const check = (): void => {
+        if (!ready() && !closed) return;
+        child.stdout.off("data", check);
+        child.off("close", check);
+        resolve();
+      };
+      // Registered after the collectors above, so `stdout` already holds the chunk when this runs.
+      child.stdout.on("data", check);
+      child.on("close", check);
+      check();
+    });
   const firstLine = async (): Promise<string> => {
-    for (let i = 0; i < 200 && !stdout.includes("\n"); i++) await new Promise((r) => setTimeout(r, 25));
+    await until(() => stdout.includes("\n"));
     return stdout.split("\n")[0] ?? "";
   };
-  return { child, exited, firstLine, out: () => stdout, err: () => stderr };
+  return { child, exited, until, firstLine, out: () => stdout, err: () => stderr };
 }
 
 const escape = (text: string): string => text.replace(/[.*+?^${}()|[\]\\-]/g, "\\$&");
 const records = (stderr: string) => stderr.split("\n").filter((line) => line !== "");
 
-test("an initialize gets one JSON-RPC line on stdout; the end of stdin ends the server with 0", STARTS_A_PROCESS, async () => {
-  const server = start();
+test("an initialize gets one JSON-RPC line on stdout; the end of stdin ends the server with 0", STARTS_A_PROCESS, async (t) => {
+  const server = start(t);
   server.child.stdin.write(`${initialize}\n`);
   const line = await server.firstLine();
   const answer = JSON.parse(line) as { id: number; result: { protocolVersion: string; serverInfo: { name: string } } };
@@ -55,8 +91,8 @@ test("an initialize gets one JSON-RPC line on stdout; the end of stdin ends the 
   for (const record of records(server.err())) assert.match(record, new RegExp(`^\\S+Z (INFO|WARN|ERROR) +\\[${escape(PROGRAM)}\\.\\w+\\] `));
 });
 
-test("SIGTERM ends the server with 143", STARTS_A_PROCESS, async () => {
-  const server = start();
+test("SIGTERM ends the server with 143", STARTS_A_PROCESS, async (t) => {
+  const server = start(t);
   server.child.stdin.write(`${initialize}\n`);
   await server.firstLine();
   server.child.kill("SIGTERM");
@@ -64,17 +100,17 @@ test("SIGTERM ends the server with 143", STARTS_A_PROCESS, async () => {
   assert.ok(exit.code === 143 || exit.signal === "SIGTERM", JSON.stringify(exit));
 });
 
-test("--version and --help print to stdout and exit 0; a usage error is one record and exit 2", STARTS_A_PROCESS, async () => {
-  const version = start(["--version"]);
+test("--version and --help print to stdout and exit 0; a usage error is one record and exit 2", STARTS_A_PROCESS, async (t) => {
+  const version = start(t, ["--version"]);
   assert.equal((await version.exited).code, 0);
   assert.match(version.out(), /^\d+\.\d+\.\d+\n$/);
-  const usage = start(["--port", "x"]);
+  const usage = start(t, ["--port", "x"]);
   assert.equal((await usage.exited).code, 2);
   assert.equal(records(usage.err()).length, 1);
 });
 
-test("stdin closed before any message (docker run without -i) is an ERROR record that says so, and exit 1", STARTS_A_PROCESS, async () => {
-  const server = start();
+test("stdin closed before any message (docker run without -i) is an ERROR record that says so, and exit 1", STARTS_A_PROCESS, async (t) => {
+  const server = start(t);
   server.child.stdin.end();
   assert.deepEqual(await server.exited, { code: 1, signal: null });
   const lines = records(server.err());
@@ -83,11 +119,11 @@ test("stdin closed before any message (docker run without -i) is an ERROR record
   assert.equal(server.out(), "", "stdout stays empty");
 });
 
-test("a line that isn't JSON-RPC is answered with -32700 or -32600 and a WARN record; the server goes on", STARTS_A_PROCESS, async () => {
-  const server = start();
+test("a line that isn't JSON-RPC is answered with -32700 or -32600 and a WARN record; the server goes on", STARTS_A_PROCESS, async (t) => {
+  const server = start(t);
   const invalid = ["not json", "{oops", "[]", JSON.stringify({ jsonrpc: "2.0", id: 99 }), JSON.stringify({ jsonrpc: "1.0", id: 98, method: "ping" })];
   server.child.stdin.write(`${invalid.join("\n")}\n${initialize}\n`);
-  for (let i = 0; i < 200 && server.out().split("\n").filter(Boolean).length < invalid.length + 1; i++) await new Promise((r) => setTimeout(r, 25));
+  await server.until(() => server.out().split("\n").filter(Boolean).length >= invalid.length + 1);
   server.child.stdin.end();
   assert.deepEqual(await server.exited, { code: 0, signal: null });
   const answers = server.out().split("\n").filter(Boolean).map((line) => JSON.parse(line) as { id: unknown; error?: { code: number }; result?: unknown });
@@ -101,8 +137,8 @@ test("a line that isn't JSON-RPC is answered with -32700 or -32600 and a WARN re
   assert.equal(warnings.length, invalid.length, server.err());
 });
 
-test("a repeated --transport means the last one: stdio, which ends with stdin like any other", STARTS_A_PROCESS, async () => {
-  const server = start(["--transport", "http", "--transport", "stdio"]);
+test("a repeated --transport means the last one: stdio, which ends with stdin like any other", STARTS_A_PROCESS, async (t) => {
+  const server = start(t, ["--transport", "http", "--transport", "stdio"]);
   server.child.stdin.end();
   assert.deepEqual(await server.exited, { code: 1, signal: null }, server.err());
   assert.match(records(server.err()).at(-1) ?? "", new RegExp(`ERROR \\[${escape(PROGRAM)}\\.mcp\\] stdin ended before any MCP message`));

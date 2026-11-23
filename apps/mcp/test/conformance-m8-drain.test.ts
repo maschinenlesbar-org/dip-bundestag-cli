@@ -3,9 +3,11 @@
 // - A call in flight still gets its answer, then the server ends, without waiting out the drain
 //   time; an INFO record says how many calls it waits for.
 // - The drain is bounded: a call that doesn't finish is cut off after the drain time.
+// A test stops its server when it ends, whatever the outcome: a failed or timed-out test would
+// otherwise leave it listening, and `node --test` waiting for it.
 // Shared across the repos with an MCP server; only the adapter differs.
 
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import type { HttpRequest, HttpResponse } from "../src/mcp/api.js";
 import { PROGRAM } from "../src/mcp/version.js";
@@ -21,9 +23,10 @@ const ANSWER = (_request: HttpRequest): HttpResponse => jsonResponse(PERSON_1502
 /**
  * Run the HTTP server with an upstream that answers after `delayMs` (or never). `reached`
  * resolves when the call's first request reaches the upstream: the call is in flight then, on a
- * slow machine too (a fixed wait raced the request on CI's Linux runners).
+ * slow machine too (a fixed wait raced the request on CI's Linux runners). The server stops when
+ * the test `t` ends (stopping twice is no harm).
  */
-async function slowServer(delayMs: number | undefined, drainMs: number) {
+async function slowServer(t: TestContext, delayMs: number | undefined, drainMs: number) {
   let reachedNow = (): void => {};
   const reached = new Promise<void>((resolve) => (reachedNow = resolve));
   const transport = (request: HttpRequest) =>
@@ -32,13 +35,18 @@ async function slowServer(delayMs: number | undefined, drainMs: number) {
       if (delayMs !== undefined) setTimeout(() => resolve(ANSWER(request)), delayMs);
       request.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
     });
-  return { ...(await startHttp([], { transport, drainMs })), reached };
+  const server = await startHttp([], { transport, drainMs });
+  t.after(async () => {
+    server.stop();
+    await server.done;
+  });
+  return { ...server, reached };
 }
 
 const call = JSON.stringify({ jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: CALL.name, arguments: CALL.arguments } });
 
-test("stopping drains: a call in flight still gets its answer, then the server ends", async () => {
-  const server = await slowServer(300, 5000);
+test("stopping drains: a call in flight still gets its answer, then the server ends", async (t) => {
+  const server = await slowServer(t, 300, 5000);
   const answer = send(server.port, { headers: headers(server.port), body: call });
   await server.reached;
   const stoppedAt = Date.now();
@@ -54,8 +62,8 @@ test("stopping drains: a call in flight still gets its answer, then the server e
   assert.ok(server.lines.some((line) => line.includes(`INFO  [${PROGRAM}.mcp] stopping: waiting up to 5 s for 1 call in flight`)), server.lines.join("\n"));
 });
 
-test("the drain is bounded: a call that doesn't finish is cut off after the drain time", async () => {
-  const server = await slowServer(undefined, 200);
+test("the drain is bounded: a call that doesn't finish is cut off after the drain time", async (t) => {
+  const server = await slowServer(t, undefined, 200);
   const cut = send(server.port, { headers: headers(server.port), body: call }).then(
     () => "answered",
     (err: Error) => err.message,
