@@ -12,7 +12,7 @@ export const MAX_FIELD_LENGTH = 2000;
 // line and paragraph separators, BOM: invisible or able to reorder or hide text, never content.
 const INVISIBLE = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u061c\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff]/gu;
 
-/** `value` with every string cleaned and cut; lone surrogates replaced. */
+/** `value` with every string (keys too) cleaned and cut; lone surrogates replaced. */
 export function cleanStrings<T>(value: T): T {
   if (typeof value === "string") {
     const clean = toWellFormed(value).replace(INVISIBLE, "");
@@ -20,7 +20,7 @@ export function cleanStrings<T>(value: T): T {
   }
   if (Array.isArray(value)) return value.map((item) => cleanStrings(item)) as T;
   if (typeof value === "object" && value !== null) {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, cleanStrings(item)])) as T;
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [cleanStrings(key), cleanStrings(item)])) as T;
   }
   return value;
 }

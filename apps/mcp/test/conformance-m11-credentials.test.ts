@@ -12,7 +12,8 @@
 //   that fails is that call's tool error and is tried again at the next call.
 // - The secrets are replaced in every string of a result (keys too), in a tool error's message
 //   and in the ERROR record of a bug; very short values are no secrets; a short value (a user
-//   name) only where it stands whole, never inside a word of the data.
+//   name) only where it stands whole, never inside a word of the data; also when the upstream
+//   echoes it with an invisible character inside (cleaning would put it back together).
 // The tests run in process with their own environment (never the real one, never a credentials
 // file). Those that need credentials are skipped for an API without them. Shared across the repos with an MCP server; only
 // the adapter differs.
@@ -212,3 +213,22 @@ test("a tool error and a bug's record (the server's log) never carry a secret", 
   assert.ok(lines.length > 0 && !records(lines).includes("s3cret-value"), records(lines));
   assert.match(records(lines), /crashed on \*\*\*/);
 });
+
+test("a secret echoed with an invisible character inside is replaced: the answer is cleaned before the secrets are taken out", async () => {
+  const secrets = new Secrets();
+  secrets.add(["env-secret-9876", "Bund"]);
+  const { log, lines } = recorder();
+  const tool = TOOLS[0] as ToolDefinition;
+  const env = { client: newClient({ transport: noUpstream }) as Client, apiBase: apiBase(undefined), config: config(), log: redactingLog(log, secrets), secrets };
+  for (const hidden of ["\u200b", "\u202e", "\u2066", "\u0007", "\ufeff"]) {
+    const echoed = `env-secret${hidden}-9876`;
+    const ok = await callTool({ ...tool, run: () => Promise.resolve({ status: "ok", title: `Kurs ${echoed}`, [`key ${echoed}`]: `B${hidden}und` }) }, {}, new AbortController().signal, env);
+    assert.ok(!JSON.stringify(ok).includes("env-secret-9876"), JSON.stringify(ok));
+    assert.equal(ok.structuredContent?.["title"], "Kurs ***");
+    assert.equal(ok.structuredContent?.["key ***"], "***", "keys are cleaned too, and a short secret put back together is whole");
+    const refused = await callTool({ ...tool, run: () => Promise.reject(new ClientError(`refused with ${echoed}`)) }, {}, new AbortController().signal, env);
+    assert.equal(refused.content[0]?.text, "refused with ***");
+  }
+  assert.ok(!records(lines).includes("env-secret-9876"), records(lines));
+});
+

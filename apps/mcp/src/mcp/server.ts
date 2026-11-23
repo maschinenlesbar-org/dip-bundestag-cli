@@ -211,11 +211,15 @@ export async function callTool(
     );
     const path = typeof tool.source === "function" ? tool.source(args, env.apiBase) : tool.source;
     const source = /^https?:\/\//.test(path) ? path : `${env.apiBase}/${path}`;
-    const redacted = env.secrets === undefined ? answer : env.secrets.redactAll(answer);
+    // The secrets are taken out before cleaning (which cuts long strings: never half a secret left)
+    // and again after it: cleaning removes invisible characters, and would put back together a
+    // secret the upstream echoed with one inside.
+    const redacted = env.secrets === undefined ? answer : env.secrets.redactAll(cleanStrings(env.secrets.redactAll(answer)));
     const shaped = fitResult(cleanStrings({ ...redacted, source, licence: LICENCE }), env.config.maxResultChars, tool.paged?.(args));
     return { content: [{ type: "text", text: JSON.stringify(shaped) }], structuredContent: shaped };
   } catch (err) {
-    const redact = env.secrets?.redact ?? ((text: string) => text);
+    // The secrets taken out before and after cleaning, as from an answer (errorResult cleans it again).
+    const redact = (text: string): string => (env.secrets === undefined ? text : env.secrets.redact(cleanStrings(env.secrets.redact(text))));
     if (deadline.aborted && !cancelled.aborted) {
       env.log.warn("server", `${tool.name} stopped at the call deadline (${env.config.callTimeoutMs} ms)`);
       return errorResult(`The call took longer than ${Math.round(env.config.callTimeoutMs / 1000)} s and was stopped. ${DEADLINE_HINT}`);
