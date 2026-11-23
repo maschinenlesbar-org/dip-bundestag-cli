@@ -1,7 +1,7 @@
 // Shaping a tool's answer before it leaves the server: every string from upstream is cleaned in
 // the value (the MCP spec: servers must sanitize tool outputs), and the whole result is kept
-// under a size the client and the model can take, by dropping whole list entries, never by
-// cutting the JSON.
+// under a size the client and the model can take, by dropping whole list entries and cutting long
+// texts, never by cutting the JSON.
 
 import { cutText, toWellFormed } from "./api.js";
 
@@ -92,14 +92,57 @@ export function cutMiddle(text: string, max: number): string {
   return `${head}${mark}${/^[\udc00-\udfff]/.test(tail) ? tail.slice(1) : tail}`;
 }
 
+/** The shortest a text is cut to so that a result fits under the cap, its cut mark counted in. */
+const MIN_FIT_LENGTH = 100;
+
+/** A result's own fields, never cut to fit: what the answer is, where it came from, under what licence. */
+const OWN_FIELDS = new Set(["status", "source", "licence", "reason"]);
+
+const CUT_MARK = /…\[cut, (\d+) characters in all\]$/;
+
+/** The longest string in `value`. */
+function longestString(value: unknown): number {
+  if (typeof value === "string") return value.length;
+  if (typeof value !== "object" || value === null) return 0;
+  return Object.values(value).reduce<number>((longest, item) => Math.max(longest, longestString(item)), 0);
+}
+
+/** `value` with every string longer than `max` cut to `max`, ending in a cut mark with its whole length. */
+function shorten(value: unknown, max: number): unknown {
+  if (typeof value === "string") {
+    if (value.length <= max) return value;
+    // A text cut before keeps the whole length its mark already names.
+    const marked = CUT_MARK.exec(value);
+    const mark = cutMark(marked === null ? value.length : Number(marked[1]));
+    return `${cutText(marked === null ? value : value.slice(0, marked.index), max - mark.length)}${mark}`;
+  }
+  if (Array.isArray(value)) return value.map((item) => shorten(item, max));
+  if (typeof value === "object" && value !== null) return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, shorten(item, max)]));
+  return value;
+}
+
+/** The largest n from `low` to `high` for which `fits(n)` holds (it holds for every smaller one), else `low`. */
+function largest(low: number, high: number, fits: (n: number) => boolean): number {
+  let best = low;
+  while (low <= high) {
+    const n = Math.floor((low + high) / 2);
+    if (fits(n)) [best, low] = [n, n + 1];
+    else high = n - 1;
+  }
+  return best;
+}
+
 /**
- * `result` cut to at most `maxChars` characters of JSON by dropping entries from the end of
- * its lists (the longest list first), with `truncated: true` and, for a paged list, the
- * `nextOffset` to continue from. A result that fits is returned as it is.
+ * `result` cut to at most `maxChars` characters of JSON, never by cutting the JSON, with
+ * `truncated: true`: first by dropping entries from the end of its lists (the longest list
+ * first; for a paged list with the `nextOffset` to continue from), then by cutting its longest
+ * texts, each to no less than MIN_FIT_LENGTH and ending in a cut mark. A result that fits is
+ * returned as it is; one that can't be cut so far is undefined (the caller answers with an error).
  */
-export function fitResult<T extends Record<string, unknown>>(result: T, maxChars: number, paged?: { list: string; offset: number }): T {
+export function fitResult<T extends Record<string, unknown>>(result: T, maxChars: number, paged?: { list: string; offset: number }): T | undefined {
   if (JSON.stringify(result).length <= maxChars) return result;
-  const fitted: Record<string, unknown> = { ...result, truncated: true };
+  let fitted: Record<string, unknown> = { ...result, truncated: true };
+  const fits = (): boolean => JSON.stringify(fitted).length <= maxChars;
   const lists = Object.keys(fitted).filter((key) => Array.isArray(fitted[key]));
   for (const key of lists) fitted[key] = [...(fitted[key] as unknown[])];
   // nextOffset counts toward the size, so it is kept current while entries are dropped.
@@ -107,7 +150,7 @@ export function fitResult<T extends Record<string, unknown>>(result: T, maxChars
     if (paged !== undefined) fitted["nextOffset"] = paged.offset + ((fitted[paged.list] as unknown[] | undefined)?.length ?? 0);
   };
   mark();
-  while (JSON.stringify(fitted).length > maxChars) {
+  while (!fits()) {
     const longest = lists.reduce<string | undefined>(
       (best, key) => ((fitted[key] as unknown[]).length > ((best === undefined ? [] : fitted[best]) as unknown[]).length ? key : best),
       undefined,
@@ -116,5 +159,15 @@ export function fitResult<T extends Record<string, unknown>>(result: T, maxChars
     (fitted[longest] as unknown[]).pop();
     mark();
   }
-  return fitted as T;
+  if (fits()) return fitted as T;
+  // The texts, the longest first: every one over the length found is cut to it (the server's own
+  // fields stay whole).
+  const whole = fitted;
+  const cutTo = (max: number): Record<string, unknown> => Object.fromEntries(Object.entries(whole).map(([key, item]) => [key, OWN_FIELDS.has(key) ? item : shorten(item, max)]));
+  const longest = Math.max(0, ...Object.entries(whole).map(([key, item]) => (OWN_FIELDS.has(key) ? 0 : longestString(item))));
+  if (longest > MIN_FIT_LENGTH) {
+    fitted = cutTo(largest(MIN_FIT_LENGTH, longest - 1, (max) => ((fitted = cutTo(max)), fits())));
+    if (fits()) return fitted as T;
+  }
+  return undefined;
 }

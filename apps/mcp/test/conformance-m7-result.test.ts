@@ -2,8 +2,9 @@
 // - Every string from upstream is cleaned in the value: control, bidi, zero-width, separator, tag
 //   and every other default-ignorable character dropped (an emoji keeps its joiners), lone
 //   surrogates replaced, long text cut; keys too, none lost; through a real tool call too.
-// - A result over --max-result-chars drops whole list entries (never cuts the JSON), says
-//   truncated, and for a paged list where to go on (nextOffset).
+// - A result over --max-result-chars drops whole list entries, then cuts its longest texts (never
+//   the JSON), says truncated, and for a paged list where to go on (nextOffset); one that can't be
+//   cut so far is a tool error that says to ask for less.
 // - An answer a redirect brought from another origin (a client that follows redirects) names that
 //   origin in `source`, with a WARN record: it is not cited as the API's own.
 // Shared across the repos with an MCP server; only the adapter differs.
@@ -90,12 +91,39 @@ test("fitResult leaves a result that fits alone, and otherwise drops entries fro
   const small = { status: "ok", data: [1, 2] };
   assert.equal(fitResult(small, 1000), small);
   const big = { status: "ok", data: Array.from({ length: 50 }, (_, i) => `item ${i} ${"x".repeat(20)}`), other: ["a"] };
-  const fitted: Record<string, unknown> = fitResult(big, 300, { list: "data", offset: 40 });
+  const fitted: Record<string, unknown> = fitResult(big, 300, { list: "data", offset: 40 }) ?? {};
   assert.ok(JSON.stringify(fitted).length <= 300);
   assert.equal(fitted["truncated"], true);
   assert.deepEqual(fitted["other"], ["a"]);
   assert.equal(fitted["nextOffset"], 40 + (fitted["data"] as unknown[]).length);
   assert.equal(big.data.length, 50, "the input is not changed");
+});
+
+test("fitResult keeps a result without lists under the cap by cutting its longest texts, each with a mark of its whole length", () => {
+  const record = Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`field${i}`, `${i} ${"x".repeat(1500)}`]));
+  const result = { status: "ok", item: { ...record, short: "kept", again: `${"y".repeat(1000)}${cutMark(9000)}` }, source: `https://api.example/${"s".repeat(300)}` };
+  const fitted: Record<string, unknown> | undefined = fitResult(result, 25_000);
+  assert.ok(fitted !== undefined);
+  assert.ok(JSON.stringify(fitted).length <= 25_000, `${JSON.stringify(fitted).length}`);
+  assert.equal(fitted["truncated"], true);
+  const item = fitted["item"] as Record<string, string>;
+  assert.equal(Object.keys(item).length, 102, "no field is dropped");
+  assert.equal(item["short"], "kept");
+  assert.ok(item["field0"]?.startsWith("0 xxx") && item["field0"].endsWith(cutMark(1502)), item["field0"]?.slice(-60));
+  assert.ok(item["again"]?.endsWith(cutMark(9000)), "a text cut before keeps its whole length in the mark");
+  assert.equal(fitted["source"], result.source, "the server's own fields are not cut");
+});
+
+test("a result that can't be cut under the cap is a tool error that says what to ask instead", async () => {
+  const numbers = Object.fromEntries(Array.from({ length: 500 }, (_, i) => [`n${i}`, 123_456_789 + i]));
+  assert.equal(fitResult({ status: "ok", item: numbers }, 1000), undefined);
+  const big: ToolDefinition = { ...(TOOLS[0] as ToolDefinition), source: "big", run: async () => ({ status: "ok", item: numbers }) };
+  const logged = recorder();
+  const env = { client: newClient({ transport: noUpstream }), apiBase: "https://api.example/api", config: config({ maxResultChars: 1000 }), log: logged.log };
+  const result = await callTool(big, {}, new AbortController().signal, env);
+  assert.equal(result.isError, true);
+  assert.match(result.content[0]?.text ?? "", /larger than .*1000 characters.*--max-result-chars/);
+  assert.match(logged.lines.join("\n"), /WARN .*max-result-chars/);
 });
 
 test("text from upstream is cleaned in the value through a tool call: control, bidi, zero-width and tag characters dropped", async () => {
