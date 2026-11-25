@@ -27,6 +27,8 @@ const CALL = { name: "getRecord", arguments: { resource: "person", id: 1502 } };
 
 // A client for a test (harness.ts: with the repository's test login, where its client needs one).
 const { newClient } = await import("./harness.js");
+// The result cap's advice (imported here, below the adapter block, which a repo keeps as it is).
+const { SIZE_HINT } = await import("../src/mcp/tools.js");
 
 const tool = TOOLS.find((t) => t.name === CALL.name) as ToolDefinition;
 // An upstream that never answers, but ends a request when its signal aborts, as the real
@@ -143,14 +145,16 @@ test("a long tool error keeps its start, what failed, and its end, where the rea
   assert.equal((await callTool(short, {}, new AbortController().signal, e)).content[0]?.text, `GET x failed ${reason}`);
 });
 
-test("an answer over the server's size cap is a tool error that says what to ask instead, not a CLI option", async () => {
+test("an upstream answer over the read limit is a tool error that says narrower options don't help, not a CLI option", async () => {
   const huge = makeMockTransport(() => ({ status: 200, headers: { "content-type": "application/json" }, body: Buffer.alloc(17 * 1024 * 1024, 0x20) }));
   const connection = await connect({ transport: huge });
   const result = await connection.call(CALL.name, CALL.arguments);
   assert.equal(result.isError, true);
   const text = result.content[0]?.text ?? "";
   assert.doesNotMatch(text, /--max-response-bytes|on the CLI/);
-  assert.match(text, /is larger than this server accepts \(16 MiB\)\. \S/);
+  assert.match(text, /is larger than this server accepts \(16 MiB\): the source's answer is over the read limit/);
+  assert.match(text, new RegExp(`narrower options of ${CALL.name} don't help`));
+  assert.ok(!text.includes(SIZE_HINT), "the result cap's advice (limit, offset) can't make the source's answer smaller");
   await connection.close();
 });
 

@@ -67,6 +67,14 @@ export interface ToolDefinition {
    * caps the whole result.
    */
   maxFieldLength?: number;
+  /**
+   * The keys of lists (or objects) in the result that `--max-result-chars` never shortens or cuts:
+   * a snapshot the caller compares against, or a dictionary the rest is read with, of which a part
+   * would be wrong data. The other lists and texts give way first; a result that still doesn't fit
+   * is the size error, naming these. Not the page (`paged`): a page goes on with `nextOffset`.
+   * `maxFieldLength` still cuts a long string in them.
+   */
+  keepWhole?: readonly string[];
   run(args: Record<string, unknown>, context: ToolContext): Promise<Record<string, unknown>>;
 }
 
@@ -236,10 +244,12 @@ export async function callTool(
     // `source` and `licence` are the server's own (the licence a constant, the source the request,
     // bounded by the input schema's limits and the ids it cites): `source` is cleaned but never cut
     // like upstream text.
-    const shaped = fitResult({ ...cleaned, source: cleanText(source), licence: LICENCE, ...(cut ? { truncated: true } : {}) }, env.config.maxResultChars, tool.paged?.(args), SIZE_HINT);
+    const shaped = fitResult({ ...cleaned, source: cleanText(source), licence: LICENCE, ...(cut ? { truncated: true } : {}) }, env.config.maxResultChars, tool.paged?.(args), SIZE_HINT, tool.keepWhole);
     if (shaped === undefined) {
+      // A list the tool keeps whole is part of why: a part of it would be wrong data, so it is the error.
+      const kept = tool.keepWhole === undefined || tool.keepWhole.length === 0 ? "" : ` ${tool.keepWhole.join(", ")} ${tool.keepWhole.length === 1 ? "is" : "are"} kept whole (a part would be wrong data).`;
       env.log.warn("server", `${tool.name}: the result is over --max-result-chars (${env.config.maxResultChars}) even with its lists and texts cut down`);
-      return errorResult(`The answer is larger than this server's size cap (${env.config.maxResultChars} characters, --max-result-chars), even with its lists and texts cut down. ${SIZE_HINT}`);
+      return errorResult(`The answer is larger than this server's size cap (${env.config.maxResultChars} characters, --max-result-chars), even with its lists and texts cut down.${kept} ${SIZE_HINT}`);
     }
     return { content: [{ type: "text", text: JSON.stringify(shaped) }], structuredContent: shaped };
   } catch (err) {
@@ -251,10 +261,13 @@ export async function callTool(
       return errorResult(`The call took longer than ${Math.round(env.config.callTimeoutMs / 1000)} s and was stopped. ${DEADLINE_HINT}`);
     }
     if (err instanceof NetworkError && cancelled.aborted) return errorResult("The call was cancelled.");
-    // The client's size-cap text names the CLI's option, which a model calling this server can't use.
+    // The client's size-cap text names the CLI's option, which a model calling this server can't
+    // use; and SIZE_HINT's advice (limit, offset, fields) shapes the result, not what the source sends.
     if (err instanceof NetworkError && err.message.includes(sizeLimitMessage(MAX_UPSTREAM_BYTES))) {
       env.log.warn("http", `${tool.name}: ${redact(err.message)}`);
-      return errorResult(`The answer from ${TITLE} is larger than this server accepts (${MAX_UPSTREAM_BYTES / 1024 / 1024} MiB). ${SIZE_HINT}`);
+      return errorResult(
+        `The answer from ${TITLE} is larger than this server accepts (${MAX_UPSTREAM_BYTES / 1024 / 1024} MiB): the source's answer is over the read limit, and narrower options of ${tool.name} don't help, since they don't change what the source sends.`,
+      );
     }
     if (err instanceof ClientError) {
       // An operator sees why calls fail: the upstream's error (api), or the transport's (http).
