@@ -479,9 +479,12 @@ CLI. Each resource is a generic **ResourceGroup** with `.list(params)` and
 
 **Custom transports.** The engine holds the contract for every transport, not only
 the built-in one. `timeoutMs` is enforced by the engine: the transport gets an
-`AbortSignal` (`HttpRequest.signal`) that fires at the deadline, and the call
-rejects then whether the transport stops or not, so a `fetch` transport can't hang
-a caller. `maxResponseBytes` is checked on the body any transport returns (the
+`AbortSignal` (`HttpRequest.signal`) that fires at the deadline, with the timeout
+error as its reason, and the call rejects then whether the transport stops or not, so
+a `fetch` transport can't hang a caller. The built-in transport stops with the signal's
+reason; for a signal some other caller aborted (the MCP server's tool call: its
+deadline, a cancellation) it says "Request aborted by its caller before it finished",
+never a timeout it didn't have. `maxResponseBytes` is checked on the body any transport returns (the
 built-in one aborts early). A body may be a Buffer, any `ArrayBuffer` view
 (fetch's `Uint8Array`, from any realm), an `ArrayBuffer` or a string; headers may be
 a plain record in any case, a `Headers` object or a `Map`. Whatever a transport
