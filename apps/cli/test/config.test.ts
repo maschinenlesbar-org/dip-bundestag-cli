@@ -153,7 +153,13 @@ test("the credentials file: where it is, what it refuses, and how it masks", () 
     mkdirSync(join(dir, "real"));
     writeFileSync(join(dir, "real", "credentials"), JSON.stringify({ "api-key": KEY }), { mode: 0o600 });
     symlinkSync(join(dir, "real", "credentials"), join(dir, "link"));
-    assert.throws(() => new CredentialStore(join(dir, "link")).get("api-key"), /not a regular file/);
+    // A link is named as one, with the fix: the file itself in its place, or `dip config set`.
+    assert.throws(() => new CredentialStore(join(dir, "link")).get("api-key"), (err: Error) => {
+      assert.match(err.message, /link is a symbolic link; a credentials file is never read through a link/);
+      assert.match(err.message, /replace the link with the file itself, or remove it and run `dip config set api-key`/);
+      return true;
+    });
+    assert.throws(() => new CredentialStore(join(dir, "real")).get("api-key"), /real is not a regular file; it cannot be the credentials file/);
     const store = new CredentialStore(join(dir, "fresh", "credentials"));
     store.set("api-key", KEY);
     assert.deepEqual(JSON.parse(readFileSync(store.path, "utf8")), { "api-key": KEY });
