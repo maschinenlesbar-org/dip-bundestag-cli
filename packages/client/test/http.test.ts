@@ -17,6 +17,8 @@ async function withServer(
   try {
     await fn(`http://127.0.0.1:${addr.port}`);
   } finally {
+    // A test that failed mid-request leaves its connection open; close() alone would wait for it.
+    server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 }
@@ -101,7 +103,10 @@ test("a timeoutMs beyond Node's timer range is capped, not fired after 1 ms", as
     await withServer(
       (_req, res) => void setTimeout(() => res.end("{}"), 50),
       async (baseUrl) => {
-        const resp = await nodeHttpTransport({ method: "GET", url: baseUrl, timeoutMs: 3_000_000_000 });
+        // The capped deadline is about 24.8 days: the test bounds the request itself, so a request
+        // that hangs (a loaded machine) fails here and closes the server instead of keeping the
+        // test process alive after the test's own timeout.
+        const resp = await nodeHttpTransport({ method: "GET", url: baseUrl, timeoutMs: 3_000_000_000, signal: AbortSignal.timeout(4_000) });
         assert.equal(resp.body.toString("utf8"), "{}");
       },
     );
